@@ -2,16 +2,28 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiError } from "../utils/ApiError";
 import { LEAD_STATUSES, Lead, LeadInput, LeadStats, LeadStatus } from "../types/lead";
 
+function throwLeadDatabaseError(
+  error: { code?: string; message: string },
+  fallbackStatus: number,
+): never {
+  if (error.code === "42501") {
+    throw new ApiError(403, "Insufficient workspace permissions");
+  }
+  throw new ApiError(fallbackStatus, error.message);
+}
+
 export class LeadService {
-  constructor(private supabase: SupabaseClient, private userId: string) {}
+  constructor(
+    private supabase: SupabaseClient,
+    private userId: string,
+  ) {}
 
   async list(): Promise<Lead[]> {
     const { data, error } = await this.supabase
       .from("leads")
       .select("*")
-      .eq("user_id", this.userId)
       .order("created_at", { ascending: false });
-    if (error) throw new ApiError(500, error.message);
+    if (error) throwLeadDatabaseError(error, 500);
     return (data ?? []) as Lead[];
   }
 
@@ -22,10 +34,9 @@ export class LeadService {
     const { data, error } = await this.supabase
       .from("leads")
       .select("*")
-      .eq("user_id", this.userId)
       .or(`name.ilike.${pattern},email.ilike.${pattern},company_name.ilike.${pattern}`)
       .order("created_at", { ascending: false });
-    if (error) throw new ApiError(500, error.message);
+    if (error) throwLeadDatabaseError(error, 500);
     return (data ?? []) as Lead[];
   }
 
@@ -35,7 +46,7 @@ export class LeadService {
       .insert({ ...input, user_id: this.userId })
       .select("*")
       .single();
-    if (error) throw new ApiError(400, error.message);
+    if (error) throwLeadDatabaseError(error, 400);
     return data as Lead;
   }
 
@@ -44,29 +55,27 @@ export class LeadService {
       .from("leads")
       .update(input)
       .eq("id", id)
-      .eq("user_id", this.userId)
       .select("*")
       .single();
-    if (error) throw new ApiError(400, error.message);
+    if (error) throwLeadDatabaseError(error, 400);
     if (!data) throw new ApiError(404, "Lead not found");
     return data as Lead;
   }
 
   async remove(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from("leads")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", this.userId);
-    if (error) throw new ApiError(400, error.message);
+    const { error } = await this.supabase.from("leads").delete().eq("id", id);
+    if (error) throwLeadDatabaseError(error, 400);
   }
 
   async stats(): Promise<LeadStats> {
     const leads = await this.list();
-    const byStatus = LEAD_STATUSES.reduce((acc, s) => {
-      acc[s] = 0;
-      return acc;
-    }, {} as Record<LeadStatus, number>);
+    const byStatus = LEAD_STATUSES.reduce(
+      (acc, s) => {
+        acc[s] = 0;
+        return acc;
+      },
+      {} as Record<LeadStatus, number>,
+    );
     leads.forEach((l) => {
       byStatus[l.lead_status] += 1;
     });

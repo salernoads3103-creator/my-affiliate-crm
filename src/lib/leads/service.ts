@@ -7,17 +7,26 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Lead, LeadInput, LeadStats, LeadStatus } from "./types";
 import { LEAD_STATUSES } from "./types";
+import { ApiError } from "./api-error";
+
+function leadDatabaseError(error: { code?: string; message: string }): Error {
+  if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
+  if (error.code === "PGRST116") return new ApiError(404, "Lead not found");
+  return new Error(error.message);
+}
 
 export class LeadService {
-  constructor(private supabase: SupabaseClient, private userId: string) {}
+  constructor(
+    private supabase: SupabaseClient,
+    private userId: string,
+  ) {}
 
   async list(): Promise<Lead[]> {
     const { data, error } = await this.supabase
       .from("leads")
       .select("*")
-      .eq("user_id", this.userId)
       .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) throw leadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
 
@@ -28,10 +37,9 @@ export class LeadService {
     const { data, error } = await this.supabase
       .from("leads")
       .select("*")
-      .eq("user_id", this.userId)
       .or(`name.ilike.${pattern},email.ilike.${pattern},company_name.ilike.${pattern}`)
       .order("created_at", { ascending: false });
-    if (error) throw new Error(error.message);
+    if (error) throw leadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
 
@@ -41,7 +49,7 @@ export class LeadService {
       .insert({ ...input, user_id: this.userId })
       .select("*")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw leadDatabaseError(error);
     return data as Lead;
   }
 
@@ -50,29 +58,29 @@ export class LeadService {
       .from("leads")
       .update(input)
       .eq("id", id)
-      .eq("user_id", this.userId)
       .select("*")
       .single();
-    if (error) throw new Error(error.message);
+    if (error) throw leadDatabaseError(error);
     return data as Lead;
   }
 
   async remove(id: string): Promise<void> {
-    const { error } = await this.supabase
-      .from("leads")
-      .delete()
-      .eq("id", id)
-      .eq("user_id", this.userId);
-    if (error) throw new Error(error.message);
+    const { error } = await this.supabase.from("leads").delete().eq("id", id);
+    if (error) throw leadDatabaseError(error);
   }
 
   async stats(): Promise<LeadStats> {
     const leads = await this.list();
-    const byStatus = LEAD_STATUSES.reduce((acc, s) => {
-      acc[s] = 0;
-      return acc;
-    }, {} as Record<LeadStatus, number>);
-    leads.forEach((l) => { byStatus[l.lead_status] += 1; });
+    const byStatus = LEAD_STATUSES.reduce(
+      (acc, s) => {
+        acc[s] = 0;
+        return acc;
+      },
+      {} as Record<LeadStatus, number>,
+    );
+    leads.forEach((l) => {
+      byStatus[l.lead_status] += 1;
+    });
 
     // Weekly trend (last 14 days)
     const days: { date: string; count: number }[] = [];

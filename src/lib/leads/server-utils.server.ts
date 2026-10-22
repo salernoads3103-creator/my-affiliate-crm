@@ -3,15 +3,22 @@
  * Server-only. Never import from client code.
  */
 import { createClient } from "@supabase/supabase-js";
+import { ApiError } from "./api-error";
 import { LeadController } from "./controller";
+
+export { ApiError } from "./api-error";
 
 export async function getController(request: Request) {
   const auth = request.headers.get("authorization") ?? "";
   if (!auth.startsWith("Bearer ")) throw new ApiError(401, "Unauthorized");
   const token = auth.slice(7);
 
-  const SUPABASE_URL = process.env.SUPABASE_URL!;
-  const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY!;
+  const SUPABASE_URL = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;
+  const SUPABASE_PUBLISHABLE_KEY =
+    process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+    throw new ApiError(500, "Supabase server configuration is missing");
+  }
   const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
@@ -20,12 +27,6 @@ export async function getController(request: Request) {
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) throw new ApiError(401, "Unauthorized");
   return new LeadController(client, data.user.id);
-}
-
-export class ApiError extends Error {
-  constructor(public status: number, message: string) {
-    super(message);
-  }
 }
 
 export function ok(data: unknown, status = 200) {

@@ -42,8 +42,15 @@ Authorization: Bearer <supabase_access_token>
 The `requireAuth` middleware:
 1. Validates the bearer token via `supabase.auth.getUser(token)`.
 2. Builds a per-request Supabase client that forwards the token, so **Row-Level
-   Security policies execute as the signed-in user** — every query is
-   automatically scoped to that user's data.
+   Security policies execute as the signed-in user**. Lead queries are scoped
+   by the shared PostgreSQL workspace permission functions; the Express service
+   does not duplicate role or permission decisions.
+
+The multi-user membership, invitation, role, and permission endpoints are served
+by TanStack Start. They call the same PostgreSQL authorization functions used by
+RLS. The Express service remains the lead API and relies on those RLS policies.
+An authenticated account without an accepted workspace invitation receives no
+lead access.
 
 ## REST Endpoints
 

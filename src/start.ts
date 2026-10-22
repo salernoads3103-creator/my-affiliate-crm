@@ -18,7 +18,24 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   }
 });
 
+function withSecurityHeaders(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set("Referrer-Policy", "no-referrer");
+  headers.set("X-Content-Type-Options", "nosniff");
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+const securityHeadersMiddleware = createMiddleware().server(async ({ next }) => {
+  const result = await next();
+  if (result instanceof Response) return withSecurityHeaders(result);
+  return { ...result, response: withSecurityHeaders(result.response) };
+});
+
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware],
+  requestMiddleware: [securityHeadersMiddleware, errorMiddleware],
 }));

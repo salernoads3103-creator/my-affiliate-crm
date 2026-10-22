@@ -4,6 +4,10 @@ export const LEAD_STATUSES: LeadStatus[] = ["New", "Contacted", "Qualified", "Co
 
 export interface Lead {
   id: string;
+  workspace_id: string;
+  team_id: string | null;
+  operator_id: string | null;
+  offer_id: string | null;
   user_id: string;
   name: string;
   email: string;
@@ -18,6 +22,9 @@ export interface Lead {
 export interface LeadInput {
   name: string;
   email: string;
+  team_id?: string | null;
+  operator_id?: string | null;
+  offer_id?: string | null;
   phone?: string;
   company_name?: string;
   lead_status: LeadStatus;

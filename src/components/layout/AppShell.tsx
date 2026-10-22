@@ -38,7 +38,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     queryClient.clear();
     await supabase.auth.signOut();
     toast.success("Signed out");
-    navigate({ to: "/auth", replace: true });
+    navigate({ to: "/auth", search: { invite: undefined }, replace: true });
   };
 
   const SidebarContent = (
@@ -126,12 +126,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         {mobileOpen && (
           <>
             <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
               onClick={() => setMobileOpen(false)}
               className="lg:hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-40"
             />
             <motion.aside
-              initial={{ x: -300 }} animate={{ x: 0 }} exit={{ x: -300 }}
+              initial={{ x: -300 }}
+              animate={{ x: 0 }}
+              exit={{ x: -300 }}
               transition={{ type: "spring", damping: 28, stiffness: 240 }}
               className="lg:hidden fixed left-0 top-0 bottom-0 w-72 z-50 glass-strong border-r border-sidebar-border bg-sidebar"
             >
@@ -166,9 +170,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </button>
         </header>
 
-        <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-[1400px] mx-auto w-full">
-          {children}
-        </main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-10 max-w-[1400px] mx-auto w-full">{children}</main>
       </div>
 
       <CommandPalette open={open} setOpen={setOpen} onSignOut={signOut} />
