@@ -179,6 +179,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      workspace_offers: {
+        Row: {
+          created_at: string;
+          currency: string;
+          id: string;
+          is_active: boolean;
+          landing_url: string | null;
+          name: string;
+          offer_price_minor: number | null;
+          product_id: string | null;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          is_active?: boolean;
+          landing_url?: string | null;
+          name: string;
+          offer_price_minor?: number | null;
+          product_id?: string | null;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          is_active?: boolean;
+          landing_url?: string | null;
+          name?: string;
+          offer_price_minor?: number | null;
+          product_id?: string | null;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -223,6 +262,49 @@ export type Database = {
           p_supplier_name: string | null;
           p_update_cost: boolean;
           p_weight_grams: number | null;
+        };
+        Returns: string;
+      };
+      get_workspace_offer_catalog: {
+        Args: { p_search: string | null; p_workspace_id: string };
+        Returns: {
+          created_at: string;
+          currency: string;
+          id: string;
+          is_active: boolean;
+          landing_url: string | null;
+          name: string;
+          offer_price_minor: number | null;
+          product_currency: string | null;
+          product_id: string | null;
+          product_name: string | null;
+          product_photo_url: string | null;
+          product_sale_price_minor: number | null;
+          product_sku: string | null;
+          updated_at: string;
+          workspace_id: string;
+        }[];
+      };
+      create_commercial_offer: {
+        Args: {
+          p_is_active: boolean;
+          p_landing_url: string | null;
+          p_name: string;
+          p_offer_price_minor: number;
+          p_product_id: string;
+          p_workspace_id: string;
+        };
+        Returns: string;
+      };
+      update_commercial_offer: {
+        Args: {
+          p_is_active: boolean;
+          p_landing_url: string | null;
+          p_name: string;
+          p_offer_id: string;
+          p_offer_price_minor: number;
+          p_product_id: string;
+          p_workspace_id: string;
         };
         Returns: string;
       };

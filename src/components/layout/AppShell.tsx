@@ -13,6 +13,7 @@ import {
   Sun,
   Languages,
   Package,
+  Tag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -52,6 +53,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     ...(permissions["products.read"]
       ? [{ to: "/products" as const, label: "Products", icon: Package }]
       : []),
+    ...(permissions["offers.read"] ? [{ to: "/offers" as const, label: "Offers", icon: Tag }] : []),
     ...(canAccessAdministration(permissions)
       ? [{ to: "/administration" as const, label: "Administration", icon: Users }]
       : []),
@@ -119,12 +121,19 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="p-4 space-y-2">
         <div className="grid grid-cols-2 gap-2">
-          <Select value={preference} onValueChange={(value) => setPreference(value as ThemePreference)}>
+          <Select
+            value={preference}
+            onValueChange={(value) => setPreference(value as ThemePreference)}
+          >
             <SelectTrigger
               aria-label={t("Theme preference")}
               className="h-9 min-w-0 gap-1.5 rounded-xl border-border bg-input/40 px-2.5 text-xs"
             >
-              {theme === "dark" ? <Moon className="h-4 w-4 shrink-0" /> : <Sun className="h-4 w-4 shrink-0" />}
+              {theme === "dark" ? (
+                <Moon className="h-4 w-4 shrink-0" />
+              ) : (
+                <Sun className="h-4 w-4 shrink-0" />
+              )}
               <SelectValue>{theme === "dark" ? t("Dark") : t("Light")}</SelectValue>
             </SelectTrigger>
             <SelectContent

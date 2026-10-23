@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
@@ -8,6 +9,9 @@ import { useCreateLead, useUpdateLead } from "@/hooks/useLeadsApi";
 import { t } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
 import { normalizeUkrainianPhone } from "@/lib/leads/phone";
+import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
+import type { OfferCatalogResponse } from "@/lib/offers/types";
+import { accessApi } from "@/services/accessApi";
 
 export function LeadModal({
   open,
@@ -21,6 +25,15 @@ export function LeadModal({
   useLocale();
   const create = useCreateLead();
   const update = useUpdateLead();
+  const { workspace, permissions } = useWorkspaceAccess();
+  const canAssignOffer = permissions["leads.assign_offer"] === true
+    && permissions["offers.read"] === true
+    && permissions["products.read"] === true;
+  const offersQuery = useQuery({
+    queryKey: ["workspace-offers-catalog", workspace?.id, "lead-picker"],
+    queryFn: () => accessApi.get<OfferCatalogResponse>(`/api/workspaces/${workspace!.id}/offers/catalog`),
+    enabled: Boolean(open && workspace?.id && canAssignOffer),
+  });
   const editing = !!lead;
   const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<LeadInput>({
     defaultValues: { lead_status: "New" },
@@ -32,6 +45,7 @@ export function LeadModal({
         name: lead?.name ?? "",
         email: lead?.email ?? "",
         phone: lead?.phone ?? "",
+        offer_id: lead?.offer_id ?? null,
         company_name: lead?.company_name ?? "",
         lead_status: (lead?.lead_status ?? "New") as LeadStatus,
         notes: lead?.notes ?? "",
@@ -42,10 +56,13 @@ export function LeadModal({
   const notesLen = (watch("notes") ?? "").length;
 
   const onSubmit = async (values: LeadInput) => {
+    const input: LeadInput = canAssignOffer
+      ? { ...values, offer_id: values.offer_id || null }
+      : omitOffer(values);
     if (editing && lead) {
-      await update.mutateAsync({ id: lead.id, input: values });
+      await update.mutateAsync({ id: lead.id, input });
     } else {
-      await create.mutateAsync(values);
+      await create.mutateAsync(input);
     }
     onClose();
   };
@@ -128,6 +145,24 @@ export function LeadModal({
                     {LEAD_STATUSES.map((s) => <option key={s} value={s}>{t(s)}</option>)}
                   </select>
                 </Field>
+                {canAssignOffer && (
+                  <Field label={t("Offer")}>
+                    <select
+                      {...register("offer_id", { setValueAs: (value: string) => value || null })}
+                      className="field"
+                      disabled={offersQuery.isLoading}
+                    >
+                      <option value="">{t("No offer")}</option>
+                      {(offersQuery.data?.offers ?? [])
+                        .filter((offer) => offer.is_active || offer.id === lead?.offer_id)
+                        .map((offer) => (
+                          <option key={offer.id} value={offer.id}>
+                            {offer.name}{offer.product_name ? ` · ${offer.product_name}` : ""}
+                          </option>
+                        ))}
+                    </select>
+                  </Field>
+                )}
                 <div className="sm:col-span-2">
                   <Field label={`${t("Notes")} (${notesLen}/2000)`} error={errors.notes?.message}>
                     <textarea
@@ -160,6 +195,11 @@ export function LeadModal({
       )}
     </AnimatePresence>
   );
+}
+
+function omitOffer(input: LeadInput): LeadInput {
+  const { offer_id: _offerId, ...rest } = input;
+  return rest;
 }
 
 function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
