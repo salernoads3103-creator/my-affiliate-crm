@@ -7,6 +7,7 @@ import { LEAD_STATUSES } from "@/lib/leads/types";
 import { useCreateLead, useUpdateLead } from "@/hooks/useLeadsApi";
 import { t } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
+import { normalizeUkrainianPhone } from "@/lib/leads/phone";
 
 export function LeadModal({
   open,
@@ -94,20 +95,23 @@ export function LeadModal({
                     placeholder={t("Jane Smith")}
                   />
                 </Field>
-                <Field label={t("Email")} error={errors.email?.message}>
+                <Field label={t("Email (optional)")} error={errors.email?.message}>
                   <input
                     type="email"
                     {...register("email", {
-                      required: t("Required"),
                       pattern: { value: /^[^@\s]+@[^@\s]+\.[^@\s]+$/, message: t("Invalid") },
                     })}
                     className="field"
                     placeholder="name@example.com"
                   />
                 </Field>
-                <Field label={t("Phone")} error={errors.phone?.message}>
+                <Field label={`${t("Phone")}${editing ? "" : " *"}`} error={errors.phone?.message}>
                   <input
-                    {...register("phone", { maxLength: 40, pattern: { value: /^[+\d\s().-]*$/, message: t("Invalid phone") } })}
+                    {...register("phone", {
+                      required: editing ? false : t("Required"),
+                      maxLength: 40,
+                      validate: (value) => !value || normalizeUkrainianPhone(value) !== null || t("Invalid phone"),
+                    })}
                     className="field"
                     placeholder="+380 50 123 45 67"
                   />

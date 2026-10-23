@@ -48,7 +48,7 @@ function LeadsPage() {
   const exportCsv = () => {
     const rows = [
       [t("Name"), t("Email"), t("Phone"), t("Company"), t("Status"), t("Notes"), t("Created")],
-      ...filtered.map((l) => [l.name, l.email, l.phone ?? "", l.company_name ?? "", l.lead_status, (l.notes ?? "").replace(/\n/g, " "), l.created_at]),
+      ...filtered.map((l) => [l.name, l.email ?? "", l.phone ?? "", l.company_name ?? "", l.lead_status, (l.notes ?? "").replace(/\n/g, " "), l.created_at]),
     ];
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -138,7 +138,7 @@ function LeadsPage() {
                         </div>
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">{l.company_name ?? "—"}</td>
-                      <td className="px-5 py-3 text-muted-foreground">{l.email}</td>
+                      <td className="px-5 py-3 text-muted-foreground">{l.email ?? "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{l.phone ?? "—"}</td>
                       <td className="px-5 py-3"><StatusSelector lead={l} /></td>
                       <td className="px-5 py-3">
@@ -162,7 +162,7 @@ function LeadsPage() {
                   <div className="h-10 w-10 rounded-xl gradient-brand text-white flex items-center justify-center font-semibold">{l.name.charAt(0).toUpperCase()}</div>
                   <div className="flex-1 min-w-0">
                     <div className="font-medium truncate">{l.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{l.email}</div>
+                    <div className="text-xs text-muted-foreground truncate">{l.email ?? "—"}</div>
                   </div>
                   <StatusBadge status={l.lead_status} />
                 </div>

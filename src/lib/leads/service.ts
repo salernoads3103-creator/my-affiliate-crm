@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Lead, LeadInput, LeadStats, LeadStatus } from "./types";
 import { LEAD_STATUSES } from "./types";
 import { ApiError } from "./api-error";
+import { normalizeUkrainianPhone } from "./phone";
 
 function leadDatabaseError(error: { code?: string; message: string }): ApiError {
   if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
@@ -50,7 +51,14 @@ export class LeadService {
   async create(input: LeadInput): Promise<Lead> {
     const { data, error } = await this.supabase
       .from("leads")
-      .insert({ ...input, user_id: this.userId })
+      .insert({
+        ...input,
+        email: input.email || null,
+        user_id: this.userId,
+        created_by_user_id: this.userId,
+        created_via: "manual",
+        phone_normalized: normalizeUkrainianPhone(input.phone),
+      })
       .select("*")
       .single();
     if (error) throw leadDatabaseError(error);
@@ -58,9 +66,13 @@ export class LeadService {
   }
 
   async update(id: string, input: Partial<LeadInput>): Promise<Lead> {
+    const update: Partial<LeadInput> & { phone_normalized?: string | null } = { ...input };
+    if (Object.prototype.hasOwnProperty.call(input, "phone")) {
+      update.phone_normalized = normalizeUkrainianPhone(input.phone);
+    }
     const { data, error } = await this.supabase
       .from("leads")
-      .update(input)
+      .update(update)
       .eq("id", id)
       .select("*")
       .single();

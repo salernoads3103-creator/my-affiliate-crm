@@ -3,19 +3,42 @@ import { z } from "zod";
 import { LeadService } from "../services/lead.service";
 import { LEAD_STATUSES } from "../types/lead";
 import { ApiError } from "../utils/ApiError";
+import { normalizeUkrainianPhone } from "../utils/lead-phone";
 
-const LeadSchema = z.object({
+const optionalPhone = z
+  .union([z.string().trim().max(40), z.null()])
+  .optional()
+  .refine(
+    (value) => value == null || value === "" || normalizeUkrainianPhone(value) !== null,
+    "Invalid phone",
+  );
+
+const leadFields = {
   name: z.string().trim().min(1, "Name required").max(120),
-  email: z.string().trim().email("Invalid email").max(255),
+  email: z.preprocess(
+    (value) => (typeof value === "string" && value.trim() === "" ? null : value),
+    z.string().trim().email("Invalid email").max(255).nullable().optional(),
+  ),
   team_id: z.string().uuid().nullable().optional(),
   operator_id: z.string().uuid().nullable().optional(),
   offer_id: z.string().uuid().nullable().optional(),
-  phone: z.string().trim().max(40).optional().or(z.literal("")),
+  phone: optionalPhone,
   company_name: z.string().trim().max(120).optional().or(z.literal("")),
-  lead_status: z.enum(LEAD_STATUSES as [string, ...string[]]),
+  lead_status: z.enum(LEAD_STATUSES as [string, ...string[]]).optional(),
   notes: z.string().trim().max(2000).optional().or(z.literal("")),
+};
+
+export const LeadSchema = z.object({
+  ...leadFields,
+  phone: z
+    .string()
+    .trim()
+    .min(1, "Phone is required")
+    .max(40)
+    .refine((value) => normalizeUkrainianPhone(value) !== null, "Invalid phone"),
+  lead_status: z.enum(LEAD_STATUSES as [string, ...string[]]).default("New"),
 });
-const PartialLeadSchema = LeadSchema.partial();
+export const PartialLeadSchema = z.object(leadFields).partial();
 
 const clean = <T extends Record<string, unknown>>(o: T) => {
   const r: Record<string, unknown> = {};

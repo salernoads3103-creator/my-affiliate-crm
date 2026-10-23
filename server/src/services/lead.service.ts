@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ApiError } from "../utils/ApiError";
 import { LEAD_STATUSES, Lead, LeadInput, LeadStats, LeadStatus } from "../types/lead";
+import { normalizeUkrainianPhone } from "../utils/lead-phone";
 
 function throwLeadDatabaseError(
   error: { code?: string; message: string },
@@ -47,7 +48,14 @@ export class LeadService {
   async create(input: LeadInput): Promise<Lead> {
     const { data, error } = await this.supabase
       .from("leads")
-      .insert({ ...input, user_id: this.userId })
+      .insert({
+        ...input,
+        email: input.email || null,
+        user_id: this.userId,
+        created_by_user_id: this.userId,
+        created_via: "manual",
+        phone_normalized: normalizeUkrainianPhone(input.phone),
+      })
       .select("*")
       .single();
     if (error) throwLeadDatabaseError(error);
@@ -55,9 +63,13 @@ export class LeadService {
   }
 
   async update(id: string, input: Partial<LeadInput>): Promise<Lead> {
+    const update: Partial<LeadInput> & { phone_normalized?: string | null } = { ...input };
+    if (Object.prototype.hasOwnProperty.call(input, "phone")) {
+      update.phone_normalized = normalizeUkrainianPhone(input.phone);
+    }
     const { data, error } = await this.supabase
       .from("leads")
-      .update(input)
+      .update(update)
       .eq("id", id)
       .select("*")
       .single();

@@ -77,6 +77,7 @@ const uk = {
   Name: "Ім'я",
   Company: "Компанія",
   Email: "Електронна пошта",
+  "Email (optional)": "Електронна пошта (необов'язково)",
   Phone: "Телефон",
   Status: "Статус",
   Actions: "Дії",
@@ -384,6 +385,7 @@ export const localeBootstrapScript = `(() => {
 
 /** English keeps the product's original CRM vocabulary; unchanged copy falls back to its source phrase. */
 const en: Partial<Record<TranslationKey, string>> = {
+  "Email (optional)": "Email (optional)",
   Dashboard: "Dashboard",
   "Lead Management": "E-commerce CRM",
   "Quick search": "Search anything",

@@ -152,6 +152,7 @@ DECLARE
   v_count BIGINT;
   v_rejected BOOLEAN;
   v_updated BIGINT;
+  v_new_lead_id UUID;
   v_audit JSONB;
   v_actor UUID;
 BEGIN
@@ -292,12 +293,24 @@ BEGIN
   WHERE id = 'd1111111-1111-4111-8111-111111111101';
   GET DIAGNOSTICS v_updated = ROW_COUNT;
   IF v_updated <> 1 THEN RAISE EXCEPTION 'Operator could not update its own lead'; END IF;
-  INSERT INTO public.leads (user_id, name, email, workspace_id, operator_id)
+  INSERT INTO public.leads (
+    user_id, created_by_user_id, created_via, name, phone, phone_normalized,
+    workspace_id, operator_id
+  )
   VALUES (
-    'a1111111-1111-4111-8111-111111111103', 'Operator create test',
-    'operator-create@example.invalid', v_main_workspace,
+    'a1111111-1111-4111-8111-111111111103',
+    'a1111111-1111-4111-8111-111111111103', 'manual', 'Operator create test',
+    '067 123 45 67', '+380671234567', v_main_workspace,
     'a1111111-1111-4111-8111-111111111103'
-  );
+  ) RETURNING id INTO v_new_lead_id;
+
+  v_rejected := FALSE;
+  BEGIN
+    UPDATE public.leads SET created_by_user_id = 'a1111111-1111-4111-8111-111111111102'
+    WHERE id = v_new_lead_id;
+  EXCEPTION WHEN SQLSTATE '42501' THEN v_rejected := TRUE;
+  END;
+  IF NOT v_rejected THEN RAISE EXCEPTION 'Authenticated user reassigned an immutable lead author'; END IF;
 
   PERFORM set_config('request.jwt.claim.sub', 'a1111111-1111-4111-8111-111111111105', TRUE);
   SELECT count(*) INTO v_count FROM public.leads;
