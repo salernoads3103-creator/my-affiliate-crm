@@ -17,7 +17,10 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/permissions")
           const context = await requireAccessContext(request);
           const userId = new URL(request.url).searchParams.get("user_id");
           if (!userId) {
-            return Response.json({ success: false, error: "user_id is required" }, { status: 400 });
+            return Response.json(
+              { success: false, code: "VALIDATION_ERROR", error: "user_id is required" },
+              { status: 400 },
+            );
           }
           const { data, error } = await context.client.rpc("get_workspace_member_permissions", {
             p_workspace_id: params.workspaceId,
@@ -46,7 +49,7 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/permissions")
             typeof body.delegable !== "boolean"
           ) {
             return Response.json(
-              { success: false, error: "Invalid permission change" },
+              { success: false, code: "VALIDATION_ERROR", error: "Invalid permission change" },
               { status: 400 },
             );
           }

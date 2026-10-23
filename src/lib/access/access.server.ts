@@ -1,15 +1,13 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { ApiError, apiErrorResponse, type ApiErrorCode } from "../api-error";
 import type { WorkspacePermission } from "./permissions";
 
 export type AccessClient = SupabaseClient<Database>;
 
-export class AccessApiError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
+export class AccessApiError extends ApiError {
+  constructor(status: number, message: string, code?: ApiErrorCode, cause?: unknown) {
+    super(status, message, code, cause);
     this.name = "AccessApiError";
   }
 }
@@ -59,31 +57,35 @@ export async function requireWorkspacePermission(
     p_operator_id: null,
     p_offer_id: null,
   });
-  if (error) throw mapRpcError(error.code, error.message);
+  if (error) throw mapRpcError(error.code, error.message, error);
   if (!data) throw new AccessApiError(403, "Insufficient workspace permissions");
 }
 
-export function mapRpcError(code?: string, message?: string): AccessApiError {
+export function mapRpcError(code?: string, message?: string, cause?: unknown): AccessApiError {
   if (code === "42501") return new AccessApiError(403, "Insufficient workspace permissions");
   if (code === "P0002")
     return new AccessApiError(404, "The requested workspace resource was not found");
   if (code === "23505")
     return new AccessApiError(409, "The requested workspace change conflicts with existing data");
-  if (code === "22023") return new AccessApiError(400, message ?? "Invalid request");
-  return new AccessApiError(500, "Workspace request failed");
+  if (code === "22023") return new AccessApiError(400, "Invalid request", "VALIDATION_ERROR", cause);
+  return new AccessApiError(500, "Workspace request failed", "INTERNAL_ERROR", cause ?? message);
 }
 
 export function accessErrorResponse(error: unknown): Response {
-  const mapped =
-    error instanceof AccessApiError
-      ? error
-      : error && typeof error === "object" && "code" in error
-        ? mapRpcError(
-            String((error as { code?: unknown }).code ?? ""),
-            String((error as { message?: unknown }).message ?? ""),
-          )
-        : new AccessApiError(500, "Workspace request failed");
-  return Response.json({ success: false, error: mapped.message }, { status: mapped.status });
+  let mapped: AccessApiError;
+  if (error instanceof AccessApiError) {
+    mapped = error;
+  } else if (error instanceof ApiError) {
+    mapped = new AccessApiError(error.status, error.message, error.code, error.cause);
+  } else if (error && typeof error === "object" && "code" in error) {
+    const rpcError = error as { code?: unknown; message?: unknown };
+    mapped = mapRpcError(String(rpcError.code ?? ""), String(rpcError.message ?? ""), error);
+  } else {
+    mapped = new AccessApiError(500, "Workspace request failed", "INTERNAL_ERROR", error);
+  }
+
+  if (mapped.status >= 500) console.error("[api] Workspace request failed", mapped.cause ?? error);
+  return apiErrorResponse(mapped);
 }
 
 export function accessSuccessResponse(data: unknown, status = 200): Response {

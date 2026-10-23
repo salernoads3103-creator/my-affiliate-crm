@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/offers")({
           const body = await readJsonBody(request);
           if (typeof body.name !== "string") {
             return Response.json(
-              { success: false, error: "Offer name is required" },
+              { success: false, code: "VALIDATION_ERROR", error: "Offer name is required" },
               { status: 400 },
             );
           }

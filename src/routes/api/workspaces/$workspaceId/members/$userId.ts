@@ -20,7 +20,7 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/members/$user
             !roles.includes(body.role as (typeof roles)[number])
           ) {
             return Response.json(
-              { success: false, error: "Invalid workspace role" },
+              { success: false, code: "VALIDATION_ERROR", error: "Invalid workspace role" },
               { status: 400 },
             );
           }

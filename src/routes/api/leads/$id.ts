@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { fail, getController, ok } from "@/lib/leads/server-utils.server";
+import { fail, getController, ok, readJsonBody } from "@/lib/leads/server-utils.server";
 
 export const Route = createFileRoute("/api/leads/$id")({
   server: {
@@ -7,7 +7,7 @@ export const Route = createFileRoute("/api/leads/$id")({
       PUT: async ({ request, params }) => {
         try {
           const c = await getController(request);
-          const body = await request.json();
+          const body = await readJsonBody(request);
           return ok(await c.update(params.id, body));
         } catch (e) { return fail(e); }
       },

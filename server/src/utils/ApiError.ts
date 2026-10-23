@@ -1,7 +1,40 @@
+export type ApiErrorCode =
+  | "VALIDATION_ERROR"
+  | "UNAUTHENTICATED"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "CONFLICT"
+  | "INTERNAL_ERROR";
+
+function codeForStatus(status: number): ApiErrorCode {
+  switch (status) {
+    case 400:
+      return "VALIDATION_ERROR";
+    case 401:
+      return "UNAUTHENTICATED";
+    case 403:
+      return "FORBIDDEN";
+    case 404:
+      return "NOT_FOUND";
+    case 409:
+      return "CONFLICT";
+    default:
+      return "INTERNAL_ERROR";
+  }
+}
+
 export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
+  readonly code: ApiErrorCode;
+
+  constructor(
+    public status: number,
+    message: string,
+    code = codeForStatus(status),
+    public cause?: unknown,
+  ) {
     super(message);
+    this.name = "ApiError";
     this.status = status;
+    this.code = code;
   }
 }

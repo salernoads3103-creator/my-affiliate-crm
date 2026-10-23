@@ -4,6 +4,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { ApiError } from "../api-error";
 import { LeadService } from "./service";
 import { LEAD_STATUSES } from "./types";
 
@@ -43,13 +44,13 @@ export class LeadController {
   };
 
   update = async (id: string, body: unknown) => {
-    if (!id) throw new Error("Missing id");
+    if (!id) throw new ApiError(400, "Lead id is required");
     const parsed = PartialLeadSchema.parse(body);
     return this.svc.update(id, clean(parsed) as never);
   };
 
   remove = async (id: string) => {
-    if (!id) throw new Error("Missing id");
+    if (!id) throw new ApiError(400, "Lead id is required");
     await this.svc.remove(id);
     return { ok: true };
   };

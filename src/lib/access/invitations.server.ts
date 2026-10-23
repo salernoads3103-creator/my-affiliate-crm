@@ -49,7 +49,7 @@ export async function createWorkspaceInvitation(
     p_role: role,
     p_token_hash: tokenHash,
   });
-  if (error) throw mapRpcError(error.code, error.message);
+  if (error) throw mapRpcError(error.code, error.message, error);
 
   let emailSent = false;
   const supabaseUrl = process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL;

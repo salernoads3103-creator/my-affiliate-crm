@@ -27,7 +27,7 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/teams")({
           const body = await readJsonBody(request);
           if (typeof body.name !== "string") {
             return Response.json(
-              { success: false, error: "Team name is required" },
+              { success: false, code: "VALIDATION_ERROR", error: "Team name is required" },
               { status: 400 },
             );
           }

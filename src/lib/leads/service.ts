@@ -9,10 +9,14 @@ import type { Lead, LeadInput, LeadStats, LeadStatus } from "./types";
 import { LEAD_STATUSES } from "./types";
 import { ApiError } from "./api-error";
 
-function leadDatabaseError(error: { code?: string; message: string }): Error {
+function leadDatabaseError(error: { code?: string; message: string }): ApiError {
   if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
   if (error.code === "PGRST116") return new ApiError(404, "Lead not found");
-  return new Error(error.message);
+  if (error.code === "23505") return new ApiError(409, "A lead with these details already exists");
+  if (["22023", "22P02", "23502", "23503", "23514"].includes(error.code ?? "")) {
+    return new ApiError(400, "Invalid lead data");
+  }
+  return new ApiError(500, "The request could not be completed", "INTERNAL_ERROR", error);
 }
 
 export class LeadService {

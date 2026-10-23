@@ -38,7 +38,11 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/invitations")
             !roles.includes(body.role as Exclude<WorkspaceRole, "super_admin">)
           ) {
             return Response.json(
-              { success: false, error: "A valid email and workspace role are required" },
+              {
+                success: false,
+                code: "VALIDATION_ERROR",
+                error: "A valid email and workspace role are required",
+              },
               { status: 400 },
             );
           }

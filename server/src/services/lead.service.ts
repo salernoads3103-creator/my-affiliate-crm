@@ -4,12 +4,16 @@ import { LEAD_STATUSES, Lead, LeadInput, LeadStats, LeadStatus } from "../types/
 
 function throwLeadDatabaseError(
   error: { code?: string; message: string },
-  fallbackStatus: number,
 ): never {
   if (error.code === "42501") {
     throw new ApiError(403, "Insufficient workspace permissions");
   }
-  throw new ApiError(fallbackStatus, error.message);
+  if (error.code === "PGRST116") throw new ApiError(404, "Lead not found");
+  if (error.code === "23505") throw new ApiError(409, "A lead with these details already exists");
+  if (["22023", "22P02", "23502", "23503", "23514"].includes(error.code ?? "")) {
+    throw new ApiError(400, "Invalid lead data");
+  }
+  throw new ApiError(500, "The request could not be completed", "INTERNAL_ERROR", error);
 }
 
 export class LeadService {
@@ -23,7 +27,7 @@ export class LeadService {
       .from("leads")
       .select("*")
       .order("created_at", { ascending: false });
-    if (error) throwLeadDatabaseError(error, 500);
+    if (error) throwLeadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
 
@@ -36,7 +40,7 @@ export class LeadService {
       .select("*")
       .or(`name.ilike.${pattern},email.ilike.${pattern},company_name.ilike.${pattern}`)
       .order("created_at", { ascending: false });
-    if (error) throwLeadDatabaseError(error, 500);
+    if (error) throwLeadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
 
@@ -46,7 +50,7 @@ export class LeadService {
       .insert({ ...input, user_id: this.userId })
       .select("*")
       .single();
-    if (error) throwLeadDatabaseError(error, 400);
+    if (error) throwLeadDatabaseError(error);
     return data as Lead;
   }
 
@@ -57,14 +61,14 @@ export class LeadService {
       .eq("id", id)
       .select("*")
       .single();
-    if (error) throwLeadDatabaseError(error, 400);
+    if (error) throwLeadDatabaseError(error);
     if (!data) throw new ApiError(404, "Lead not found");
     return data as Lead;
   }
 
   async remove(id: string): Promise<void> {
     const { error } = await this.supabase.from("leads").delete().eq("id", id);
-    if (error) throwLeadDatabaseError(error, 400);
+    if (error) throwLeadDatabaseError(error);
   }
 
   async stats(): Promise<LeadStats> {

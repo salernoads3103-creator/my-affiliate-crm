@@ -15,7 +15,11 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/audit")({
           const limit = Number(limitValue);
           if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
             return Response.json(
-              { success: false, error: "limit must be an integer from 1 to 500" },
+              {
+                success: false,
+                code: "VALIDATION_ERROR",
+                error: "limit must be an integer from 1 to 500",
+              },
               { status: 400 },
             );
           }

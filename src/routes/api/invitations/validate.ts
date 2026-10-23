@@ -23,7 +23,7 @@ export const Route = createFileRoute("/api/invitations/validate")({
           const invitation = data?.[0];
           if (!invitation) {
             response = Response.json(
-              { success: false, error: "Invitation is invalid or expired" },
+              { success: false, code: "NOT_FOUND", error: "Invitation is invalid or expired" },
               { status: 404 },
             );
           } else {
