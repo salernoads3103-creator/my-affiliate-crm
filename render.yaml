@@ -7,7 +7,7 @@ services:
     plan: free
     branch: develop
     autoDeployTrigger: off
-    buildCommand: bun install --frozen-lockfile && bun run build
+    buildCommand: bun install --frozen-lockfile && node scripts/validate-supabase-build-env.mjs && bun run build
     startCommand: bun dist/server/index.mjs
     envVars:
       - key: BUN_VERSION
