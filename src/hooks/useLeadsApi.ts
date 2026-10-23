@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { leadService } from "@/services/leadService";
 import type { LeadInput } from "@/lib/leads/types";
+import { localizeError, t } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 
 export const LEAD_KEYS = {
   all: ["leads"] as const,
@@ -28,29 +30,32 @@ const invalidate = (qc: ReturnType<typeof useQueryClient>) => {
 };
 
 export const useCreateLead = () => {
+  useLocale();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: LeadInput) => leadService.create(input),
-    onSuccess: () => { invalidate(qc); toast.success("Lead created"); },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to create"),
+    onSuccess: () => { invalidate(qc); toast.success(t("Lead created")); },
+    onError: (e) => toast.error(localizeError(e, t("Failed to create"))),
   });
 };
 
 export const useUpdateLead = () => {
+  useLocale();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: Partial<LeadInput> }) =>
       leadService.update(id, input),
-    onSuccess: () => { invalidate(qc); toast.success("Lead updated"); },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to update"),
+    onSuccess: () => { invalidate(qc); toast.success(t("Lead updated")); },
+    onError: (e) => toast.error(localizeError(e, t("Failed to update"))),
   });
 };
 
 export const useDeleteLead = () => {
+  useLocale();
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => leadService.remove(id),
-    onSuccess: () => { invalidate(qc); toast.success("Lead deleted"); },
-    onError: (e) => toast.error(e instanceof Error ? e.message : "Failed to delete"),
+    onSuccess: () => { invalidate(qc); toast.success(t("Lead deleted")); },
+    onError: (e) => toast.error(localizeError(e, t("Failed to delete"))),
   });
 };

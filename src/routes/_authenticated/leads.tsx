@@ -8,6 +8,8 @@ import { StatusBadge } from "@/components/leads/StatusBadge";
 import { useLeads, useSearchLeads, useUpdateLead } from "@/hooks/useLeadsApi";
 import { useDebounce } from "@/hooks/useDebounce";
 import { LEAD_STATUSES, type Lead, type LeadStatus } from "@/lib/leads/types";
+import { leadCountLabel, t } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 
 export const Route = createFileRoute("/_authenticated/leads")({
   validateSearch: (s: Record<string, unknown>) => ({ new: s.new === true || s.new === "true" }),
@@ -17,6 +19,7 @@ export const Route = createFileRoute("/_authenticated/leads")({
 const PAGE_SIZE = 10;
 
 function LeadsPage() {
+  const { locale } = useLocale();
   const { new: openNew } = Route.useSearch();
   const [query, setQuery] = useState("");
   const debounced = useDebounce(query, 250);
@@ -44,7 +47,7 @@ function LeadsPage() {
 
   const exportCsv = () => {
     const rows = [
-      ["Name", "Email", "Phone", "Company", "Status", "Notes", "Created"],
+      [t("Name"), t("Email"), t("Phone"), t("Company"), t("Status"), t("Notes"), t("Created")],
       ...filtered.map((l) => [l.name, l.email, l.phone ?? "", l.company_name ?? "", l.lead_status, (l.notes ?? "").replace(/\n/g, " "), l.created_at]),
     ];
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
@@ -61,15 +64,15 @@ function LeadsPage() {
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Leads</h1>
-          <p className="text-sm text-muted-foreground">{filtered.length} {filtered.length === 1 ? "lead" : "leads"}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("Leads")}</h1>
+          <p className="text-sm text-muted-foreground">{leadCountLabel(filtered.length, locale)}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={exportCsv} className="rounded-xl border border-border bg-input/30 hover:bg-input/60 px-3 py-2 text-sm flex items-center gap-2 transition">
-            <Download className="h-4 w-4" /> Export
+            <Download className="h-4 w-4" /> {t("Export")}
           </button>
           <button onClick={() => { setEditing(null); setModalOpen(true); }} className="rounded-xl gradient-brand text-primary-foreground text-sm font-medium px-4 py-2 flex items-center gap-2 hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-primary/20">
-            <Plus className="h-4 w-4" /> Add lead
+            <Plus className="h-4 w-4" /> {t("Add lead")}
           </button>
         </div>
       </header>
@@ -80,7 +83,7 @@ function LeadsPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name, email, or company…"
+            placeholder={t("Search by name, email, or company…")}
             className="w-full rounded-xl bg-input/40 border border-border pl-9 pr-3 py-2 text-sm outline-none focus:ring-4 focus:ring-ring transition"
           />
         </div>
@@ -91,8 +94,8 @@ function LeadsPage() {
             onChange={(e) => setStatusFilter(e.target.value as LeadStatus | "All")}
             className="appearance-none rounded-xl bg-input/40 border border-border pl-9 pr-9 py-2 text-sm outline-none focus:ring-4 focus:ring-ring transition"
           >
-            <option value="All">All statuses</option>
-            {LEAD_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+            <option value="All">{t("All statuses")}</option>
+            {LEAD_STATUSES.map((s) => <option key={s} value={s}>{t(s)}</option>)}
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         </div>
@@ -109,12 +112,12 @@ function LeadsPage() {
             <table className="w-full text-sm">
               <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th className="text-left px-5 py-3 font-medium">Name</th>
-                  <th className="text-left px-5 py-3 font-medium">Company</th>
-                  <th className="text-left px-5 py-3 font-medium">Email</th>
-                  <th className="text-left px-5 py-3 font-medium">Phone</th>
-                  <th className="text-left px-5 py-3 font-medium">Status</th>
-                  <th className="text-right px-5 py-3 font-medium">Actions</th>
+                  <th className="text-left px-5 py-3 font-medium">{t("Name")}</th>
+                  <th className="text-left px-5 py-3 font-medium">{t("Company")}</th>
+                  <th className="text-left px-5 py-3 font-medium">{t("Email")}</th>
+                  <th className="text-left px-5 py-3 font-medium">{t("Phone")}</th>
+                  <th className="text-left px-5 py-3 font-medium">{t("Status")}</th>
+                  <th className="text-right px-5 py-3 font-medium">{t("Actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -140,8 +143,8 @@ function LeadsPage() {
                       <td className="px-5 py-3"><StatusSelector lead={l} /></td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition">
-                          <button onClick={() => openEdit(l)} className="p-2 rounded-lg hover:bg-primary/10 hover:text-primary transition" aria-label="Edit"><Pencil className="h-4 w-4" /></button>
-                          <button onClick={() => setDeleting(l)} className="p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition" aria-label="Delete"><Trash2 className="h-4 w-4" /></button>
+                          <button onClick={() => openEdit(l)} className="p-2 rounded-lg hover:bg-primary/10 hover:text-primary transition" aria-label={t("Edit")}><Pencil className="h-4 w-4" /></button>
+                          <button onClick={() => setDeleting(l)} className="p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition" aria-label={t("Delete")}><Trash2 className="h-4 w-4" /></button>
                         </div>
                       </td>
                     </motion.tr>
@@ -165,8 +168,8 @@ function LeadsPage() {
                 </div>
                 <div className="mt-3 text-sm text-muted-foreground">{l.company_name ?? "—"} · {l.phone ?? "—"}</div>
                 <div className="mt-3 flex justify-end gap-2">
-                  <button onClick={() => openEdit(l)} className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-primary/10 hover:text-primary">Edit</button>
-                  <button onClick={() => setDeleting(l)} className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-destructive/10 hover:text-destructive">Delete</button>
+                  <button onClick={() => openEdit(l)} className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-primary/10 hover:text-primary">{t("Edit")}</button>
+                  <button onClick={() => setDeleting(l)} className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-destructive/10 hover:text-destructive">{t("Delete")}</button>
                 </div>
               </motion.div>
             ))}
@@ -174,10 +177,10 @@ function LeadsPage() {
 
           {pages > 1 && (
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">Page {page} of {pages}</span>
+              <span className="text-muted-foreground">{t("Page {page} / {totalPages}", { page, totalPages: pages })}</span>
               <div className="flex gap-2">
-                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-muted/60">Previous</button>
-                <button disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-muted/60">Next</button>
+                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-muted/60">{t("Previous")}</button>
+                <button disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-muted/60">{t("Next")}</button>
               </div>
             </div>
           )}
@@ -193,17 +196,16 @@ function LeadsPage() {
 function StatusSelector({ lead }: { lead: Lead }) {
   const update = useUpdateLead();
   return (
-    <div className="relative inline-flex">
+    <div className="relative inline-flex rounded-full focus-within:ring-2 focus-within:ring-ring">
+      <StatusBadge status={lead.lead_status} />
       <select
+        aria-label={`${t("Status")}: ${t(lead.lead_status)}`}
         value={lead.lead_status}
         onChange={(e) => update.mutate({ id: lead.id, input: { lead_status: e.target.value as LeadStatus } })}
-        className="appearance-none bg-transparent text-xs pr-5 cursor-pointer outline-none"
+        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
       >
-        {LEAD_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        {LEAD_STATUSES.map((s) => <option key={s} value={s}>{t(s)}</option>)}
       </select>
-      <span className="pointer-events-none absolute inset-0 -z-10">
-        <StatusBadge status={lead.lead_status} />
-      </span>
     </div>
   );
 }
@@ -228,12 +230,12 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       <div className="mx-auto h-14 w-14 rounded-2xl gradient-brand text-white flex items-center justify-center shadow-xl shadow-primary/20">
         <Inbox className="h-6 w-6" />
       </div>
-      <h3 className="mt-4 text-lg font-semibold">No leads yet</h3>
+      <h3 className="mt-4 text-lg font-semibold">{t("No leads yet")}</h3>
       <p className="mt-1 text-sm text-muted-foreground max-w-sm mx-auto">
-        Start building your pipeline. Add your first lead to track conversations and conversions.
+        {t("Start building your pipeline. Add your first lead to track conversations and conversions.")}
       </p>
       <button onClick={onAdd} className="mt-5 rounded-xl gradient-brand text-primary-foreground text-sm font-medium px-5 py-2.5 inline-flex items-center gap-2 hover:opacity-95 transition">
-        <Plus className="h-4 w-4" /> Add your first lead
+        <Plus className="h-4 w-4" /> {t("Add your first lead")}
       </button>
     </div>
   );

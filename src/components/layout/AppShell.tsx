@@ -11,6 +11,7 @@ import {
   Command,
   Moon,
   Sun,
+  Languages,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -18,8 +19,18 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/theme-provider";
 import { CommandPalette } from "@/components/common/CommandPalette";
+import { useLocale } from "@/components/locale-provider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useCommandPalette } from "@/hooks/useCommandPalette";
 import { canAccessAdministration, useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
+import { t, type Locale, type TranslationKey } from "@/lib/i18n";
+import type { ThemePreference } from "@/lib/theme";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -31,7 +42,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { theme, toggle } = useTheme();
+  const { theme, preference, setPreference } = useTheme();
+  const { locale, setLocale } = useLocale();
   const { open, setOpen } = useCommandPalette();
   const { permissions } = useWorkspaceAccess();
   const navItems = canAccessAdministration(permissions)
@@ -42,7 +54,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     await queryClient.cancelQueries();
     queryClient.clear();
     await supabase.auth.signOut();
-    toast.success("Signed out");
+    toast.success(t("Signed out"));
     navigate({ to: "/auth", search: { invite: undefined }, replace: true });
   };
 
@@ -53,8 +65,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           <Sparkles className="h-5 w-5" />
         </div>
         <div>
-          <div className="text-base font-semibold tracking-tight">Lumen</div>
-          <div className="text-[11px] text-muted-foreground -mt-0.5">Lead Management</div>
+          <div className="text-base font-semibold tracking-tight">CRMONIA</div>
+          <div className="text-[11px] text-muted-foreground -mt-0.5">{t("Lead Management")}</div>
         </div>
       </div>
 
@@ -64,7 +76,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       >
         <span className="flex items-center gap-2">
           <Command className="h-4 w-4" />
-          Quick search
+          {t("Quick search")}
         </span>
         <kbd className="text-[10px] rounded bg-background px-1.5 py-0.5 border">⌘K</kbd>
       </button>
@@ -92,28 +104,59 @@ export function AppShell({ children }: { children: ReactNode }) {
                 />
               )}
               <Icon className="relative h-4 w-4" />
-              <span className="relative">{item.label}</span>
+              <span className="relative">{t(item.label as TranslationKey)}</span>
             </Link>
           );
         })}
       </nav>
 
       <div className="p-4 space-y-2">
-        <button
-          onClick={toggle}
-          className="w-full flex items-center justify-between gap-2 rounded-xl border border-border bg-input/40 px-3 py-2 text-sm hover:bg-input/70 transition"
-        >
-          <span className="flex items-center gap-2">
-            {theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
-            {theme === "dark" ? "Dark" : "Light"} mode
-          </span>
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <Select value={preference} onValueChange={(value) => setPreference(value as ThemePreference)}>
+            <SelectTrigger
+              aria-label={t("Theme preference")}
+              className="h-9 min-w-0 gap-1.5 rounded-xl border-border bg-input/40 px-2.5 text-xs"
+            >
+              {theme === "dark" ? <Moon className="h-4 w-4 shrink-0" /> : <Sun className="h-4 w-4 shrink-0" />}
+              <SelectValue>{theme === "dark" ? t("Dark") : t("Light")}</SelectValue>
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              side="top"
+              align="start"
+              sideOffset={6}
+              className="min-w-0 w-[var(--radix-select-trigger-width)]"
+            >
+              <SelectItem value="light">{t("Light theme")}</SelectItem>
+              <SelectItem value="dark">{t("Dark theme")}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={locale} onValueChange={(value) => setLocale(value as Locale)}>
+            <SelectTrigger
+              aria-label={t("Language")}
+              className="h-9 min-w-0 gap-1.5 rounded-xl border-border bg-input/40 px-2.5 text-xs"
+            >
+              <Languages className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <SelectValue>{locale === "uk" ? "UA" : "EN"}</SelectValue>
+            </SelectTrigger>
+            <SelectContent
+              position="popper"
+              side="top"
+              align="end"
+              sideOffset={6}
+              className="min-w-0 w-[var(--radix-select-trigger-width)]"
+            >
+              <SelectItem value="uk">{t("Ukrainian")}</SelectItem>
+              <SelectItem value="en">{t("English")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <button
           onClick={signOut}
           className="w-full flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-sm text-foreground/80 hover:bg-destructive/10 hover:text-destructive transition"
         >
           <LogOut className="h-4 w-4" />
-          Sign out
+          {t("Sign out")}
         </button>
       </div>
     </div>
@@ -156,7 +199,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <button
             onClick={() => setMobileOpen(true)}
             className="rounded-lg p-2 hover:bg-muted/60 transition"
-            aria-label="Open menu"
+            aria-label={t("Open menu")}
           >
             <Menu className="h-5 w-5" />
           </button>
@@ -164,12 +207,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             <div className="h-7 w-7 rounded-lg gradient-brand flex items-center justify-center text-white">
               <Sparkles className="h-4 w-4" />
             </div>
-            <span className="font-semibold">Lumen</span>
+            <span className="font-semibold">CRMONIA</span>
           </div>
           <button
             onClick={() => setOpen(true)}
             className="rounded-lg p-2 hover:bg-muted/60 transition"
-            aria-label="Search"
+            aria-label={t("Search")}
           >
             <Command className="h-5 w-5" />
           </button>

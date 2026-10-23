@@ -3,10 +3,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
-import { ArrowRight, Loader2, Sparkles } from "lucide-react";
+import { ArrowRight, Languages, Loader2, Sparkles } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { accessApi } from "@/services/accessApi";
+import { localizeError, t, translateLabel, type Locale, type TranslationKey } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type FormValues = { email: string; password: string };
 
@@ -20,6 +29,7 @@ export const Route = createFileRoute("/auth")({
 });
 
 function AuthPage() {
+  const { locale, setLocale } = useLocale();
   const { invite: inviteToken } = Route.useSearch();
   const [mode, setMode] = useState<"sign-in" | "sign-up">(inviteToken ? "sign-up" : "sign-in");
   const [loading, setLoading] = useState(false);
@@ -28,7 +38,7 @@ function AuthPage() {
     role: string;
     workspace_name: string;
   } | null>(null);
-  const [invitationError, setInvitationError] = useState("");
+  const [invitationError, setInvitationError] = useState<TranslationKey | "">("");
   const [accepting, setAccepting] = useState(false);
   const acceptingRef = useRef(false);
   const navigate = useNavigate();
@@ -55,7 +65,7 @@ function AuthPage() {
             `${currentUrl.pathname}${currentUrl.search}`,
           );
         }
-        toast.success("Invitation accepted");
+        toast.success(t("Invitation accepted"));
         await navigate({ to: "/dashboard" });
       } finally {
         acceptingRef.current = false;
@@ -88,9 +98,7 @@ function AuthPage() {
       .catch((error) => {
         if (cancelled) return;
         setInvitation(null);
-        setInvitationError(
-          error instanceof Error ? error.message : "Invitation is invalid or expired",
-        );
+        setInvitationError("Invitation is invalid or expired");
       });
 
     return () => {
@@ -104,8 +112,8 @@ function AuthPage() {
     supabase.auth.getSession().then(({ data }) => {
       if (!cancelled && data.session) {
         void acceptInvitation(inviteToken).catch((error) => {
-          const message = error instanceof Error ? error.message : "Could not accept invitation";
-          setInvitationError(message);
+          const message = localizeError(error, t("Could not accept invitation"));
+          setInvitationError("Could not accept invitation");
           toast.error(message);
         });
       }
@@ -136,7 +144,7 @@ function AuthPage() {
         if (data.session) {
           await acceptInvitation(inviteToken);
         } else {
-          toast.success("Check your email to confirm the account and accept the invitation");
+          toast.success(t("Check your email to confirm the account and accept the invitation"));
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -156,11 +164,11 @@ function AuthPage() {
             "This account has no workspace access. Ask a workspace administrator for an invitation.",
           );
         }
-        toast.success("Welcome back");
+        toast.success(t("Welcome back"));
         await navigate({ to: "/dashboard" });
       }
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Something went wrong";
+      const msg = localizeError(e, t("We couldn't sign you in or create your account. Check your details and try again."));
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -179,7 +187,7 @@ function AuthPage() {
             <div className="h-9 w-9 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
               <Sparkles className="h-5 w-5" />
             </div>
-            <span className="text-lg font-semibold tracking-tight">Lumen CRM</span>
+            <span className="text-lg font-semibold tracking-tight">CRMONIA</span>
           </div>
         </div>
         <motion.div
@@ -189,21 +197,20 @@ function AuthPage() {
           className="relative z-10 text-white"
         >
           <h1 className="text-4xl font-bold leading-tight tracking-tight">
-            Turn conversations into conversions.
+            {t("Turn conversations into conversions.")}
           </h1>
           <p className="mt-4 text-white/80 max-w-md">
-            A premium lead management workspace built for modern teams. Track every prospect,
-            measure every touchpoint, ship with confidence.
+            {t("A premium lead management workspace built for modern teams. Track every prospect, measure every touchpoint, ship with confidence.")}
           </p>
           <div className="mt-10 grid grid-cols-3 gap-4 max-w-md">
-            {["Realtime stats", "Status pipelines", "Premium UX"].map((t) => (
-              <div key={t} className="rounded-2xl bg-white/10 backdrop-blur px-4 py-3 text-sm">
-                {t}
+            {(["Realtime stats", "Status pipelines", "Premium UX"] as const).map((feature) => (
+              <div key={feature} className="rounded-2xl bg-white/10 backdrop-blur px-4 py-3 text-sm">
+                {t(feature)}
               </div>
             ))}
           </div>
         </motion.div>
-        <div className="relative z-10 text-xs text-white/60">© Lumen CRM</div>
+        <div className="relative z-10 text-xs text-white/60">© CRMONIA</div>
       </div>
 
       {/* Right: form */}
@@ -214,59 +221,74 @@ function AuthPage() {
           transition={{ duration: 0.4 }}
           className="w-full max-w-md glass rounded-3xl p-8 sm:p-10"
         >
+          <div className="mb-5 flex justify-end">
+            <Select value={locale} onValueChange={(value) => setLocale(value as Locale)}>
+              <SelectTrigger
+                aria-label={t("Language")}
+                className="h-9 w-36 rounded-lg border-border bg-background/70 text-sm"
+              >
+                <Languages className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <SelectValue>{locale === "uk" ? t("Ukrainian") : t("English")}</SelectValue>
+              </SelectTrigger>
+              <SelectContent position="popper" side="bottom" align="end" sideOffset={4}>
+                <SelectItem value="uk">{t("Ukrainian")}</SelectItem>
+                <SelectItem value="en">{t("English")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="lg:hidden mb-6 flex items-center gap-2">
             <div className="h-9 w-9 rounded-xl gradient-brand flex items-center justify-center text-white">
               <Sparkles className="h-5 w-5" />
             </div>
-            <span className="text-lg font-semibold">Lumen CRM</span>
+            <span className="text-lg font-semibold">CRMONIA</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
-            {mode === "sign-in" ? "Welcome back" : "Accept your invitation"}
+            {mode === "sign-in" ? t("Welcome back") : t("Accept your invitation")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "sign-in"
-              ? "Sign in to access your workspace."
+              ? t("Sign in to access your workspace.")
               : invitation
-                ? `Create an account to join ${invitation.workspace_name}.`
-                : "Checking your invitation…"}
+                ? t("Create an account to join {workspace}.", { workspace: invitation.workspace_name })
+                : t("Checking your invitation…")}
           </p>
           {invitationError && (
             <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              {invitationError}
+              {t(invitationError)}
             </p>
           )}
           {invitation && (
             <p className="mt-3 text-xs text-muted-foreground">
-              Invitation for {invitation.email} · {invitation.role}
+              {t("Invitation for {email} · {role}", { email: invitation.email, role: translateLabel(invitation.role) })}
             </p>
           )}
-          {accepting && <p className="mt-3 text-sm text-muted-foreground">Accepting invitation…</p>}
+          {accepting && <p className="mt-3 text-sm text-muted-foreground">{t("Accepting invitation…")}</p>}
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
             <div>
-              <label className="text-sm font-medium">Email</label>
+              <label className="text-sm font-medium">{t("Email")}</label>
               <input
                 type="email"
                 autoComplete="email"
                 {...register("email", {
-                  required: "Email is required",
-                  pattern: { value: /^[^@\s]+@[^@\s]+\.[^@\s]+$/, message: "Enter a valid email" },
+                  required: t("Email is required"),
+                  pattern: { value: /^[^@\s]+@[^@\s]+\.[^@\s]+$/, message: t("Enter a valid email") },
                 })}
                 className="mt-1.5 w-full rounded-xl bg-input/60 border border-border px-4 py-2.5 outline-none focus:ring-4 focus:ring-ring transition"
-                placeholder="you@company.com"
+                placeholder="name@example.com"
               />
               {errors.email && (
                 <p className="mt-1 text-xs text-destructive">{errors.email.message}</p>
               )}
             </div>
             <div>
-              <label className="text-sm font-medium">Password</label>
+              <label className="text-sm font-medium">{t("Password")}</label>
               <input
                 type="password"
                 autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
                 {...register("password", {
-                  required: "Password is required",
-                  minLength: { value: 6, message: "Min 6 characters" },
+                  required: t("Password is required"),
+                  minLength: { value: 6, message: t("Min 6 characters") },
                 })}
                 className="mt-1.5 w-full rounded-xl bg-input/60 border border-border px-4 py-2.5 outline-none focus:ring-4 focus:ring-ring transition"
                 placeholder="••••••••"
@@ -285,7 +307,7 @@ function AuthPage() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  {mode === "sign-in" ? "Sign in" : "Create account"}
+                  {mode === "sign-in" ? t("Sign in") : t("Create account")}
                   <ArrowRight className="h-4 w-4" />
                 </>
               )}
@@ -296,29 +318,29 @@ function AuthPage() {
             {inviteToken ? (
               mode === "sign-in" ? (
                 <>
-                  New to the workspace?{" "}
+                  {t("New to the workspace?")}{" "}
                   <button
                     type="button"
                     onClick={() => setMode("sign-up")}
                     className="text-primary font-medium hover:underline"
                   >
-                    Create account
+                    {t("Create account")}
                   </button>
                 </>
               ) : (
                 <>
-                  Already have an account?{" "}
+                  {t("Already have an account?")}{" "}
                   <button
                     type="button"
                     onClick={() => setMode("sign-in")}
                     className="text-primary font-medium hover:underline"
                   >
-                    Sign in
+                    {t("Sign in")}
                   </button>
                 </>
               )
             ) : (
-              <>Workspace access is invitation-only. Ask an administrator to invite your account.</>
+              <>{t("Workspace access is invitation-only. Ask an administrator to invite your account.")}</>
             )}
           </div>
           <Link to="/" className="hidden" />

@@ -1,9 +1,9 @@
 export function renderErrorPage(): string {
   return `<!doctype html>
-<html lang="en">
+<html lang="uk">
   <head>
     <meta charset="utf-8" />
-    <title>This page didn't load</title>
+    <title>Не вдалося завантажити сторінку</title>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <style>
       body { font: 15px/1.5 system-ui, -apple-system, sans-serif; background: #fafafa; color: #111; display: grid; place-items: center; min-height: 100vh; margin: 0; padding: 1.5rem; }
@@ -18,13 +18,44 @@ export function renderErrorPage(): string {
   </head>
   <body>
     <div class="card">
-      <h1>This page didn't load</h1>
-      <p>Something went wrong on our end. You can try refreshing or head back home.</p>
+      <h1 data-error-title>Не вдалося завантажити сторінку</h1>
+      <p data-error-message>Сталася помилка. Оновіть сторінку або поверніться на головну.</p>
       <div class="actions">
-        <button class="primary" onclick="location.reload()">Try again</button>
-        <a class="secondary" href="/">Go home</a>
+        <button class="primary" onclick="location.reload()" data-error-retry>Спробувати ще раз</button>
+        <a class="secondary" href="/" data-error-home>На головну</a>
       </div>
     </div>
+    <script>
+      (() => {
+        const copy = {
+          uk: {
+            title: "Не вдалося завантажити сторінку",
+            message: "Сталася помилка. Оновіть сторінку або поверніться на головну.",
+            retry: "Спробувати ще раз",
+            home: "На головну",
+          },
+          en: {
+            title: "This page didn't load",
+            message: "Something went wrong. Refresh the page or go back home.",
+            retry: "Try again",
+            home: "Go home",
+          },
+        };
+        let locale = "uk";
+        try {
+          locale = localStorage.getItem("crmonia-locale") === "en" ? "en" : "uk";
+        } catch {
+          // Ukrainian is the default when browser storage is unavailable.
+        }
+        const text = copy[locale];
+        document.documentElement.lang = locale;
+        document.title = text.title;
+        document.querySelector("[data-error-title]").textContent = text.title;
+        document.querySelector("[data-error-message]").textContent = text.message;
+        document.querySelector("[data-error-retry]").textContent = text.retry;
+        document.querySelector("[data-error-home]").textContent = text.home;
+      })();
+    </script>
   </body>
 </html>`;
 }

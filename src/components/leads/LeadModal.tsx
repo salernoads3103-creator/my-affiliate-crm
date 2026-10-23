@@ -5,6 +5,8 @@ import { X, Loader2 } from "lucide-react";
 import type { Lead, LeadInput, LeadStatus } from "@/lib/leads/types";
 import { LEAD_STATUSES } from "@/lib/leads/types";
 import { useCreateLead, useUpdateLead } from "@/hooks/useLeadsApi";
+import { t } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 
 export function LeadModal({
   open,
@@ -15,6 +17,7 @@ export function LeadModal({
   onClose: () => void;
   lead?: Lead | null;
 }) {
+  useLocale();
   const create = useCreateLead();
   const update = useUpdateLead();
   const editing = !!lead;
@@ -71,10 +74,10 @@ export function LeadModal({
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-semibold tracking-tight">
-                    {editing ? "Edit lead" : "Add new lead"}
+                    {editing ? t("Edit lead") : t("Add new lead")}
                   </h2>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    {editing ? "Update details for this lead." : "Capture a fresh opportunity."}
+                    {editing ? t("Update details for this lead.") : t("Capture a fresh opportunity.")}
                   </p>
                 </div>
                 <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-muted/60">
@@ -83,52 +86,52 @@ export function LeadModal({
               </div>
 
               <div className="mt-6 grid sm:grid-cols-2 gap-4">
-                <Field label="Name" error={errors.name?.message}>
+                <Field label={t("Name")} error={errors.name?.message}>
                   <input
                     autoFocus
-                    {...register("name", { required: "Required", maxLength: 120 })}
+                    {...register("name", { required: t("Required"), maxLength: 120 })}
                     className="field"
-                    placeholder="Jane Smith"
+                    placeholder={t("Jane Smith")}
                   />
                 </Field>
-                <Field label="Email" error={errors.email?.message}>
+                <Field label={t("Email")} error={errors.email?.message}>
                   <input
                     type="email"
                     {...register("email", {
-                      required: "Required",
-                      pattern: { value: /^[^@\s]+@[^@\s]+\.[^@\s]+$/, message: "Invalid" },
+                      required: t("Required"),
+                      pattern: { value: /^[^@\s]+@[^@\s]+\.[^@\s]+$/, message: t("Invalid") },
                     })}
                     className="field"
-                    placeholder="jane@acme.com"
+                    placeholder="name@example.com"
                   />
                 </Field>
-                <Field label="Phone" error={errors.phone?.message}>
+                <Field label={t("Phone")} error={errors.phone?.message}>
                   <input
-                    {...register("phone", { maxLength: 40, pattern: { value: /^[+\d\s().-]*$/, message: "Invalid phone" } })}
+                    {...register("phone", { maxLength: 40, pattern: { value: /^[+\d\s().-]*$/, message: t("Invalid phone") } })}
                     className="field"
-                    placeholder="+1 555 0100"
+                    placeholder="+380 50 123 45 67"
                   />
                 </Field>
-                <Field label="Company" error={errors.company_name?.message}>
+                <Field label={t("Company")} error={errors.company_name?.message}>
                   <input
                     {...register("company_name", { maxLength: 120 })}
                     className="field"
-                    placeholder="Acme Inc."
+                    placeholder={t("Company name")}
                   />
                 </Field>
-                <Field label="Status" error={errors.lead_status?.message}>
+                <Field label={t("Status")} error={errors.lead_status?.message}>
                   <select {...register("lead_status", { required: true })} className="field">
-                    {LEAD_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    {LEAD_STATUSES.map((s) => <option key={s} value={s}>{t(s)}</option>)}
                   </select>
                 </Field>
                 <div className="sm:col-span-2">
-                  <Field label={`Notes (${notesLen}/2000)`} error={errors.notes?.message}>
+                  <Field label={`${t("Notes")} (${notesLen}/2000)`} error={errors.notes?.message}>
                     <textarea
                       rows={3}
                       maxLength={2000}
                       {...register("notes", { maxLength: 2000 })}
                       className="field resize-none"
-                      placeholder="Context, follow-ups, next steps…"
+                      placeholder={t("Context, follow-ups, next steps…")}
                     />
                   </Field>
                 </div>
@@ -136,7 +139,7 @@ export function LeadModal({
 
               <div className="mt-6 flex items-center justify-end gap-2">
                 <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm hover:bg-muted/60 transition">
-                  Cancel
+                  {t("Cancel")}
                 </button>
                 <button
                   type="submit"
@@ -144,7 +147,7 @@ export function LeadModal({
                   className="rounded-xl gradient-brand text-primary-foreground font-medium px-5 py-2 text-sm flex items-center gap-2 hover:opacity-95 active:scale-[0.99] transition disabled:opacity-60"
                 >
                   {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {editing ? "Save changes" : "Create lead"}
+                  {editing ? t("Save changes") : t("Create lead")}
                 </button>
               </div>
             </form>

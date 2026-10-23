@@ -1,15 +1,18 @@
 import { motion } from "framer-motion";
 import type { LeadStatus } from "@/lib/leads/types";
+import { t } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 
 const STYLES: Record<LeadStatus, string> = {
-  New: "bg-[oklch(0.95_0.04_250)] text-[oklch(0.4_0.18_250)] ring-[oklch(0.8_0.1_250)]",
-  Contacted: "bg-[oklch(0.95_0.04_305)] text-[oklch(0.42_0.18_305)] ring-[oklch(0.82_0.1_305)]",
-  Qualified: "bg-[oklch(0.96_0.06_85)] text-[oklch(0.42_0.16_70)] ring-[oklch(0.85_0.12_85)]",
-  Converted: "bg-[oklch(0.94_0.06_155)] text-[oklch(0.38_0.14_155)] ring-[oklch(0.82_0.12_155)]",
-  Lost: "bg-[oklch(0.95_0.04_27)] text-[oklch(0.45_0.18_27)] ring-[oklch(0.85_0.1_27)]",
+  New: "bg-status-new/10 text-status-new-foreground ring-status-new/30",
+  Contacted: "bg-status-contacted/10 text-status-contacted-foreground ring-status-contacted/30",
+  Qualified: "bg-status-qualified/10 text-status-qualified-foreground ring-status-qualified/30",
+  Converted: "bg-status-converted/10 text-status-converted-foreground ring-status-converted/30",
+  Lost: "bg-status-lost/10 text-status-lost-foreground ring-status-lost/30",
 };
 
 export function StatusBadge({ status }: { status: LeadStatus }) {
+  useLocale();
   return (
     <motion.span
       initial={{ scale: 0.9, opacity: 0 }}
@@ -17,7 +20,7 @@ export function StatusBadge({ status }: { status: LeadStatus }) {
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${STYLES[status]}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />
-      {status}
+      {t(status)}
     </motion.span>
   );
 }

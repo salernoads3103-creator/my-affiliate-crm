@@ -1,30 +1,94 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useState,
+  type ReactNode,
+} from "react";
 
-type Theme = "light" | "dark";
-type Ctx = { theme: Theme; toggle: () => void };
-const ThemeContext = createContext<Ctx>({ theme: "light", toggle: () => {} });
+import {
+  normalizeThemePreference,
+  THEME_STORAGE_KEY,
+  type ResolvedTheme,
+  type ThemePreference,
+} from "@/lib/theme";
+
+type ThemeContextValue = {
+  preference: ThemePreference;
+  theme: ResolvedTheme;
+  setPreference: (preference: ThemePreference) => void;
+  toggle: () => void;
+};
+
+const ThemeContext = createContext<ThemeContextValue>({
+  preference: "light",
+  theme: "light",
+  setPreference: () => {},
+  toggle: () => {},
+});
+
+function applyTheme(theme: ResolvedTheme) {
+  document.documentElement.classList.toggle("dark", theme === "dark");
+  document.documentElement.style.colorScheme = theme;
+}
+
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setTheme] = useState<Theme>("light");
+  const [preference, setPreferenceState] = useState<ThemePreference>("light");
+  const [hydrated, setHydrated] = useState(false);
+  const theme = preference;
 
-  useEffect(() => {
-    const stored = (typeof window !== "undefined" && localStorage.getItem("theme")) as Theme | null;
-    const prefersDark = typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    const initial: Theme = stored ?? (prefersDark ? "dark" : "light");
-    setTheme(initial);
-    document.documentElement.classList.toggle("dark", initial === "dark");
+  useIsomorphicLayoutEffect(() => {
+    const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    let storedPreference: string | null = null;
+    try {
+      storedPreference = window.localStorage.getItem(THEME_STORAGE_KEY);
+    } catch {
+      // The pre-hydration bootstrap and system preference still provide a usable theme.
+    }
+
+    const savedPreference = normalizeThemePreference(storedPreference, systemPrefersDark);
+    if (storedPreference !== savedPreference) {
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, savedPreference);
+      } catch {
+        // The selected theme still applies for this page session.
+      }
+    }
+    setPreferenceState(savedPreference);
+    applyTheme(savedPreference);
+    setHydrated(true);
   }, []);
 
-  const toggle = () => {
-    setTheme((prev) => {
-      const next: Theme = prev === "light" ? "dark" : "light";
-      document.documentElement.classList.toggle("dark", next === "dark");
-      localStorage.setItem("theme", next);
-      return next;
-    });
-  };
+  useEffect(() => {
+    if (hydrated) applyTheme(theme);
+  }, [hydrated, theme]);
 
-  return <ThemeContext.Provider value={{ theme, toggle }}>{children}</ThemeContext.Provider>;
+  const setPreference = useCallback(
+    (nextPreference: ThemePreference) => {
+      setPreferenceState(nextPreference);
+      try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, nextPreference);
+      } catch {
+        // The active preference still applies for this page session.
+      }
+      applyTheme(nextPreference);
+    },
+    [],
+  );
+
+  const toggle = useCallback(() => {
+    setPreference(theme === "dark" ? "light" : "dark");
+  }, [setPreference, theme]);
+
+  return (
+    <ThemeContext.Provider value={{ preference, theme, setPreference, toggle }}>
+      {children}
+    </ThemeContext.Provider>
+  );
 }
 
 export const useTheme = () => useContext(ThemeContext);

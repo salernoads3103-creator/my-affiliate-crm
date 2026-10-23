@@ -3,6 +3,8 @@ import { Command } from "cmdk";
 import { LayoutDashboard, Users, Plus, LogOut, Moon, Sun } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useTheme } from "@/components/theme-provider";
+import { useLocale } from "@/components/locale-provider";
+import { t } from "@/lib/i18n";
 
 export function CommandPalette({
   open,
@@ -14,7 +16,8 @@ export function CommandPalette({
   onSignOut: () => void;
 }) {
   const navigate = useNavigate();
-  const { toggle, theme } = useTheme();
+  useLocale();
+  const { setPreference, theme } = useTheme();
 
   const run = (fn: () => void) => () => { setOpen(false); fn(); };
 
@@ -36,25 +39,25 @@ export function CommandPalette({
           >
             <Command className="glass-strong rounded-2xl overflow-hidden border border-border shadow-2xl">
               <Command.Input
-                placeholder="Type a command or search…"
+                placeholder={t("Type a command or search…")}
                 className="w-full bg-transparent px-5 py-4 outline-none border-b border-border placeholder:text-muted-foreground"
               />
               <Command.List className="max-h-80 overflow-y-auto p-2">
                 <Command.Empty className="px-4 py-6 text-sm text-muted-foreground">
-                  No results.
+                  {t("No results.")}
                 </Command.Empty>
-                <Command.Group heading="Navigate" className="text-xs text-muted-foreground px-2 py-1">
-                  <Item icon={<LayoutDashboard className="h-4 w-4" />} label="Go to Dashboard" onSelect={run(() => navigate({ to: "/dashboard" }))} />
-                  <Item icon={<Users className="h-4 w-4" />} label="Go to Leads" onSelect={run(() => navigate({ to: "/leads", search: { new: false } }))} />
+                <Command.Group heading={t("Navigate")} className="text-xs text-muted-foreground px-2 py-1">
+                  <Item icon={<LayoutDashboard className="h-4 w-4" />} label={t("Go to Dashboard")} onSelect={run(() => navigate({ to: "/dashboard" }))} />
+                  <Item icon={<Users className="h-4 w-4" />} label={t("Go to Leads")} onSelect={run(() => navigate({ to: "/leads", search: { new: false } }))} />
                 </Command.Group>
-                <Command.Group heading="Actions" className="text-xs text-muted-foreground px-2 py-1">
-                  <Item icon={<Plus className="h-4 w-4" />} label="Add new lead" onSelect={run(() => navigate({ to: "/leads", search: { new: true } }))} />
+                <Command.Group heading={t("Actions")} className="text-xs text-muted-foreground px-2 py-1">
+                  <Item icon={<Plus className="h-4 w-4" />} label={t("Add new lead")} onSelect={run(() => navigate({ to: "/leads", search: { new: true } }))} />
                   <Item
                     icon={theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                    label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-                    onSelect={run(toggle)}
+                    label={t(theme === "dark" ? "Switch to light mode" : "Switch to dark mode")}
+                    onSelect={run(() => setPreference(theme === "dark" ? "light" : "dark"))}
                   />
-                  <Item icon={<LogOut className="h-4 w-4" />} label="Sign out" onSelect={run(onSignOut)} />
+                  <Item icon={<LogOut className="h-4 w-4" />} label={t("Sign out")} onSelect={run(onSignOut)} />
                 </Command.Group>
               </Command.List>
             </Command>

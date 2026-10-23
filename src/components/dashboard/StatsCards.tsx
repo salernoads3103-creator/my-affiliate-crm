@@ -1,17 +1,20 @@
 import { motion } from "framer-motion";
 import { Users, Sparkles, MessageCircle, CheckCircle2, Trophy, XCircle, TrendingUp } from "lucide-react";
 import type { LeadStats } from "@/lib/leads/types";
+import { t } from "@/lib/i18n";
+import { useLocale } from "@/components/locale-provider";
 
 const CARDS = [
   { key: "total", label: "Total leads", icon: Users, tone: "from-primary to-accent" },
-  { key: "New", label: "New", icon: Sparkles, tone: "from-[oklch(0.6_0.2_250)] to-[oklch(0.7_0.18_270)]" },
-  { key: "Contacted", label: "Contacted", icon: MessageCircle, tone: "from-[oklch(0.65_0.2_305)] to-[oklch(0.7_0.18_330)]" },
-  { key: "Qualified", label: "Qualified", icon: CheckCircle2, tone: "from-[oklch(0.7_0.16_70)] to-[oklch(0.75_0.16_50)]" },
-  { key: "Converted", label: "Converted", icon: Trophy, tone: "from-[oklch(0.6_0.16_155)] to-[oklch(0.7_0.16_175)]" },
-  { key: "Lost", label: "Lost", icon: XCircle, tone: "from-[oklch(0.6_0.2_27)] to-[oklch(0.65_0.18_15)]" },
+  { key: "New", label: "New", icon: Sparkles, tone: "from-status-new to-status-new" },
+  { key: "Contacted", label: "Contacted", icon: MessageCircle, tone: "from-status-contacted to-status-contacted" },
+  { key: "Qualified", label: "Qualified", icon: CheckCircle2, tone: "from-status-qualified to-status-qualified" },
+  { key: "Converted", label: "Converted", icon: Trophy, tone: "from-status-converted to-status-converted" },
+  { key: "Lost", label: "Lost", icon: XCircle, tone: "from-status-lost to-status-lost" },
 ] as const;
 
 export function StatsCards({ stats, loading }: { stats?: LeadStats; loading?: boolean }) {
+  useLocale();
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4">
       {CARDS.map((c, i) => {
@@ -30,7 +33,7 @@ export function StatsCards({ stats, loading }: { stats?: LeadStats; loading?: bo
           >
             <div className={`absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-20 blur-2xl bg-gradient-to-br ${c.tone}`} />
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">{c.label}</span>
+              <span className="text-xs font-medium text-muted-foreground">{t(c.label)}</span>
               <div className={`h-7 w-7 rounded-lg bg-gradient-to-br ${c.tone} text-white flex items-center justify-center shadow-md shadow-primary/10`}>
                 <Icon className="h-3.5 w-3.5" />
               </div>
@@ -40,7 +43,7 @@ export function StatsCards({ stats, loading }: { stats?: LeadStats; loading?: bo
             </div>
             {c.key === "total" && (
               <div className="mt-1 text-[11px] text-muted-foreground flex items-center gap-1">
-                <TrendingUp className="h-3 w-3" /> all-time
+                <TrendingUp className="h-3 w-3" /> {t("all-time")}
               </div>
             )}
           </motion.div>

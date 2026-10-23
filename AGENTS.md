@@ -33,5 +33,6 @@ CRMONIA is a multi-user CRM for e-commerce, product arbitrage, and independent c
 - Design integrations around documented, versioned contracts. For external submissions and webhooks, account for authentication/signatures, idempotency, retries, and safe status synchronization.
 - Never put production secrets, Supabase `service_role` keys, or other secret keys in frontend code or browser environment variables. Keep privileged credentials server-only and use least privilege.
 - Preserve existing users, leads, and other data unless the user explicitly authorizes a data change.
+- Write all new CRMONIA UI copy naturally in both Ukrainian and English. Do not rely on automatic literal translation; review labels, instructions, empty states, errors, and confirmations in their product context.
 - Do not create Git commits or push without explicit user permission.
 - Communicate and provide user-facing instructions and audit reports in Ukrainian.

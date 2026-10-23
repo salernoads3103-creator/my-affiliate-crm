@@ -1,4 +1,4 @@
-# Lumen CRM
+# CRMONIA
 
 A premium, full-stack **Lead Management CRM** built as a production-grade SaaS
 product. Inspired by the polish of Linear, Notion, and Stripe Dashboard — with
@@ -499,4 +499,4 @@ No code change, no rebuild logic — the frontend's HTTP client (`src/services/a
 
 ## 📄 License
 
-MIT — Lumen CRM.
+MIT — CRMONIA.
