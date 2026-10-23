@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedAdministrationRouteImport } from './routes/_authenticated/administration'
 import { Route as ApiWorkspacesIndexRouteImport } from './routes/api/workspaces/index'
 import { Route as ApiLeadsIndexRouteImport } from './routes/api/leads/index'
 import { Route as ApiLeadsStatsRouteImport } from './routes/api/leads/stats'
@@ -27,6 +28,7 @@ import { Route as ApiWorkspacesWorkspaceIdOffersRouteImport } from './routes/api
 import { Route as ApiWorkspacesWorkspaceIdMembersRouteImport } from './routes/api/workspaces/$workspaceId/members'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsRouteImport } from './routes/api/workspaces/$workspaceId/invitations'
 import { Route as ApiWorkspacesWorkspaceIdAuditRouteImport } from './routes/api/workspaces/$workspaceId/audit'
+import { Route as ApiWorkspacesWorkspaceIdAccessRouteImport } from './routes/api/workspaces/$workspaceId/access'
 import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from './routes/api/workspaces/$workspaceId/members/$userId'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from './routes/api/workspaces/$workspaceId/invitations/$invitationId'
 
@@ -54,6 +56,12 @@ const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedAdministrationRoute =
+  AuthenticatedAdministrationRouteImport.update({
+    id: '/administration',
+    path: '/administration',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const ApiWorkspacesIndexRoute = ApiWorkspacesIndexRouteImport.update({
   id: '/api/workspaces/',
   path: '/api/workspaces/',
@@ -125,6 +133,12 @@ const ApiWorkspacesWorkspaceIdAuditRoute =
     path: '/api/workspaces/$workspaceId/audit',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWorkspacesWorkspaceIdAccessRoute =
+  ApiWorkspacesWorkspaceIdAccessRouteImport.update({
+    id: '/api/workspaces/$workspaceId/access',
+    path: '/api/workspaces/$workspaceId/access',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWorkspacesWorkspaceIdMembersUserIdRoute =
   ApiWorkspacesWorkspaceIdMembersUserIdRouteImport.update({
     id: '/$userId',
@@ -141,6 +155,7 @@ const ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/administration': typeof AuthenticatedAdministrationRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/api/invitations/accept': typeof ApiInvitationsAcceptRoute
@@ -150,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/api/leads/stats': typeof ApiLeadsStatsRoute
   '/api/leads/': typeof ApiLeadsIndexRoute
   '/api/workspaces/': typeof ApiWorkspacesIndexRoute
+  '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
@@ -162,6 +178,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/administration': typeof AuthenticatedAdministrationRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/api/invitations/accept': typeof ApiInvitationsAcceptRoute
@@ -171,6 +188,7 @@ export interface FileRoutesByTo {
   '/api/leads/stats': typeof ApiLeadsStatsRoute
   '/api/leads': typeof ApiLeadsIndexRoute
   '/api/workspaces': typeof ApiWorkspacesIndexRoute
+  '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
@@ -185,6 +203,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/_authenticated/administration': typeof AuthenticatedAdministrationRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/api/invitations/accept': typeof ApiInvitationsAcceptRoute
@@ -194,6 +213,7 @@ export interface FileRoutesById {
   '/api/leads/stats': typeof ApiLeadsStatsRoute
   '/api/leads/': typeof ApiLeadsIndexRoute
   '/api/workspaces/': typeof ApiWorkspacesIndexRoute
+  '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
@@ -208,6 +228,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/administration'
     | '/dashboard'
     | '/leads'
     | '/api/invitations/accept'
@@ -217,6 +238,7 @@ export interface FileRouteTypes {
     | '/api/leads/stats'
     | '/api/leads/'
     | '/api/workspaces/'
+    | '/api/workspaces/$workspaceId/access'
     | '/api/workspaces/$workspaceId/audit'
     | '/api/workspaces/$workspaceId/invitations'
     | '/api/workspaces/$workspaceId/members'
@@ -229,6 +251,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/administration'
     | '/dashboard'
     | '/leads'
     | '/api/invitations/accept'
@@ -238,6 +261,7 @@ export interface FileRouteTypes {
     | '/api/leads/stats'
     | '/api/leads'
     | '/api/workspaces'
+    | '/api/workspaces/$workspaceId/access'
     | '/api/workspaces/$workspaceId/audit'
     | '/api/workspaces/$workspaceId/invitations'
     | '/api/workspaces/$workspaceId/members'
@@ -251,6 +275,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/_authenticated/administration'
     | '/_authenticated/dashboard'
     | '/_authenticated/leads'
     | '/api/invitations/accept'
@@ -260,6 +285,7 @@ export interface FileRouteTypes {
     | '/api/leads/stats'
     | '/api/leads/'
     | '/api/workspaces/'
+    | '/api/workspaces/$workspaceId/access'
     | '/api/workspaces/$workspaceId/audit'
     | '/api/workspaces/$workspaceId/invitations'
     | '/api/workspaces/$workspaceId/members'
@@ -281,6 +307,7 @@ export interface RootRouteChildren {
   ApiLeadsStatsRoute: typeof ApiLeadsStatsRoute
   ApiLeadsIndexRoute: typeof ApiLeadsIndexRoute
   ApiWorkspacesIndexRoute: typeof ApiWorkspacesIndexRoute
+  ApiWorkspacesWorkspaceIdAccessRoute: typeof ApiWorkspacesWorkspaceIdAccessRoute
   ApiWorkspacesWorkspaceIdAuditRoute: typeof ApiWorkspacesWorkspaceIdAuditRoute
   ApiWorkspacesWorkspaceIdInvitationsRoute: typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
   ApiWorkspacesWorkspaceIdMembersRoute: typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
@@ -324,6 +351,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/administration': {
+      id: '/_authenticated/administration'
+      path: '/administration'
+      fullPath: '/administration'
+      preLoaderRoute: typeof AuthenticatedAdministrationRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/api/workspaces/': {
@@ -417,6 +451,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspaces/$workspaceId/access': {
+      id: '/api/workspaces/$workspaceId/access'
+      path: '/api/workspaces/$workspaceId/access'
+      fullPath: '/api/workspaces/$workspaceId/access'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdAccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/workspaces/$workspaceId/members/$userId': {
       id: '/api/workspaces/$workspaceId/members/$userId'
       path: '/$userId'
@@ -435,11 +476,13 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedAdministrationRoute: typeof AuthenticatedAdministrationRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedAdministrationRoute: AuthenticatedAdministrationRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
 }
@@ -488,6 +531,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLeadsStatsRoute: ApiLeadsStatsRoute,
   ApiLeadsIndexRoute: ApiLeadsIndexRoute,
   ApiWorkspacesIndexRoute: ApiWorkspacesIndexRoute,
+  ApiWorkspacesWorkspaceIdAccessRoute: ApiWorkspacesWorkspaceIdAccessRoute,
   ApiWorkspacesWorkspaceIdAuditRoute: ApiWorkspacesWorkspaceIdAuditRoute,
   ApiWorkspacesWorkspaceIdInvitationsRoute:
     ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren,

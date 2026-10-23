@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTheme } from "@/components/theme-provider";
 import { CommandPalette } from "@/components/common/CommandPalette";
 import { useCommandPalette } from "@/hooks/useCommandPalette";
+import { canAccessAdministration, useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 
 const NAV = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -32,6 +33,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const { theme, toggle } = useTheme();
   const { open, setOpen } = useCommandPalette();
+  const { permissions } = useWorkspaceAccess();
+  const navItems = canAccessAdministration(permissions)
+    ? [...NAV, { to: "/administration" as const, label: "Administration", icon: Users }]
+    : NAV;
 
   const signOut = async () => {
     await queryClient.cancelQueries();
@@ -65,7 +70,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       </button>
 
       <nav className="flex-1 px-3 space-y-1">
-        {NAV.map((item) => {
+        {navItems.map((item) => {
           const active = pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
