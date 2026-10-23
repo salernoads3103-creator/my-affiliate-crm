@@ -218,6 +218,45 @@ export type Database = {
         };
         Relationships: [];
       };
+      workspace_landings: {
+        Row: {
+          analysis: Json;
+          created_at: string;
+          created_by_user_id: string | null;
+          id: string;
+          name: string;
+          offer_id: string;
+          published_url: string | null;
+          source_archive_path: string;
+          status: "draft" | "ready" | "published" | "error";
+          workspace_id: string;
+        };
+        Insert: {
+          analysis: Json;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          name: string;
+          offer_id: string;
+          published_url?: string | null;
+          source_archive_path: string;
+          status?: "draft" | "ready" | "published" | "error";
+          workspace_id: string;
+        };
+        Update: {
+          analysis?: Json;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          name?: string;
+          offer_id?: string;
+          published_url?: string | null;
+          source_archive_path?: string;
+          status?: "draft" | "ready" | "published" | "error";
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -282,6 +321,22 @@ export type Database = {
           product_sale_price_minor: number | null;
           product_sku: string | null;
           updated_at: string;
+          workspace_id: string;
+        }[];
+      };
+      get_workspace_landings: {
+        Args: { p_search: string | null; p_workspace_id: string };
+        Returns: {
+          analysis: Json;
+          created_at: string;
+          created_by_user_id: string | null;
+          id: string;
+          name: string;
+          offer_id: string;
+          offer_name: string;
+          published_url: string | null;
+          source_archive_path: string;
+          status: string;
           workspace_id: string;
         }[];
       };

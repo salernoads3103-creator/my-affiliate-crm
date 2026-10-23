@@ -4,6 +4,7 @@ export type ApiErrorCode =
   | "FORBIDDEN"
   | "NOT_FOUND"
   | "CONFLICT"
+  | "PAYLOAD_TOO_LARGE"
   | "INTERNAL_ERROR";
 
 export function apiErrorCodeForStatus(status: number): ApiErrorCode {
@@ -18,6 +19,8 @@ export function apiErrorCodeForStatus(status: number): ApiErrorCode {
       return "NOT_FOUND";
     case 409:
       return "CONFLICT";
+    case 413:
+      return "PAYLOAD_TOO_LARGE";
     default:
       return "INTERNAL_ERROR";
   }
