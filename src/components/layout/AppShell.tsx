@@ -12,6 +12,7 @@ import {
   Moon,
   Sun,
   Languages,
+  Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -46,9 +47,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { locale, setLocale } = useLocale();
   const { open, setOpen } = useCommandPalette();
   const { permissions } = useWorkspaceAccess();
-  const navItems = canAccessAdministration(permissions)
-    ? [...NAV, { to: "/administration" as const, label: "Administration", icon: Users }]
-    : NAV;
+  const navItems = [
+    ...NAV,
+    ...(permissions["products.read"]
+      ? [{ to: "/products" as const, label: "Products", icon: Package }]
+      : []),
+    ...(canAccessAdministration(permissions)
+      ? [{ to: "/administration" as const, label: "Administration", icon: Users }]
+      : []),
+  ];
 
   const signOut = async () => {
     await queryClient.cancelQueries();

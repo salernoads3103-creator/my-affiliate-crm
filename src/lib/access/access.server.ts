@@ -61,6 +61,22 @@ export async function requireWorkspacePermission(
   if (!data) throw new AccessApiError(403, "Insufficient workspace permissions");
 }
 
+export async function hasWorkspacePermission(
+  context: AccessContext,
+  workspaceId: string,
+  permission: WorkspacePermission,
+): Promise<boolean> {
+  const { data, error } = await context.client.rpc("has_workspace_permission", {
+    p_workspace_id: workspaceId,
+    p_permission_key: permission,
+    p_team_id: null,
+    p_operator_id: null,
+    p_offer_id: null,
+  });
+  if (error) throw mapRpcError(error.code, error.message, error);
+  return data === true;
+}
+
 export function mapRpcError(code?: string, message?: string, cause?: unknown): AccessApiError {
   if (code === "42501") return new AccessApiError(403, "Insufficient workspace permissions");
   if (code === "P0002")

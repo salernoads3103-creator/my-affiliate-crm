@@ -113,6 +113,72 @@ export type Database = {
         };
         Relationships: [];
       };
+      products: {
+        Row: {
+          created_at: string;
+          currency: string;
+          id: string;
+          is_active: boolean;
+          name: string;
+          photo_url: string | null;
+          sale_price_minor: number;
+          sku: string | null;
+          supplier_name: string | null;
+          updated_at: string;
+          weight_grams: number | null;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          photo_url?: string | null;
+          sale_price_minor: number;
+          sku?: string | null;
+          supplier_name?: string | null;
+          updated_at?: string;
+          weight_grams?: number | null;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          currency?: string;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          photo_url?: string | null;
+          sale_price_minor?: number;
+          sku?: string | null;
+          supplier_name?: string | null;
+          updated_at?: string;
+          weight_grams?: number | null;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      product_costs: {
+        Row: {
+          cost_price_minor: number | null;
+          product_id: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          cost_price_minor?: number | null;
+          product_id: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          cost_price_minor?: number | null;
+          product_id?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -128,6 +194,35 @@ export type Database = {
           p_role: string;
           p_token_hash: string;
           p_workspace_id: string;
+        };
+        Returns: string;
+      };
+      create_product: {
+        Args: {
+          p_cost_price_minor: number | null;
+          p_is_active: boolean;
+          p_name: string;
+          p_photo_url: string | null;
+          p_sale_price_minor: number;
+          p_sku: string | null;
+          p_supplier_name: string | null;
+          p_weight_grams: number | null;
+          p_workspace_id: string;
+        };
+        Returns: string;
+      };
+      update_product: {
+        Args: {
+          p_cost_price_minor: number | null;
+          p_is_active: boolean;
+          p_name: string;
+          p_photo_url: string | null;
+          p_product_id: string;
+          p_sale_price_minor: number;
+          p_sku: string | null;
+          p_supplier_name: string | null;
+          p_update_cost: boolean;
+          p_weight_grams: number | null;
         };
         Returns: string;
       };

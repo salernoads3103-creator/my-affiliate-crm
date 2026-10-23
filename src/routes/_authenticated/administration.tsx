@@ -90,6 +90,9 @@ const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "teams.manage", category: "Teams", description: "Create and update workspace teams" },
   { key: "offers.read", category: "Offers", description: "View offers in the granted data scope" },
   { key: "offers.manage", category: "Offers", description: "Create and update workspace offers" },
+  { key: "products.read", category: "Products", description: "View workspace products" },
+  { key: "products.manage", category: "Products", description: "Create and update workspace products" },
+  { key: "products.cost.read", category: "Products", description: "View product cost prices" },
   {
     key: "permissions.read",
     category: "Permissions",
