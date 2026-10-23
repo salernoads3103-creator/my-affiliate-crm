@@ -296,6 +296,55 @@ export type Database = {
         };
         Returns: string;
       };
+      get_landing_form_config: {
+        Args: { p_offer_id: string; p_workspace_id: string };
+        Returns: { allowed_origin: string; is_active: boolean; public_id: string }[];
+      };
+      create_landing_form_config: {
+        Args: { p_allowed_origin: string; p_offer_id: string; p_workspace_id: string };
+        Returns: { allowed_origin: string; is_active: boolean; public_id: string }[];
+      };
+      deactivate_landing_form_config: {
+        Args: { p_offer_id: string; p_workspace_id: string };
+        Returns: boolean;
+      };
+      is_landing_origin_allowed: {
+        Args: { p_origin: string };
+        Returns: boolean;
+      };
+      is_landing_form_origin_allowed: {
+        Args: { p_origin: string; p_public_id: string };
+        Returns: boolean;
+      };
+      consume_landing_intake_ip_limit: {
+        Args: { p_ip_hash: string };
+        Returns: boolean;
+      };
+      create_public_landing_lead: {
+        Args: {
+          p_city_name: string | null;
+          p_city_ref: string | null;
+          p_delivery_type: string | null;
+          p_email: string | null;
+          p_ip_hash: string;
+          p_name: string;
+          p_origin: string | null;
+          p_phone: string;
+          p_phone_normalized: string;
+          p_public_id: string;
+          p_request_key_hash: string;
+          p_sub_id: string | null;
+          p_ttclid: string | null;
+          p_utm_campaign: string | null;
+          p_utm_content: string | null;
+          p_utm_medium: string | null;
+          p_utm_source: string | null;
+          p_utm_term: string | null;
+          p_warehouse_name: string | null;
+          p_warehouse_ref: string | null;
+        };
+        Returns: string;
+      };
       update_commercial_offer: {
         Args: {
           p_is_active: boolean;

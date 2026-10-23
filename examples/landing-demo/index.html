@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="uk">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Бритва НХ-8503 — CRMONIA demo</title>
+    <style>
+      :root { color-scheme: light; font-family: system-ui, sans-serif; }
+      body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f3f4f6; color: #171717; }
+      main { width: min(100% - 32px, 420px); padding: 28px; border: 1px solid #e5e7eb; border-radius: 18px; background: white; box-shadow: 0 16px 40px #00000012; }
+      h1 { margin: 0 0 8px; font-size: 1.45rem; }
+      .price { margin: 0 0 22px; color: #52525b; }
+      label { display: grid; gap: 6px; margin: 14px 0; font-size: .9rem; }
+      input { box-sizing: border-box; width: 100%; padding: 11px 12px; border: 1px solid #d4d4d8; border-radius: 9px; font: inherit; }
+      button { width: 100%; margin-top: 10px; padding: 12px; border: 0; border-radius: 9px; background: #18181b; color: white; font: inherit; font-weight: 650; cursor: pointer; }
+      button:disabled { opacity: .6; cursor: wait; }
+      #message { min-height: 1.4em; margin: 14px 0 0; font-size: .9rem; }
+      #message[data-state="error"] { color: #b91c1c; }
+      #message[data-state="success"] { color: #15803d; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Бритва НХ-8503</h1>
+      <p class="price">Спеціальна пропозиція — 1 190 грн</p>
+      <form id="order-form">
+        <label>Ім'я <input name="name" autocomplete="name" required maxlength="120" /></label>
+        <label>Телефон <input name="phone" type="tel" autocomplete="tel" placeholder="+380…" required maxlength="40" /></label>
+        <label aria-hidden="true" style="position:absolute;left:-10000px" tabindex="-1">Website <input name="website" tabindex="-1" autocomplete="off" /></label>
+        <button type="submit">Замовити</button>
+        <p id="message" role="status" aria-live="polite"></p>
+      </form>
+    </main>
+    <script>
+      // Replace these public values with the endpoint and form ID from the offer connection.
+      // This demo contains no API secrets. Serve it over HTTP, not file://, so CORS has a real origin.
+      const API_ENDPOINT = "http://localhost:8080/api/v1/intake/leads";
+      const PUBLIC_FORM_ID = "PASTE_PUBLIC_FORM_ID_HERE";
+
+      const form = document.querySelector("#order-form");
+      const message = document.querySelector("#message");
+      const button = form.querySelector("button[type=submit]");
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        button.disabled = true;
+        message.textContent = "Надсилаємо заявку…";
+        message.dataset.state = "";
+
+        const values = new FormData(form);
+        const query = new URLSearchParams(window.location.search);
+        try {
+          const response = await fetch(API_ENDPOINT, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Idempotency-Key": crypto.randomUUID(),
+            },
+            body: JSON.stringify({
+              formId: PUBLIC_FORM_ID,
+              name: values.get("name"),
+              phone: values.get("phone"),
+              website: values.get("website"),
+              utmSource: query.get("utm_source") || undefined,
+              utmMedium: query.get("utm_medium") || undefined,
+              utmCampaign: query.get("utm_campaign") || undefined,
+              utmContent: query.get("utm_content") || undefined,
+              utmTerm: query.get("utm_term") || undefined,
+              ttclid: query.get("ttclid") || undefined,
+              subId: query.get("sub_id") || undefined,
+              // Future Nova Poshta fields can be sent here: deliveryType, cityRef, cityName,
+              // warehouseRef and warehouseName. No carrier API is called by this example.
+            }),
+          });
+          const result = await response.json().catch(() => ({}));
+          if (!response.ok || result.accepted !== true) {
+            throw new Error(result.error || "Не вдалося надіслати заявку. Спробуйте ще раз.");
+          }
+          message.textContent = "Дякуємо! Заявку прийнято.";
+          message.dataset.state = "success";
+          form.reset();
+        } catch (error) {
+          message.textContent = error instanceof Error ? error.message : "Не вдалося надіслати заявку.";
+          message.dataset.state = "error";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>

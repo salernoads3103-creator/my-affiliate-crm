@@ -32,11 +32,13 @@ import { Route as ApiWorkspacesWorkspaceIdMembersRouteImport } from './routes/ap
 import { Route as ApiWorkspacesWorkspaceIdInvitationsRouteImport } from './routes/api/workspaces/$workspaceId/invitations'
 import { Route as ApiWorkspacesWorkspaceIdAuditRouteImport } from './routes/api/workspaces/$workspaceId/audit'
 import { Route as ApiWorkspacesWorkspaceIdAccessRouteImport } from './routes/api/workspaces/$workspaceId/access'
+import { Route as ApiV1IntakeLeadsRouteImport } from './routes/api/v1/intake/leads'
 import { Route as ApiWorkspacesWorkspaceIdProductsProductIdRouteImport } from './routes/api/workspaces/$workspaceId/products/$productId'
 import { Route as ApiWorkspacesWorkspaceIdOffersCatalogRouteImport } from './routes/api/workspaces/$workspaceId/offers/catalog'
 import { Route as ApiWorkspacesWorkspaceIdOffersOfferIdRouteImport } from './routes/api/workspaces/$workspaceId/offers/$offerId'
 import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from './routes/api/workspaces/$workspaceId/members/$userId'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from './routes/api/workspaces/$workspaceId/invitations/$invitationId'
+import { Route as ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRouteImport } from './routes/api/workspaces/$workspaceId/offers/$offerId/intake-form'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -161,6 +163,11 @@ const ApiWorkspacesWorkspaceIdAccessRoute =
     path: '/api/workspaces/$workspaceId/access',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiV1IntakeLeadsRoute = ApiV1IntakeLeadsRouteImport.update({
+  id: '/api/v1/intake/leads',
+  path: '/api/v1/intake/leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiWorkspacesWorkspaceIdProductsProductIdRoute =
   ApiWorkspacesWorkspaceIdProductsProductIdRouteImport.update({
     id: '/$productId',
@@ -191,6 +198,12 @@ const ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute =
     path: '/$invitationId',
     getParentRoute: () => ApiWorkspacesWorkspaceIdInvitationsRoute,
   } as any)
+const ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute =
+  ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRouteImport.update({
+    id: '/intake-form',
+    path: '/intake-form',
+    getParentRoute: () => ApiWorkspacesWorkspaceIdOffersOfferIdRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -207,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/api/leads/stats': typeof ApiLeadsStatsRoute
   '/api/leads/': typeof ApiLeadsIndexRoute
   '/api/workspaces/': typeof ApiWorkspacesIndexRoute
+  '/api/v1/intake/leads': typeof ApiV1IntakeLeadsRoute
   '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
@@ -217,9 +231,10 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
-  '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRoute
+  '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -236,6 +251,7 @@ export interface FileRoutesByTo {
   '/api/leads/stats': typeof ApiLeadsStatsRoute
   '/api/leads': typeof ApiLeadsIndexRoute
   '/api/workspaces': typeof ApiWorkspacesIndexRoute
+  '/api/v1/intake/leads': typeof ApiV1IntakeLeadsRoute
   '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
@@ -246,9 +262,10 @@ export interface FileRoutesByTo {
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
-  '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRoute
+  '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -267,6 +284,7 @@ export interface FileRoutesById {
   '/api/leads/stats': typeof ApiLeadsStatsRoute
   '/api/leads/': typeof ApiLeadsIndexRoute
   '/api/workspaces/': typeof ApiWorkspacesIndexRoute
+  '/api/v1/intake/leads': typeof ApiV1IntakeLeadsRoute
   '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
@@ -277,9 +295,10 @@ export interface FileRoutesById {
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
-  '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRoute
+  '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -298,6 +317,7 @@ export interface FileRouteTypes {
     | '/api/leads/stats'
     | '/api/leads/'
     | '/api/workspaces/'
+    | '/api/v1/intake/leads'
     | '/api/workspaces/$workspaceId/access'
     | '/api/workspaces/$workspaceId/audit'
     | '/api/workspaces/$workspaceId/invitations'
@@ -311,6 +331,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -327,6 +348,7 @@ export interface FileRouteTypes {
     | '/api/leads/stats'
     | '/api/leads'
     | '/api/workspaces'
+    | '/api/v1/intake/leads'
     | '/api/workspaces/$workspaceId/access'
     | '/api/workspaces/$workspaceId/audit'
     | '/api/workspaces/$workspaceId/invitations'
@@ -340,6 +362,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
   id:
     | '__root__'
     | '/'
@@ -357,6 +380,7 @@ export interface FileRouteTypes {
     | '/api/leads/stats'
     | '/api/leads/'
     | '/api/workspaces/'
+    | '/api/v1/intake/leads'
     | '/api/workspaces/$workspaceId/access'
     | '/api/workspaces/$workspaceId/audit'
     | '/api/workspaces/$workspaceId/invitations'
@@ -370,6 +394,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -383,6 +408,7 @@ export interface RootRouteChildren {
   ApiLeadsStatsRoute: typeof ApiLeadsStatsRoute
   ApiLeadsIndexRoute: typeof ApiLeadsIndexRoute
   ApiWorkspacesIndexRoute: typeof ApiWorkspacesIndexRoute
+  ApiV1IntakeLeadsRoute: typeof ApiV1IntakeLeadsRoute
   ApiWorkspacesWorkspaceIdAccessRoute: typeof ApiWorkspacesWorkspaceIdAccessRoute
   ApiWorkspacesWorkspaceIdAuditRoute: typeof ApiWorkspacesWorkspaceIdAuditRoute
   ApiWorkspacesWorkspaceIdInvitationsRoute: typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
@@ -556,6 +582,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdAccessRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/v1/intake/leads': {
+      id: '/api/v1/intake/leads'
+      path: '/api/v1/intake/leads'
+      fullPath: '/api/v1/intake/leads'
+      preLoaderRoute: typeof ApiV1IntakeLeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/workspaces/$workspaceId/products/$productId': {
       id: '/api/workspaces/$workspaceId/products/$productId'
       path: '/$productId'
@@ -590,6 +623,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/workspaces/$workspaceId/invitations/$invitationId'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport
       parentRoute: typeof ApiWorkspacesWorkspaceIdInvitationsRoute
+    }
+    '/api/workspaces/$workspaceId/offers/$offerId/intake-form': {
+      id: '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
+      path: '/intake-form'
+      fullPath: '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRouteImport
+      parentRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdRoute
     }
   }
 }
@@ -643,15 +683,30 @@ const ApiWorkspacesWorkspaceIdMembersRouteWithChildren =
     ApiWorkspacesWorkspaceIdMembersRouteChildren,
   )
 
+interface ApiWorkspacesWorkspaceIdOffersOfferIdRouteChildren {
+  ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
+}
+
+const ApiWorkspacesWorkspaceIdOffersOfferIdRouteChildren: ApiWorkspacesWorkspaceIdOffersOfferIdRouteChildren =
+  {
+    ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute:
+      ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute,
+  }
+
+const ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren =
+  ApiWorkspacesWorkspaceIdOffersOfferIdRoute._addFileChildren(
+    ApiWorkspacesWorkspaceIdOffersOfferIdRouteChildren,
+  )
+
 interface ApiWorkspacesWorkspaceIdOffersRouteChildren {
-  ApiWorkspacesWorkspaceIdOffersOfferIdRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdRoute
+  ApiWorkspacesWorkspaceIdOffersOfferIdRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   ApiWorkspacesWorkspaceIdOffersCatalogRoute: typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
 }
 
 const ApiWorkspacesWorkspaceIdOffersRouteChildren: ApiWorkspacesWorkspaceIdOffersRouteChildren =
   {
     ApiWorkspacesWorkspaceIdOffersOfferIdRoute:
-      ApiWorkspacesWorkspaceIdOffersOfferIdRoute,
+      ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren,
     ApiWorkspacesWorkspaceIdOffersCatalogRoute:
       ApiWorkspacesWorkspaceIdOffersCatalogRoute,
   }
@@ -687,6 +742,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiLeadsStatsRoute: ApiLeadsStatsRoute,
   ApiLeadsIndexRoute: ApiLeadsIndexRoute,
   ApiWorkspacesIndexRoute: ApiWorkspacesIndexRoute,
+  ApiV1IntakeLeadsRoute: ApiV1IntakeLeadsRoute,
   ApiWorkspacesWorkspaceIdAccessRoute: ApiWorkspacesWorkspaceIdAccessRoute,
   ApiWorkspacesWorkspaceIdAuditRoute: ApiWorkspacesWorkspaceIdAuditRoute,
   ApiWorkspacesWorkspaceIdInvitationsRoute:
