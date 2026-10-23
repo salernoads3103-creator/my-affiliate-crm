@@ -1,0 +1,41 @@
+# TanStack Start production server for the CRMONIA application and Landing Intake API.
+# Keep the separate legacy Express service in server/render.yaml unchanged.
+services:
+  - type: web
+    name: crmonia-intake-api-test
+    runtime: node
+    plan: free
+    branch: develop
+    autoDeployTrigger: off
+    buildCommand: bun install --frozen-lockfile && bun run build
+    startCommand: bun dist/server/index.mjs
+    envVars:
+      - key: BUN_VERSION
+        value: 1.4.4
+      - key: NODE_ENV
+        value: production
+      - key: NITRO_PRESET
+        value: node-server
+      - key: NITRO_HOST
+        value: 0.0.0.0
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: VITE_SUPABASE_PROJECT_ID
+        sync: false
+      - key: APP_BASE_URL
+        fromService:
+          type: web
+          name: crmonia-intake-api-test
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: LANDING_INTAKE_TRUSTED_PROXY_HEADER
+        value: cf-connecting-ip
+      - key: LANDING_INTAKE_IP_HASH_SECRET
+        generateValue: true
