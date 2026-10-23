@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { LandingAdapterReason, LandingAdapterStatus } from "./types";
 
 export const MAX_LANDING_ARCHIVE_BYTES = 25 * 1024 * 1024;
 export const MAX_LANDING_MULTIPART_BYTES = MAX_LANDING_ARCHIVE_BYTES + 1024 * 1024;
@@ -9,6 +10,37 @@ export const LandingCreateSchema = z
     offerId: z.string().uuid(),
   })
   .strict();
+
+export const LandingUpdateSchema = LandingCreateSchema;
+
+export const LandingAdapterStatusSchema = z.enum([
+  "not_connected",
+  "needs_adaptation",
+  "configuration_required",
+  "prepared",
+  "error",
+]) satisfies z.ZodType<LandingAdapterStatus>;
+
+export const LandingAdapterReasonSchema = z.enum([
+  "index_missing",
+  "root_ambiguous",
+  "form_missing",
+  "multiple_forms",
+  "name_field_missing",
+  "name_field_ambiguous",
+  "phone_field_missing",
+  "phone_field_ambiguous",
+  "custom_submit_handler",
+  "external_script_unavailable",
+  "third_party_form_action",
+  "adapter_asset_collision",
+  "invalid_html_encoding",
+  "invalid_archive",
+  "too_many_files",
+  "archive_too_large",
+  "api_url_not_configured",
+  "landing_origin_not_configured",
+]) satisfies z.ZodType<LandingAdapterReason>;
 
 export const LandingArchiveAnalysisSchema = z
   .object({
@@ -91,6 +123,12 @@ export const LandingPageSchema = z
     created_at: z.string().datetime({ offset: true }),
     created_by_user_id: z.string().uuid().nullable(),
     source_archive_path: z.string(),
+    source_archive_bytes: z.number().int().positive().max(MAX_LANDING_ARCHIVE_BYTES).nullable(),
+    deletion_started_at: z.string().datetime({ offset: true }).nullable(),
+    adapted_archive_bytes: z.number().int().positive().max(MAX_LANDING_ARCHIVE_BYTES).nullable(),
+    has_adapted_archive: z.boolean(),
+    adapter_status: LandingAdapterStatusSchema,
+    adapter_reason: LandingAdapterReasonSchema.nullable(),
     analysis: LandingArchiveAnalysisSchema,
   })
   .strict();

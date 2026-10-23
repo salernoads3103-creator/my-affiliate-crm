@@ -22,19 +22,22 @@ import {
 } from "@/components/ui/select";
 import { t, localizeError } from "@/lib/i18n";
 import { offerService } from "@/services/offerService";
+import type { LandingPage } from "@/lib/landings/types";
 
-export function LandingCreateDialog({
+export function LandingDraftDialog({
   open,
   workspaceId,
   saving,
+  landing,
   onOpenChange,
-  onCreate,
+  onSubmit,
 }: {
   open: boolean;
   workspaceId: string;
   saving: boolean;
+  landing?: LandingPage;
   onOpenChange: (open: boolean) => void;
-  onCreate: (input: { name: string; offerId: string; archive: File }) => void;
+  onSubmit: (input: { name: string; offerId: string; archive?: File }) => void;
 }) {
   const { locale } = useLocale();
   const [name, setName] = useState("");
@@ -45,28 +48,33 @@ export function LandingCreateDialog({
     queryFn: () => offerService.list(workspaceId, ""),
     enabled: open && Boolean(workspaceId),
   });
-  const offers = (offersQuery.data?.offers ?? []).filter((offer) => offer.is_active);
+  const isEditing = Boolean(landing);
+  const offers = (offersQuery.data?.offers ?? []).filter(
+    (offer) => offer.is_active || offer.id === landing?.offer_id,
+  );
 
   useEffect(() => {
     if (!open) return;
-    setName("");
-    setOfferId("");
+    setName(landing?.name ?? "");
+    setOfferId(landing?.offer_id ?? "");
     setArchive(null);
-  }, [open]);
+  }, [open, landing?.id, landing?.name, landing?.offer_id]);
 
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!name.trim() || !offerId || !archive || saving) return;
-    onCreate({ name: name.trim(), offerId, archive });
+    if (!name.trim() || !offerId || (!isEditing && !archive) || saving) return;
+    onSubmit({ name: name.trim(), offerId, ...(archive ? { archive } : {}) });
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{t("New landing page")}</DialogTitle>
+          <DialogTitle>{isEditing ? t("Edit landing draft") : t("New landing page")}</DialogTitle>
           <DialogDescription>
-            {t("Create a draft from an existing static landing page ZIP.")}
+            {isEditing
+              ? t("Update the draft details or replace its source ZIP.")
+              : t("Create a draft from an existing static landing page ZIP.")}
           </DialogDescription>
         </DialogHeader>
 
@@ -93,6 +101,7 @@ export function LandingCreateDialog({
                 {offers.map((offer) => (
                   <SelectItem key={offer.id} value={offer.id}>
                     {offer.name}
+                    {!offer.is_active && offer.id === landing?.offer_id && ` · ${t("Inactive")}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -111,13 +120,15 @@ export function LandingCreateDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="landing-archive">{t("Upload source ZIP")}</Label>
+            <Label htmlFor="landing-archive">
+              {isEditing ? t("Replace source ZIP (optional)") : t("Upload source ZIP")}
+            </Label>
             <Input
               id="landing-archive"
               type="file"
               accept=".zip,application/zip"
               onChange={(event) => setArchive(event.target.files?.[0] ?? null)}
-              required
+              required={!isEditing}
             />
             <p className="text-xs text-muted-foreground">
               {t("ZIP archives up to 25 MB. Files are kept private.")}
@@ -135,14 +146,20 @@ export function LandingCreateDialog({
             </Button>
             <Button
               type="submit"
-              disabled={saving || !name.trim() || !offerId || !archive || offers.length === 0}
+              disabled={
+                saving ||
+                !name.trim() ||
+                !offerId ||
+                (!isEditing && !archive) ||
+                offers.length === 0
+              }
             >
               {saving ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <Upload className="mr-2 h-4 w-4" />
               )}
-              {t("Create draft")}
+              {isEditing ? t("Save changes") : t("Create draft")}
             </Button>
           </DialogFooter>
         </form>

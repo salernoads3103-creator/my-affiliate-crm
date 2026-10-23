@@ -22,11 +22,11 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   return result.data as T;
 }
 
-async function requestForm<T>(path: string, body: FormData): Promise<T> {
+async function requestForm<T>(method: string, path: string, body: FormData): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const response = await fetch(path, {
-    method: "POST",
+    method,
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     body,
   });
@@ -41,11 +41,27 @@ async function requestForm<T>(path: string, body: FormData): Promise<T> {
   return result.data as T;
 }
 
+async function requestBlob(path: string): Promise<Blob> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const response = await fetch(path, {
+    method: "GET",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const result = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(result.error || `Request failed (${response.status})`);
+  }
+  return response.blob();
+}
+
 export const accessApi = {
   get: <T>(path: string) => request<T>("GET", path),
   post: <T>(path: string, body: unknown) => request<T>("POST", path, body),
-  postForm: <T>(path: string, body: FormData) => requestForm<T>(path, body),
+  postForm: <T>(path: string, body: FormData) => requestForm<T>("POST", path, body),
+  patchForm: <T>(path: string, body: FormData) => requestForm<T>("PATCH", path, body),
   patch: <T>(path: string, body: unknown) => request<T>("PATCH", path, body),
   put: <T>(path: string, body: unknown) => request<T>("PUT", path, body),
   delete: <T>(path: string) => request<T>("DELETE", path),
+  getBlob: (path: string) => requestBlob(path),
 };

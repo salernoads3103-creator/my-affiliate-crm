@@ -1,15 +1,52 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, Files, Loader2, Plus, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  Download,
+  Eye,
+  Files,
+  Link2,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
-import { LandingCreateDialog } from "@/components/landings/LandingCreateDialog";
+import { LandingDraftDialog } from "@/components/landings/LandingCreateDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import type { LandingAnalysisWarning, LandingPage, LandingStatus } from "@/lib/landings/types";
+import type { LandingAdapterReason, LandingAdapterStatus } from "@/lib/landings/types";
 import { localizeError, t, type TranslationKey } from "@/lib/i18n";
 import { landingService } from "@/services/landingService";
 
@@ -32,6 +69,39 @@ const WARNING_LABEL: Record<LandingAnalysisWarning, TranslationKey> = {
   phone_field_missing: "Could not identify a phone field.",
   javascript_present: "JavaScript is present; review it before publishing.",
   scripts_not_scanned: "Standalone JavaScript files are not scanned.",
+};
+
+const ADAPTER_STATUS_LABEL: Record<LandingAdapterStatus, TranslationKey> = {
+  not_connected: "Form not connected",
+  needs_adaptation: "Needs adaptation",
+  configuration_required: "Not ready to publish",
+  prepared: "Adapted ZIP prepared",
+  error: "Could not prepare the ZIP",
+};
+
+const ADAPTER_REASON_LABEL: Record<LandingAdapterReason, TranslationKey> = {
+  index_missing: "The archive does not contain index.html.",
+  root_ambiguous: "The site root is unclear. Keep one index.html at the archive root.",
+  form_missing: "No HTML form was found in index.html.",
+  multiple_forms: "More than one form was found. The target form must be selected manually.",
+  name_field_missing: "Could not identify a unique name field.",
+  name_field_ambiguous: "Several fields could be the customer's name.",
+  phone_field_missing: "Could not identify a unique phone field.",
+  phone_field_ambiguous: "Several fields could be the phone number.",
+  custom_submit_handler: "The form already has JavaScript submission logic.",
+  external_script_unavailable: "A script could not be reviewed, so automatic wiring is unsafe.",
+  third_party_form_action: "The form is connected to an external service.",
+  adapter_asset_collision: "The archive already contains the adapter script filename.",
+  invalid_html_encoding: "index.html is not UTF-8 and cannot be changed safely.",
+  ambiguous_markup: "The form markup is ambiguous. Review the form HTML before connecting it.",
+  base_url_present: "Remove the HTML base URL element before connecting the form.",
+  invalid_archive: "The saved ZIP failed archive integrity checks.",
+  too_many_files: "Adding the adapter would exceed the file-count limit.",
+  archive_too_large: "The adapted ZIP would exceed the 25 MB storage limit.",
+  api_url_not_configured:
+    "Set the public HTTPS intake URL on the CRM server, then rebuild this ZIP.",
+  landing_origin_not_configured:
+    "Set the landing page origin to enable submissions and publishing.",
 };
 
 const PIXEL_LABELS = {
@@ -64,6 +134,15 @@ function statusVariant(status: LandingStatus): "default" | "secondary" | "destru
 
 function fieldLabel(field: { name: string | null; id: string | null; placeholder: string | null }) {
   return field.name ?? field.id ?? field.placeholder ?? "—";
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function LandingCard({ landing, locale }: { landing: LandingPage; locale: "uk" | "en" }) {
@@ -208,11 +287,13 @@ function LandingsPage() {
   const canReadLandings =
     permissions["landing_pages.read"] === true || permissions["landing_pages.manage"] === true;
   const canCreateLandings =
-    permissions["landing_pages.manage"] === true &&
-    permissions["offers.read"] === true &&
-    permissions["products.read"] === true;
+    permissions["landing_pages.manage"] === true && permissions["offers.read"] === true;
   const [search, setSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [analysisLanding, setAnalysisLanding] = useState<LandingPage | null>(null);
+  const [editingLanding, setEditingLanding] = useState<LandingPage | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<LandingPage | null>(null);
+  const [adapterOrigin, setAdapterOrigin] = useState("");
 
   const landingsQuery = useQuery({
     queryKey: [...LANDINGS_QUERY_KEY, workspaceId, search.trim()],
@@ -231,6 +312,70 @@ function LandingsPage() {
     },
     onError: (error) =>
       toast.error(localizeError(error, t("Could not create landing draft"), locale)),
+  });
+  const updateMutation = useMutation({
+    mutationFn: (input: { landingId: string; name: string; offerId: string; archive?: File }) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      const { landingId, ...changes } = input;
+      return landingService.updateDraft(workspaceId, landingId, changes);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: LANDINGS_QUERY_KEY });
+      toast.success(t("Landing draft updated"));
+      setEditingLanding(null);
+    },
+    onError: (error) =>
+      toast.error(localizeError(error, t("Could not update landing draft"), locale)),
+  });
+  const deleteMutation = useMutation({
+    mutationFn: (landingId: string) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return landingService.deleteDraft(workspaceId, landingId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: LANDINGS_QUERY_KEY });
+      toast.success(t("Landing draft deleted"));
+      setDeleteTarget(null);
+    },
+    onError: async (error) => {
+      await queryClient.invalidateQueries({ queryKey: LANDINGS_QUERY_KEY });
+      toast.error(
+        localizeError(error, t("Could not finish deleting the landing draft. Try again."), locale),
+      );
+    },
+  });
+  const connectFormMutation = useMutation({
+    mutationFn: (input: { landingId: string; allowedOrigin?: string }) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return landingService.connectForm(workspaceId, input.landingId, input.allowedOrigin);
+    },
+    onSuccess: async (result, input) => {
+      setAnalysisLanding((current) =>
+        current?.id === input.landingId ? { ...current, ...result } : current,
+      );
+      await queryClient.invalidateQueries({ queryKey: LANDINGS_QUERY_KEY });
+      if (result.adapter_status === "needs_adaptation" && result.adapter_reason) {
+        toast.error(t(ADAPTER_REASON_LABEL[result.adapter_reason]));
+      } else if (result.adapter_status === "configuration_required") {
+        toast.success(t("Adapted ZIP saved; configuration is still required."));
+      } else {
+        toast.success(t("Landing form connected"));
+      }
+    },
+    onError: (error) =>
+      toast.error(localizeError(error, t("Could not connect the landing form."), locale)),
+  });
+  const downloadAdapterMutation = useMutation({
+    mutationFn: (landingId: string) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return landingService.downloadAdaptedArchive(workspaceId, landingId);
+    },
+    onSuccess: (archive) => {
+      downloadBlob(archive, "crmonia-landing-adapted.zip");
+      toast.success(t("Adapted ZIP downloaded"));
+    },
+    onError: (error) =>
+      toast.error(localizeError(error, t("Could not download the adapted ZIP."), locale)),
   });
 
   if (accessLoading) {
@@ -253,6 +398,11 @@ function LandingsPage() {
   }
 
   const landings = landingsQuery.data?.landings ?? [];
+  const formatDate = (value: string) =>
+    new Intl.DateTimeFormat(locale === "uk" ? "uk-UA" : "en-US", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
 
   return (
     <div className="space-y-6">
@@ -312,23 +462,269 @@ function LandingsPage() {
             )}
           </div>
         ) : (
-          <div className="mt-5 space-y-4">
-            {landings.map((landing) => (
-              <LandingCard key={landing.id} landing={landing} locale={locale} />
-            ))}
+          <div className="mt-5">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("Landing name")}</TableHead>
+                  <TableHead>{t("Offer")}</TableHead>
+                  <TableHead>{t("Status and analysis")}</TableHead>
+                  <TableHead>{t("Created")}</TableHead>
+                  <TableHead>{t("ZIP size")}</TableHead>
+                  <TableHead className="text-right">{t("Actions")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {landings.map((landing) => {
+                  const canEdit =
+                    permissions["landing_pages.manage"] === true &&
+                    landing.status === "draft" &&
+                    !landing.deletion_started_at;
+                  const canDelete =
+                    permissions["landing_pages.manage"] === true && landing.status === "draft";
+                  return (
+                    <TableRow key={landing.id}>
+                      <TableCell className="max-w-64 font-medium">
+                        <span className="line-clamp-2">{landing.name}</span>
+                      </TableCell>
+                      <TableCell className="max-w-56">
+                        <span className="line-clamp-2">{landing.offer_name}</span>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex min-w-36 flex-col items-start gap-1.5">
+                          <Badge variant={statusVariant(landing.status)}>
+                            {landing.deletion_started_at
+                              ? t("Deletion pending")
+                              : t(STATUS_LABEL[landing.status])}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {landing.deletion_started_at
+                              ? t("Retry deletion to finish removing this draft.")
+                              : landing.analysis.requiresAdaptation
+                                ? t("Needs adaptation")
+                                : t("Analysis ready")}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {formatDate(landing.created_at)}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
+                        {landing.source_archive_bytes === null
+                          ? "—"
+                          : formatBytes(landing.source_archive_bytes, locale)}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={t("View analysis for {name}", { name: landing.name })}
+                            title={t("View analysis")}
+                            onClick={() => {
+                              setAdapterOrigin("");
+                              setAnalysisLanding(landing);
+                            }}
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          {canEdit && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={t("Edit {name}", { name: landing.name })}
+                              title={t("Edit")}
+                              onClick={() => setEditingLanding(landing)}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDelete && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              aria-label={
+                                landing.deletion_started_at
+                                  ? t("Retry deletion for {name}", { name: landing.name })
+                                  : t("Delete {name}", { name: landing.name })
+                              }
+                              title={
+                                landing.deletion_started_at ? t("Retry deletion") : t("Delete")
+                              }
+                              onClick={() => setDeleteTarget(landing)}
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
 
       {canCreateLandings && (
-        <LandingCreateDialog
-          open={dialogOpen}
+        <LandingDraftDialog
+          open={dialogOpen || editingLanding !== null}
           workspaceId={workspaceId}
-          saving={createMutation.isPending}
-          onOpenChange={setDialogOpen}
-          onCreate={(input) => createMutation.mutate(input)}
+          saving={createMutation.isPending || updateMutation.isPending}
+          landing={editingLanding ?? undefined}
+          onOpenChange={(open) => {
+            if (!open) {
+              setDialogOpen(false);
+              setEditingLanding(null);
+            }
+          }}
+          onSubmit={(input) => {
+            if (editingLanding) {
+              updateMutation.mutate({ landingId: editingLanding.id, ...input });
+            } else if (input.archive) {
+              createMutation.mutate({ ...input, archive: input.archive });
+            }
+          }}
         />
       )}
+
+      <Dialog
+        open={analysisLanding !== null}
+        onOpenChange={(open) => {
+          if (!open) setAnalysisLanding(null);
+        }}
+      >
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>{analysisLanding?.name}</DialogTitle>
+            <DialogDescription>
+              {analysisLanding?.offer_name} · {t("ZIP size")}:{" "}
+              {analysisLanding?.source_archive_bytes === null ||
+              analysisLanding?.source_archive_bytes === undefined
+                ? "—"
+                : formatBytes(analysisLanding.source_archive_bytes, locale)}
+            </DialogDescription>
+          </DialogHeader>
+          {analysisLanding && <LandingCard landing={analysisLanding} locale={locale} />}
+          {analysisLanding &&
+            canCreateLandings &&
+            analysisLanding.status === "draft" &&
+            !analysisLanding.deletion_started_at && (
+              <section className="space-y-3 rounded-xl border border-border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold">{t("Landing form connection")}</h3>
+                  <Badge
+                    variant={
+                      analysisLanding.adapter_status === "prepared"
+                        ? "default"
+                        : analysisLanding.adapter_status === "needs_adaptation" ||
+                            analysisLanding.adapter_status === "error"
+                          ? "destructive"
+                          : "secondary"
+                    }
+                  >
+                    {t(ADAPTER_STATUS_LABEL[analysisLanding.adapter_status])}
+                  </Badge>
+                </div>
+                {analysisLanding.adapter_reason && (
+                  <p className="text-sm text-muted-foreground">
+                    {t(ADAPTER_REASON_LABEL[analysisLanding.adapter_reason])}
+                  </p>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="landing-allowed-origin">{t("Published landing origin")}</Label>
+                  <Input
+                    id="landing-allowed-origin"
+                    type="url"
+                    inputMode="url"
+                    placeholder="https://shop.example.com"
+                    value={adapterOrigin}
+                    onChange={(event) => setAdapterOrigin(event.target.value)}
+                    maxLength={255}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      "Optional. Enter the exact HTTPS origin when it is known; no wildcard is allowed.",
+                    )}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() =>
+                      connectFormMutation.mutate({
+                        landingId: analysisLanding.id,
+                        ...(adapterOrigin.trim() ? { allowedOrigin: adapterOrigin.trim() } : {}),
+                      })
+                    }
+                    disabled={connectFormMutation.isPending || downloadAdapterMutation.isPending}
+                  >
+                    {connectFormMutation.isPending ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Link2 className="mr-2 h-4 w-4" />
+                    )}
+                    {t("Connect form")}
+                  </Button>
+                  {analysisLanding.has_adapted_archive && (
+                    <Button
+                      variant="outline"
+                      onClick={() => downloadAdapterMutation.mutate(analysisLanding.id)}
+                      disabled={downloadAdapterMutation.isPending || connectFormMutation.isPending}
+                    >
+                      {downloadAdapterMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      {t("Download ZIP")}
+                    </Button>
+                  )}
+                </div>
+              </section>
+            )}
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {deleteTarget?.deletion_started_at
+                ? t("Finish deleting this draft?")
+                : t("Delete this landing draft?")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget?.deletion_started_at
+                ? t(
+                    "The previous deletion did not finish. Retry to remove the private ZIP and draft.",
+                  )
+                : t(
+                    "This removes the draft and its private source ZIP. Published landing pages cannot be deleted here.",
+                  )}
+              {deleteTarget ? ` ${deleteTarget.name}` : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>{t("Cancel")}</AlertDialogCancel>
+            <Button
+              variant="destructive"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+              }}
+            >
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {deleteTarget?.deletion_started_at ? t("Retry deletion") : t("Delete draft")}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

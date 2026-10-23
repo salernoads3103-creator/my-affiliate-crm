@@ -2,18 +2,97 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 import { ApiError } from "@/lib/api-error";
-import { LandingPageSchema } from "./validation";
+import {
+  buildAdaptedLandingArchive,
+  checkLandingAdapterCompatibility,
+  LandingAdapterError,
+} from "./archive";
+import {
+  LandingAdapterReasonSchema,
+  LandingAdapterStatusSchema,
+  LandingArchiveAnalysisSchema,
+  LandingPageSchema,
+} from "./validation";
 import type {
   LandingArchiveAnalysis,
   LandingArchiveStorage,
+  LandingAdapterReason,
+  LandingAdapterStatus,
   LandingCreateInput,
+  LandingDraftRecord,
   LandingListResponse,
   LandingPage,
   LandingRepository,
+  LandingUpdateInput,
 } from "./types";
 
 const LANDING_ARCHIVE_BUCKET = "crmonia-landing-archives";
+const PENDING_LANDING_ORIGIN = "https://pending.crmonia.invalid";
 type LandingClient = SupabaseClient<Database>;
+
+function toLandingPage(record: LandingDraftRecord, offerName: string): LandingPage {
+  return {
+    id: record.id,
+    workspace_id: record.workspace_id,
+    name: record.name,
+    offer_id: record.offer_id,
+    offer_name: offerName,
+    status: record.status,
+    published_url: record.published_url,
+    created_at: record.created_at,
+    created_by_user_id: record.created_by_user_id,
+    source_archive_path: record.source_archive_path,
+    source_archive_bytes: record.source_archive_bytes,
+    deletion_started_at: record.deletion_started_at,
+    adapted_archive_bytes: record.adapted_archive_bytes,
+    has_adapted_archive: Boolean(record.adapted_archive_path),
+    adapter_status: record.adapter_status,
+    adapter_reason: record.adapter_reason,
+    analysis: record.analysis,
+  };
+}
+
+type LandingDraftDbRow = Pick<
+  Database["public"]["Tables"]["workspace_landings"]["Row"],
+  | "id"
+  | "workspace_id"
+  | "name"
+  | "offer_id"
+  | "status"
+  | "published_url"
+  | "created_at"
+  | "created_by_user_id"
+  | "source_archive_path"
+  | "source_archive_bytes"
+  | "deletion_started_at"
+  | "adapted_archive_path"
+  | "adapted_archive_bytes"
+  | "adapter_status"
+  | "adapter_reason"
+  | "analysis"
+>;
+
+function toLandingDraftRecord(data: LandingDraftDbRow): LandingDraftRecord {
+  return {
+    id: data.id,
+    workspace_id: data.workspace_id,
+    name: data.name,
+    offer_id: data.offer_id,
+    status: data.status,
+    published_url: data.published_url,
+    created_at: data.created_at,
+    created_by_user_id: data.created_by_user_id,
+    source_archive_path: data.source_archive_path,
+    source_archive_bytes: data.source_archive_bytes,
+    deletion_started_at: data.deletion_started_at,
+    adapted_archive_path: data.adapted_archive_path,
+    adapted_archive_bytes: data.adapted_archive_bytes,
+    adapter_status: LandingAdapterStatusSchema.parse(data.adapter_status),
+    adapter_reason:
+      data.adapter_reason === null ? null : LandingAdapterReasonSchema.parse(data.adapter_reason),
+    analysis: LandingArchiveAnalysisSchema.parse(data.analysis),
+  };
+}
 
 function databaseError(error: { code?: string; message?: string }): ApiError {
   if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
@@ -43,14 +122,18 @@ export class SupabaseLandingRepository implements LandingRepository {
     return data.map((row) => LandingPageSchema.parse(row));
   }
 
-  async ensureActiveOffer(workspaceId: string, offerId: string): Promise<{ name: string }> {
-    const { data, error } = await this.client
+  async ensureOffer(
+    workspaceId: string,
+    offerId: string,
+    activeOnly: boolean,
+  ): Promise<{ name: string }> {
+    let query = this.client
       .from("workspace_offers")
       .select("id, name")
       .eq("workspace_id", workspaceId)
-      .eq("id", offerId)
-      .eq("is_active", true)
-      .maybeSingle();
+      .eq("id", offerId);
+    if (activeOnly) query = query.eq("is_active", true);
+    const { data, error } = await query.maybeSingle();
     if (error) throw databaseError(error);
     if (!data) throw new ApiError(404, "The selected offer is not available");
     return { name: data.name };
@@ -63,6 +146,7 @@ export class SupabaseLandingRepository implements LandingRepository {
     offerId: string;
     createdByUserId: string;
     sourceArchivePath: string;
+    sourceArchiveBytes: number;
     analysis: LandingArchiveAnalysis;
   }): Promise<{ createdAt: string }> {
     const { data, error } = await this.privilegedClient
@@ -76,6 +160,12 @@ export class SupabaseLandingRepository implements LandingRepository {
         published_url: null,
         created_by_user_id: input.createdByUserId,
         source_archive_path: input.sourceArchivePath,
+        source_archive_bytes: input.sourceArchiveBytes,
+        adapted_archive_path: null,
+        adapted_archive_bytes: null,
+        adapter_status: "not_connected",
+        adapter_reason: null,
+        intake_public_id: null,
         analysis: input.analysis,
       })
       .select("created_at")
@@ -91,6 +181,160 @@ export class SupabaseLandingRepository implements LandingRepository {
       .eq("workspace_id", workspaceId)
       .eq("id", landingId);
     if (error) throw databaseError(error);
+  }
+
+  async getDraft(workspaceId: string, landingId: string): Promise<LandingDraftRecord | null> {
+    const { data, error } = await this.privilegedClient
+      .from("workspace_landings")
+      .select(
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, intake_public_id, analysis",
+      )
+      .eq("workspace_id", workspaceId)
+      .eq("id", landingId)
+      .maybeSingle();
+    if (error) throw databaseError(error);
+    if (!data) return null;
+    return toLandingDraftRecord(data);
+  }
+
+  async updateDraft(input: {
+    workspaceId: string;
+    landingId: string;
+    name: string;
+    offerId: string;
+    sourceArchivePath?: string;
+    sourceArchiveBytes?: number;
+    analysis?: LandingArchiveAnalysis;
+  }): Promise<LandingDraftRecord> {
+    const update: Database["public"]["Tables"]["workspace_landings"]["Update"] = {
+      name: input.name,
+      offer_id: input.offerId,
+      ...(input.sourceArchivePath === undefined
+        ? {}
+        : { source_archive_path: input.sourceArchivePath }),
+      ...(input.sourceArchiveBytes === undefined
+        ? {}
+        : { source_archive_bytes: input.sourceArchiveBytes }),
+      ...(input.analysis === undefined ? {} : { analysis: input.analysis }),
+      ...(input.sourceArchivePath === undefined
+        ? {}
+        : {
+            adapted_archive_path: null,
+            adapted_archive_bytes: null,
+            adapter_status: "not_connected",
+            adapter_reason: null,
+            intake_public_id: null,
+          }),
+    };
+    const { data, error } = await this.privilegedClient
+      .from("workspace_landings")
+      .update(update)
+      .eq("workspace_id", input.workspaceId)
+      .eq("id", input.landingId)
+      .eq("status", "draft")
+      .is("deletion_started_at", null)
+      .select(
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, intake_public_id, analysis",
+      )
+      .maybeSingle();
+    if (error) throw databaseError(error);
+    if (!data) throw new ApiError(409, "This landing draft is no longer editable");
+    return toLandingDraftRecord(data);
+  }
+
+  async updateAdapter(input: {
+    workspaceId: string;
+    landingId: string;
+    status: LandingAdapterStatus;
+    reason: LandingAdapterReason | null;
+    adaptedArchivePath: string | null;
+    adaptedArchiveBytes: number | null;
+    publicFormId?: string | null;
+    expectedSourceArchivePath?: string;
+    expectedOfferId?: string;
+  }): Promise<LandingDraftRecord> {
+    let query = this.privilegedClient
+      .from("workspace_landings")
+      .update({
+        adapter_status: input.status,
+        adapter_reason: input.reason,
+        adapted_archive_path: input.adaptedArchivePath,
+        adapted_archive_bytes: input.adaptedArchiveBytes,
+        intake_public_id: input.publicFormId ?? null,
+      })
+      .eq("workspace_id", input.workspaceId)
+      .eq("id", input.landingId)
+      .eq("status", "draft");
+    if (input.expectedSourceArchivePath) {
+      query = query.eq("source_archive_path", input.expectedSourceArchivePath);
+    }
+    if (input.expectedOfferId) query = query.eq("offer_id", input.expectedOfferId);
+    const { data, error } = await query
+      .is("deletion_started_at", null)
+      .select(
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, intake_public_id, analysis",
+      )
+      .maybeSingle();
+    if (error) throw databaseError(error);
+    if (!data) throw new ApiError(409, "This landing draft is no longer editable");
+    return toLandingDraftRecord(data);
+  }
+
+  async beginDraftDeletion(
+    workspaceId: string,
+    landingId: string,
+  ): Promise<{ sourceArchivePath: string; adaptedArchivePath: string | null } | null> {
+    const current = await this.getDraft(workspaceId, landingId);
+    if (!current) return null;
+    if (current.status !== "draft") {
+      throw new ApiError(409, "Only landing drafts can be deleted", "CONFLICT");
+    }
+    if (current.deletion_started_at) {
+      return {
+        sourceArchivePath: current.source_archive_path,
+        adaptedArchivePath: current.adapted_archive_path,
+      };
+    }
+
+    const { data, error } = await this.privilegedClient
+      .from("workspace_landings")
+      .update({ deletion_started_at: new Date().toISOString() })
+      .eq("workspace_id", workspaceId)
+      .eq("id", landingId)
+      .eq("status", "draft")
+      .is("deletion_started_at", null)
+      .select("source_archive_path, adapted_archive_path")
+      .maybeSingle();
+    if (error) throw databaseError(error);
+    if (data) {
+      return {
+        sourceArchivePath: data.source_archive_path,
+        adaptedArchivePath: data.adapted_archive_path,
+      };
+    }
+
+    const latest = await this.getDraft(workspaceId, landingId);
+    if (!latest) return null;
+    if (latest.status === "draft" && latest.deletion_started_at) {
+      return {
+        sourceArchivePath: latest.source_archive_path,
+        adaptedArchivePath: latest.adapted_archive_path,
+      };
+    }
+    throw new ApiError(409, "This landing draft is no longer available for deletion", "CONFLICT");
+  }
+
+  async finishDraftDeletion(workspaceId: string, landingId: string): Promise<void> {
+    const { error } = await this.privilegedClient
+      .from("workspace_landings")
+      .delete()
+      .eq("workspace_id", workspaceId)
+      .eq("id", landingId)
+      .eq("status", "draft")
+      .not("deletion_started_at", "is", null);
+    if (error) throw databaseError(error);
+    // Another authorized delete request may have completed while this request
+    // was removing the same private object. Treat that outcome as success.
   }
 }
 
@@ -111,6 +355,31 @@ export class SupabaseLandingArchiveStorage implements LandingArchiveStorage {
         error,
       );
   }
+
+  async remove(path: string): Promise<void> {
+    const { error } = await this.client.storage.from(LANDING_ARCHIVE_BUCKET).remove([path]);
+    if (error) {
+      throw new ApiError(
+        500,
+        "Could not remove the private landing archive",
+        "INTERNAL_ERROR",
+        error,
+      );
+    }
+  }
+
+  async download(path: string): Promise<Blob> {
+    const { data, error } = await this.client.storage.from(LANDING_ARCHIVE_BUCKET).download(path);
+    if (error) {
+      throw new ApiError(
+        500,
+        "Could not read the private landing archive",
+        "INTERNAL_ERROR",
+        error,
+      );
+    }
+    return data;
+  }
 }
 
 export async function createLandingDraft(
@@ -123,7 +392,7 @@ export async function createLandingDraft(
     createId?: () => string;
   },
 ): Promise<LandingPage> {
-  const offer = await dependencies.repository.ensureActiveOffer(input.workspaceId, input.offerId);
+  const offer = await dependencies.repository.ensureOffer(input.workspaceId, input.offerId, true);
   const id = input.createId?.() ?? crypto.randomUUID();
   const sourceArchivePath = `${input.workspaceId}/${id}/source.zip`;
   const { createdAt } = await dependencies.repository.insertDraft({
@@ -133,6 +402,7 @@ export async function createLandingDraft(
     offerId: input.offerId,
     createdByUserId: input.createdByUserId,
     sourceArchivePath,
+    sourceArchiveBytes: input.archive.size,
     analysis: input.analysis,
   });
 
@@ -160,8 +430,209 @@ export async function createLandingDraft(
     created_at: createdAt,
     created_by_user_id: input.createdByUserId,
     source_archive_path: sourceArchivePath,
+    source_archive_bytes: input.archive.size,
+    deletion_started_at: null,
+    adapted_archive_bytes: null,
+    has_adapted_archive: false,
+    adapter_status: "not_connected",
+    adapter_reason: null,
     analysis: input.analysis,
   };
+}
+
+export async function updateLandingDraft(
+  dependencies: { repository: LandingRepository; storage: LandingArchiveStorage },
+  input: LandingUpdateInput & {
+    workspaceId: string;
+    landingId: string;
+    archive?: Blob;
+    analysis?: LandingArchiveAnalysis;
+    createArchiveVersion?: () => string;
+  },
+): Promise<LandingPage> {
+  const current = await dependencies.repository.getDraft(input.workspaceId, input.landingId);
+  if (!current) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+  if (current.status !== "draft" || current.deletion_started_at) {
+    throw new ApiError(409, "This landing draft is no longer editable", "CONFLICT");
+  }
+
+  const offer = await dependencies.repository.ensureOffer(
+    input.workspaceId,
+    input.offerId,
+    input.offerId !== current.offer_id,
+  );
+
+  let sourceArchivePath: string | undefined;
+  if (input.archive) {
+    const version = input.createArchiveVersion?.() ?? crypto.randomUUID();
+    sourceArchivePath = `${input.workspaceId}/${input.landingId}/source-${version}.zip`;
+    await dependencies.storage.put(sourceArchivePath, input.archive);
+  }
+
+  let updated: LandingDraftRecord;
+  try {
+    updated = await dependencies.repository.updateDraft({
+      workspaceId: input.workspaceId,
+      landingId: input.landingId,
+      name: input.name,
+      offerId: input.offerId,
+      ...(sourceArchivePath === undefined
+        ? {}
+        : {
+            sourceArchivePath,
+            sourceArchiveBytes: input.archive?.size,
+            analysis: input.analysis,
+          }),
+    });
+  } catch (error) {
+    if (sourceArchivePath) {
+      try {
+        await dependencies.storage.remove(sourceArchivePath);
+      } catch (cleanupError) {
+        console.error("[landings] Could not remove an unused replacement archive", cleanupError);
+      }
+    }
+    throw error;
+  }
+
+  if (sourceArchivePath && sourceArchivePath !== current.source_archive_path) {
+    try {
+      await dependencies.storage.remove(current.source_archive_path);
+    } catch (cleanupError) {
+      // The database now points at the successfully uploaded replacement. A
+      // failed cleanup leaves only an unreferenced private object.
+      console.error("[landings] Could not remove the replaced landing archive", cleanupError);
+    }
+    if (current.adapted_archive_path) {
+      try {
+        await dependencies.storage.remove(current.adapted_archive_path);
+      } catch (cleanupError) {
+        console.error(
+          "[landings] Could not remove the previous adapted landing archive",
+          cleanupError,
+        );
+      }
+    }
+  }
+
+  return toLandingPage(updated, offer.name);
+}
+
+export async function connectLandingDraft(
+  dependencies: { repository: LandingRepository; storage: LandingArchiveStorage },
+  input: {
+    workspaceId: string;
+    landingId: string;
+    publicFormId: string;
+    allowedOriginConfigured: boolean;
+    intakeEndpoint: string | null;
+    createArchiveVersion?: () => string;
+  },
+): Promise<LandingPage> {
+  const current = await dependencies.repository.getDraft(input.workspaceId, input.landingId);
+  if (!current) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+  if (current.status !== "draft" || current.deletion_started_at) {
+    throw new ApiError(409, "This landing draft is no longer editable", "CONFLICT");
+  }
+  const offer = await dependencies.repository.ensureOffer(
+    input.workspaceId,
+    current.offer_id,
+    true,
+  );
+  const source = await dependencies.storage.download(current.source_archive_path);
+  let adaptedArchive: Uint8Array;
+  try {
+    adaptedArchive = await buildAdaptedLandingArchive(new Uint8Array(await source.arrayBuffer()), {
+      publicFormId: input.publicFormId,
+      intakeEndpoint: input.intakeEndpoint,
+    });
+  } catch (error) {
+    if (!(error instanceof LandingAdapterError)) throw error;
+    const updated = await dependencies.repository.updateAdapter({
+      workspaceId: input.workspaceId,
+      landingId: input.landingId,
+      status: "needs_adaptation",
+      reason: error.reason,
+      adaptedArchivePath: null,
+      adaptedArchiveBytes: null,
+      publicFormId: null,
+      expectedSourceArchivePath: current.source_archive_path,
+      expectedOfferId: current.offer_id,
+    });
+    if (current.adapted_archive_path) {
+      try {
+        await dependencies.storage.remove(current.adapted_archive_path);
+      } catch (cleanupError) {
+        console.error("[landings] Could not remove an obsolete adapted archive", cleanupError);
+      }
+    }
+    return toLandingPage(updated, offer.name);
+  }
+
+  const reason = !input.intakeEndpoint
+    ? "api_url_not_configured"
+    : !input.allowedOriginConfigured
+      ? "landing_origin_not_configured"
+      : null;
+  const status = reason ? "configuration_required" : "prepared";
+  const version = input.createArchiveVersion?.() ?? crypto.randomUUID();
+  const archivePath = `${input.workspaceId}/${input.landingId}/adapted-${version}.zip`;
+  const adaptedBuffer = new ArrayBuffer(adaptedArchive.byteLength);
+  new Uint8Array(adaptedBuffer).set(adaptedArchive);
+  await dependencies.storage.put(
+    archivePath,
+    new Blob([adaptedBuffer], { type: "application/zip" }),
+  );
+
+  let updated: LandingDraftRecord;
+  try {
+    updated = await dependencies.repository.updateAdapter({
+      workspaceId: input.workspaceId,
+      landingId: input.landingId,
+      status,
+      reason,
+      adaptedArchivePath: archivePath,
+      adaptedArchiveBytes: adaptedArchive.byteLength,
+      publicFormId: input.publicFormId,
+      expectedSourceArchivePath: current.source_archive_path,
+      expectedOfferId: current.offer_id,
+    });
+  } catch (error) {
+    try {
+      await dependencies.storage.remove(archivePath);
+    } catch (cleanupError) {
+      console.error("[landings] Could not remove an unused adapted archive", cleanupError);
+    }
+    throw error;
+  }
+
+  if (current.adapted_archive_path && current.adapted_archive_path !== archivePath) {
+    try {
+      await dependencies.storage.remove(current.adapted_archive_path);
+    } catch (cleanupError) {
+      console.error("[landings] Could not remove the previous adapted archive", cleanupError);
+    }
+  }
+  return toLandingPage(updated, offer.name);
+}
+
+export async function deleteLandingDraft(
+  dependencies: { repository: LandingRepository; storage: LandingArchiveStorage },
+  input: { workspaceId: string; landingId: string },
+): Promise<void> {
+  const archivePaths = await dependencies.repository.beginDraftDeletion(
+    input.workspaceId,
+    input.landingId,
+  );
+  if (!archivePaths) return;
+
+  // The row is durably marked as pending first. If either operation fails, a
+  // retry can safely resume without exposing an editable or published record.
+  await dependencies.storage.remove(archivePaths.sourceArchivePath);
+  if (archivePaths.adaptedArchivePath) {
+    await dependencies.storage.remove(archivePaths.adaptedArchivePath);
+  }
+  await dependencies.repository.finishDraftDeletion(input.workspaceId, input.landingId);
 }
 
 export class LandingService {
@@ -180,6 +651,52 @@ export class LandingService {
     return { landings: await this.repository.list(workspaceId, search) };
   }
 
+  async inspectDraftAdapter(
+    workspaceId: string,
+    landingId: string,
+  ): Promise<{ reason: LandingAdapterReason | null; sourceArchivePath: string }> {
+    const draft = await this.repository.getDraft(workspaceId, landingId);
+    if (!draft) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+    if (draft.status !== "draft" || draft.deletion_started_at) {
+      throw new ApiError(409, "This landing draft is no longer editable", "CONFLICT");
+    }
+    const archive = await this.storage.download(draft.source_archive_path);
+    return {
+      reason: await checkLandingAdapterCompatibility(new Uint8Array(await archive.arrayBuffer())),
+      sourceArchivePath: draft.source_archive_path,
+    };
+  }
+
+  async recordAdapterBlock(
+    workspaceId: string,
+    landingId: string,
+    reason: LandingAdapterReason,
+    expectedSourceArchivePath: string,
+  ): Promise<LandingPage> {
+    const draft = await this.repository.getDraft(workspaceId, landingId);
+    if (!draft) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+    const updated = await this.repository.updateAdapter({
+      workspaceId,
+      landingId,
+      status: "needs_adaptation",
+      reason,
+      adaptedArchivePath: null,
+      adaptedArchiveBytes: null,
+      publicFormId: null,
+      expectedSourceArchivePath,
+      expectedOfferId: draft.offer_id,
+    });
+    if (draft.adapted_archive_path) {
+      try {
+        await this.storage.remove(draft.adapted_archive_path);
+      } catch (cleanupError) {
+        console.error("[landings] Could not remove an obsolete adapted archive", cleanupError);
+      }
+    }
+    const offer = await this.repository.ensureOffer(workspaceId, draft.offer_id, false);
+    return toLandingPage(updated, offer.name);
+  }
+
   createDraft(
     input: LandingCreateInput & {
       workspaceId: string;
@@ -189,5 +706,36 @@ export class LandingService {
     },
   ): Promise<LandingPage> {
     return createLandingDraft({ repository: this.repository, storage: this.storage }, input);
+  }
+
+  updateDraft(
+    input: LandingUpdateInput & {
+      workspaceId: string;
+      landingId: string;
+      archive?: Blob;
+      analysis?: LandingArchiveAnalysis;
+    },
+  ): Promise<LandingPage> {
+    return updateLandingDraft({ repository: this.repository, storage: this.storage }, input);
+  }
+
+  deleteDraft(input: { workspaceId: string; landingId: string }): Promise<void> {
+    return deleteLandingDraft({ repository: this.repository, storage: this.storage }, input);
+  }
+
+  async connectDraft(input: Parameters<typeof connectLandingDraft>[1]): Promise<LandingPage> {
+    return connectLandingDraft({ repository: this.repository, storage: this.storage }, input);
+  }
+
+  async downloadAdaptedArchive(workspaceId: string, landingId: string): Promise<Blob> {
+    const landing = await this.repository.getDraft(workspaceId, landingId);
+    if (!landing) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+    if (landing.status !== "draft" || landing.deletion_started_at) {
+      throw new ApiError(409, "This landing draft is not available", "CONFLICT");
+    }
+    if (!landing.adapted_archive_path) {
+      throw new ApiError(404, "No adapted ZIP is available", "NOT_FOUND");
+    }
+    return this.storage.download(landing.adapted_archive_path);
   }
 }

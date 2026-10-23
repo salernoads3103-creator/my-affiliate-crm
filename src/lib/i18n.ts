@@ -38,7 +38,8 @@ const uk = {
   "Go to previous page": "Перейти на попередню сторінку",
   "Go to next page": "Перейти на наступну сторінку",
   "this workspace": "цей робочий простір",
-  "We couldn't load the access details. Please try again.": "Не вдалося завантажити дані доступу. Спробуйте ще раз.",
+  "We couldn't load the access details. Please try again.":
+    "Не вдалося завантажити дані доступу. Спробуйте ще раз.",
   "We couldn't load the data. Please try again.": "Не вдалося завантажити дані. Спробуйте ще раз.",
   "We couldn't retrieve the summary.": "Не вдалося отримати підсумкові дані.",
   "We couldn't load the activity log.": "Не вдалося завантажити журнал дій.",
@@ -58,7 +59,8 @@ const uk = {
   "Manage leads": "Керувати лідами",
   "Recent activity": "Останні ліди",
   "View all": "Переглянути всі",
-  "No leads yet — head to Leads to add your first one.": "Лідів ще немає. Перейдіть до розділу «Ліди», щоб додати першого.",
+  "No leads yet — head to Leads to add your first one.":
+    "Лідів ще немає. Перейдіть до розділу «Ліди», щоб додати першого.",
   "Total leads": "Усього лідів",
   "all-time": "за весь час",
   New: "Новий",
@@ -86,7 +88,8 @@ const uk = {
   Previous: "Назад",
   Next: "Далі",
   "No leads yet": "Лідів ще немає",
-  "Start building your pipeline. Add your first lead to track conversations and conversions.": "Додайте першого ліда, щоб почати роботу з клієнтами й відстежувати продажі.",
+  "Start building your pipeline. Add your first lead to track conversations and conversions.":
+    "Додайте першого ліда, щоб почати роботу з клієнтами й відстежувати продажі.",
   "Add your first lead": "Додати першого ліда",
   "Edit lead": "Редагувати ліда",
   "Update details for this lead.": "Оновіть інформацію про ліда.",
@@ -115,16 +118,52 @@ const uk = {
   "Could not load landing pages.": "Не вдалося завантажити лендинги.",
   "Landing draft created": "Чернетку лендингу створено",
   "Could not create landing draft": "Не вдалося створити чернетку лендингу",
+  "Edit landing draft": "Редагувати чернетку лендингу",
+  "Update the draft details or replace its source ZIP.":
+    "Змініть дані чернетки або замініть вихідний ZIP-архів.",
+  "Replace source ZIP (optional)": "Замінити вихідний ZIP (необов'язково)",
+  "Landing draft updated": "Чернетку лендингу оновлено",
+  "Could not update landing draft": "Не вдалося оновити чернетку лендингу",
+  "Landing draft deleted": "Чернетку лендингу видалено",
+  "Could not finish deleting the landing draft. Try again.":
+    "Не вдалося завершити видалення чернетки. Спробуйте ще раз.",
+  "Status and analysis": "Статус і аналіз",
+  "ZIP size": "Розмір ZIP",
+  "Analysis ready": "Аналіз завершено",
+  "Deletion pending": "Очікує видалення",
+  "Retry deletion to finish removing this draft.":
+    "Повторіть дію, щоб завершити видалення чернетки.",
+  "View analysis for {name}": "Переглянути аналіз: {name}",
+  "View analysis": "Переглянути аналіз",
+  "Edit {name}": "Редагувати: {name}",
+  "Delete {name}": "Видалити: {name}",
+  "Retry deletion for {name}": "Повторити видалення: {name}",
+  "Retry deletion": "Повторити видалення",
+  "Finish deleting this draft?": "Завершити видалення цієї чернетки?",
+  "Delete this landing draft?": "Видалити цю чернетку лендингу?",
+  "The previous deletion did not finish. Retry to remove the private ZIP and draft.":
+    "Попереднє видалення не завершилося. Повторіть дію, щоб видалити приватний ZIP і чернетку.",
+  "This removes the draft and its private source ZIP. Published landing pages cannot be deleted here.":
+    "Чернетку та її приватний ZIP буде видалено. Опубліковані лендинги тут видалити не можна.",
+  "Delete draft": "Видалити чернетку",
+  "Only landing drafts can be deleted": "Видаляти можна лише чернетки лендингів",
+  "Landing draft not found": "Чернетку лендингу не знайдено",
+  "This landing draft is no longer editable": "Цю чернетку лендингу вже не можна редагувати",
+  "This landing draft is no longer available for deletion":
+    "Цю чернетку лендингу вже не можна видалити",
   "Landing name": "Назва лендингу",
   "Choose an active offer": "Оберіть активний офер",
   "Upload source ZIP": "Завантажте ZIP-архів",
-  "ZIP archives up to 25 MB. Files are kept private.": "ZIP-архів до 25 МБ. Файл зберігатиметься приватно.",
-  "Create a draft from an existing static landing page ZIP.": "Створіть чернетку з готового ZIP-архіву статичного лендингу.",
+  "ZIP archives up to 25 MB. Files are kept private.":
+    "ZIP-архів до 25 МБ. Файл зберігатиметься приватно.",
+  "Create a draft from an existing static landing page ZIP.":
+    "Створіть чернетку з готового ZIP-архіву статичного лендингу.",
   "Landing analysis": "Аналіз лендингу",
   "Site root": "Корінь сайту",
   "Archive root": "Корінь ZIP-архіву",
   "Not determined": "Не визначено",
-  "Form analysis is unavailable until a single site root can be identified.": "Не вдалося визначити корінь сайту, тому форми не аналізувалися.",
+  "Form analysis is unavailable until a single site root can be identified.":
+    "Не вдалося визначити корінь сайту, тому форми не аналізувалися.",
   "ZIP saved privately": "ZIP збережено приватно",
   "File count": "Кількість файлів",
   "Unpacked size": "Розмір після розпакування",
@@ -137,23 +176,78 @@ const uk = {
   "Detected pixels": "Знайдені пікселі",
   "No known pixels detected": "Відомих пікселів не знайдено",
   "Needs adaptation": "Потрібна адаптація",
+  "Form not connected": "Форму не підключено",
+  "Not ready to publish": "Ще не готовий до публікації",
+  "Adapted ZIP prepared": "Адаптований ZIP підготовлено",
+  "Could not prepare the ZIP": "Не вдалося підготувати ZIP",
+  "Landing form connection": "Підключення форми",
+  "Published landing origin": "Адреса лендингу",
+  "Optional. Enter the exact HTTPS origin when it is known; no wildcard is allowed.":
+    "Необов'язково. Коли адреса буде відома, вкажіть точний HTTPS origin без масок.",
+  "Connect form": "Підключити форму",
+  "Download ZIP": "Завантажити ZIP",
+  "Adapted ZIP saved; configuration is still required.":
+    "Адаптований ZIP збережено, але потрібно завершити налаштування.",
+  "Could not connect the landing form.": "Не вдалося підключити форму лендингу.",
+  "Adapted ZIP downloaded": "Адаптований ZIP завантажено",
+  "Could not download the adapted ZIP.": "Не вдалося завантажити адаптований ZIP.",
+  "The archive does not contain index.html.": "В архіві немає index.html.",
+  "The site root is unclear. Keep one index.html at the archive root.":
+    "Не вдалося визначити корінь сайту. Залиште один index.html у корені архіву.",
+  "No HTML form was found in index.html.": "У index.html не знайдено HTML-форми.",
+  "More than one form was found. The target form must be selected manually.":
+    "Знайдено кілька форм. Потрібно вручну вибрати форму заявки.",
+  "Could not identify a unique name field.": "Не вдалося визначити поле імені.",
+  "Several fields could be the customer's name.": "Знайдено кілька можливих полів імені.",
+  "Could not identify a unique phone field.": "Не вдалося визначити поле телефону.",
+  "Several fields could be the phone number.": "Знайдено кілька можливих полів телефону.",
+  "The form already has JavaScript submission logic.":
+    "Форма вже має власну JavaScript-логіку надсилання.",
+  "A script could not be reviewed, so automatic wiring is unsafe.":
+    "Не вдалося перевірити один зі скриптів, тому автоматичне підключення небезпечне.",
+  "The form is connected to an external service.":
+    "Форма вже надсилає дані до стороннього сервісу.",
+  "The archive already contains the adapter script filename.":
+    "В архіві вже є файл із назвою скрипту адаптера.",
+  "The form markup is ambiguous. Review the form HTML before connecting it.":
+    "Розмітка форми неоднозначна. Перевірте HTML форми перед підключенням.",
+  "Remove the HTML base URL element before connecting the form.":
+    "Перед підключенням форми видаліть елемент base з HTML.",
+  "index.html is not UTF-8 and cannot be changed safely.":
+    "index.html має кодування не UTF-8, тому його не можна безпечно змінити.",
+  "The saved ZIP failed archive integrity checks.": "Не пройшла перевірка цілісності ZIP-архіву.",
+  "Adding the adapter would exceed the file-count limit.":
+    "Після додавання адаптера буде перевищено ліміт файлів.",
+  "The adapted ZIP would exceed the 25 MB storage limit.":
+    "Розмір адаптованого ZIP перевищить ліміт сховища 25 МБ.",
+  "Set the public HTTPS intake URL on the CRM server, then rebuild this ZIP.":
+    "Налаштуйте публічну HTTPS-адресу API на сервері CRM і створіть адаптований ZIP ще раз.",
+  "Set the landing page origin to enable submissions and publishing.":
+    "Вкажіть origin лендингу, щоб увімкнути надсилання заявок і підготувати його до публікації.",
+  "This offer already uses a different landing origin. Use the existing origin or a separate offer.":
+    "Для цього офера вже налаштовано інший origin. Використайте його або створіть окремий офер.",
   "Structure looks recognizable": "Структуру розпізнано",
-  "Draft": "Чернетка",
-  "Ready": "Готовий",
-  "Published": "Опублікований",
-  "Error": "Помилка",
+  Draft: "Чернетка",
+  Ready: "Готовий",
+  Published: "Опублікований",
+  Error: "Помилка",
   "Meta Pixel": "Meta Pixel",
   "TikTok Pixel": "TikTok Pixel",
   "Google Analytics": "Google Analytics",
   "Google Tag Manager": "Google Tag Manager",
-  "No index.html found in the archive.": "Не знайдено index.html у корені ZIP-архіву чи в єдиній зовнішній папці.",
-  "Could not determine a single site root. Review the archive structure.": "Не вдалося однозначно визначити корінь сайту. Перевірте структуру архіву.",
+  "No index.html found in the archive.":
+    "Не знайдено index.html у корені ZIP-архіву чи в єдиній зовнішній папці.",
+  "Could not determine a single site root. Review the archive structure.":
+    "Не вдалося однозначно визначити корінь сайту. Перевірте структуру архіву.",
   "No standard HTML form was detected.": "Не знайдено звичайної HTML-форми.",
   "Could not identify a name field.": "Не вдалося визначити поле імені.",
   "Could not identify a phone field.": "Не вдалося визначити поле телефону.",
-  "JavaScript is present; review it before publishing.": "У лендингу є JavaScript. Перевірте його перед публікацією.",
-  "Standalone JavaScript files are not scanned.": "Окремі JavaScript-файли автоматично не аналізуються.",
-  "The ZIP archive is invalid or contains unsupported files.": "ZIP-архів пошкоджений або містить непідтримувані файли.",
+  "JavaScript is present; review it before publishing.":
+    "У лендингу є JavaScript. Перевірте його перед публікацією.",
+  "Standalone JavaScript files are not scanned.":
+    "Окремі JavaScript-файли автоматично не аналізуються.",
+  "The ZIP archive is invalid or contains unsupported files.":
+    "ZIP-архів пошкоджений або містить непідтримувані файли.",
   "The ZIP archive exceeds the 25 MB limit": "Розмір ZIP-архіву перевищує 25 МБ.",
   "Choose a ZIP archive": "Оберіть ZIP-архів",
   "The ZIP archive is empty": "ZIP-архів порожній.",
@@ -165,8 +259,10 @@ const uk = {
   "Name, offer, and ZIP archive are required": "Вкажіть назву, оберіть офер і додайте ZIP-архів.",
   "The selected offer is not available": "Обраний офер недоступний.",
   "Could not store the landing archive": "Не вдалося зберегти ZIP-архів лендингу.",
-  "View workspace landing pages and their ZIP analysis": "Перегляд лендингів робочого простору та аналізу ZIP",
-  "Create workspace landing drafts and upload source ZIPs": "Створення чернеток лендингів і завантаження вихідних ZIP",
+  "View workspace landing pages and their ZIP analysis":
+    "Перегляд лендингів робочого простору та аналізу ZIP",
+  "Create workspace landing drafts and upload source ZIPs":
+    "Створення чернеток лендингів і завантаження вихідних ZIP",
   Products: "Товари",
   Product: "Товар",
   g: "г",
@@ -208,22 +304,26 @@ const uk = {
   "Landing page URL (optional)": "Посилання на лендинг (необов'язково)",
   "Landing page": "Лендинг",
   "Landing page connection": "Підключення лендингу",
-  "Allow one exact origin to submit leads for this offer.": "Дозвольте одному точному домену надсилати заявки за цим офером.",
+  "Allow one exact origin to submit leads for this offer.":
+    "Дозвольте одному точному домену надсилати заявки за цим офером.",
   "Loading connection…": "Завантаження підключення…",
   "Could not load landing connection.": "Не вдалося завантажити підключення лендингу.",
   "Allowed website origin": "Дозволений домен сайту",
-  "Use the exact website origin, without a page path. HTTPS is required except on localhost.": "Вкажіть точну адресу сайту без шляху сторінки. Потрібен HTTPS, крім localhost.",
+  "Use the exact website origin, without a page path. HTTPS is required except on localhost.":
+    "Вкажіть точну адресу сайту без шляху сторінки. Потрібен HTTPS, крім localhost.",
   "Public form ID": "Публічний ID форми",
   "Allowed origin": "Дозволений домен",
   "Integration example": "Приклад інтеграції",
   "Copy integration": "Скопіювати код",
   "Integration example copied": "Код інтеграції скопійовано",
-  "Could not access the clipboard. Select and copy the integration example.": "Не вдалося скопіювати. Виділіть і скопіюйте код інтеграції вручну.",
+  "Could not access the clipboard. Select and copy the integration example.":
+    "Не вдалося скопіювати. Виділіть і скопіюйте код інтеграції вручну.",
   "Deactivate connection": "Вимкнути підключення",
   "Stop accepting leads from this form?": "Припинити приймати заявки з цієї форми?",
   "Keep active": "Залишити активним",
   Deactivate: "Вимкнути",
-  "This connection is inactive. Reactivating creates a new form ID; update the landing page code.": "Підключення вимкнене. Після повторної активації буде створено новий ID форми — оновіть код на лендингу.",
+  "This connection is inactive. Reactivating creates a new form ID; update the landing page code.":
+    "Підключення вимкнене. Після повторної активації буде створено новий ID форми — оновіть код на лендингу.",
   "Reactivate connection": "Активувати з новим ID",
   "Connect landing page": "Підключити лендинг",
   "Landing form connected": "Лендинг підключено",
@@ -267,14 +367,16 @@ const uk = {
   "System Super Admin Changed": "Права суперадміністратора змінено",
   "Lead count": "Кількість лідів",
   Created: "Створено",
-  "Team membership is not returned by the current workspace API, so the table does not infer it.": "Поточний API робочого простору не повертає дані про участь у командах, тому таблиця їх не визначає.",
+  "Team membership is not returned by the current workspace API, so the table does not infer it.":
+    "Поточний API робочого простору не повертає дані про участь у командах, тому таблиця їх не визначає.",
   Notes: "Нотатки",
   Cancel: "Скасувати",
   "Context, follow-ups, next steps…": "Нотатки, домовленості, наступні кроки…",
   "Save changes": "Зберегти зміни",
   "Create lead": "Створити ліда",
   "Delete this lead?": "Видалити цього ліда?",
-  "{name} will be permanently removed. This action cannot be undone.": "Ліда «{name}» буде видалено без можливості відновлення.",
+  "{name} will be permanently removed. This action cannot be undone.":
+    "Ліда «{name}» буде видалено без можливості відновлення.",
   "Lead created": "Ліда створено",
   "Lead updated": "Дані ліда оновлено",
   "Lead deleted": "Ліда видалено",
@@ -284,7 +386,8 @@ const uk = {
   "Welcome back": "З поверненням",
   "Accept your invitation": "Прийняти запрошення",
   "Sign in to access your workspace.": "Увійдіть, щоб відкрити робочий простір.",
-  "Create an account to join {workspace}.": "Створіть обліковий запис, щоб приєднатися до простору «{workspace}».",
+  "Create an account to join {workspace}.":
+    "Створіть обліковий запис, щоб приєднатися до простору «{workspace}».",
   "Checking your invitation…": "Перевіряємо запрошення…",
   "Invitation for {email} · {role}": "Запрошення для {email} · {role}",
   "Accepting invitation…": "Приймаємо запрошення…",
@@ -296,14 +399,19 @@ const uk = {
   "Create account": "Створити обліковий запис",
   "New to the workspace?": "Ще не маєте доступу до простору?",
   "Already have an account?": "Вже маєте обліковий запис?",
-  "Workspace access is invitation-only. Ask an administrator to invite your account.": "Доступ до простору — лише за запрошенням. Попросіть адміністратора надіслати вам запрошення.",
+  "Workspace access is invitation-only. Ask an administrator to invite your account.":
+    "Доступ до простору — лише за запрошенням. Попросіть адміністратора надіслати вам запрошення.",
   "Invitation accepted": "Запрошення прийнято",
   "Invitation is invalid or expired": "Запрошення недійсне або строк його дії минув",
   "Could not accept invitation": "Не вдалося прийняти запрошення",
-  "A valid invitation is required to create an account": "Для створення облікового запису потрібне дійсне запрошення",
-  "Use the email address that received the invitation": "Введіть адресу електронної пошти, на яку надіслали запрошення",
-  "Check your email to confirm the account and accept the invitation": "Перевірте пошту, щоб підтвердити обліковий запис і прийняти запрошення",
-  "This account has no workspace access. Ask a workspace administrator for an invitation.": "У цього облікового запису немає доступу до простору. Попросіть адміністратора надіслати запрошення.",
+  "A valid invitation is required to create an account":
+    "Для створення облікового запису потрібне дійсне запрошення",
+  "Use the email address that received the invitation":
+    "Введіть адресу електронної пошти, на яку надіслали запрошення",
+  "Check your email to confirm the account and accept the invitation":
+    "Перевірте пошту, щоб підтвердити обліковий запис і прийняти запрошення",
+  "This account has no workspace access. Ask a workspace administrator for an invitation.":
+    "У цього облікового запису немає доступу до простору. Попросіть адміністратора надіслати запрошення.",
   "Invalid login credentials": "Неправильна електронна пошта або пароль",
   "Email not confirmed": "Спершу підтвердьте електронну пошту",
   "User already registered": "Цей обліковий запис уже зареєстровано",
@@ -311,7 +419,8 @@ const uk = {
   "Status pipelines": "Воронки за статусами",
   "Premium UX": "Зручний інтерфейс",
   "Turn conversations into conversions.": "Перетворюйте спілкування на продажі.",
-  "A premium lead management workspace built for modern teams. Track every prospect, measure every touchpoint, ship with confidence.": "CRM для сучасних команд: стежте за лідами та історією взаємодій, щоб не втрачати потенційні продажі.",
+  "A premium lead management workspace built for modern teams. Track every prospect, measure every touchpoint, ship with confidence.":
+    "CRM для сучасних команд: стежте за лідами та історією взаємодій, щоб не втрачати потенційні продажі.",
   Overview: "Огляд",
   Users: "Користувачі",
   "Roles & Permissions": "Ролі та права доступу",
@@ -343,24 +452,32 @@ const uk = {
   "View offers in the granted data scope": "Перегляд доступних оферів",
   "Create and update workspace offers": "Створення та оновлення оферів робочого простору",
   "View individual permission grants": "Перегляд індивідуальних прав",
-  "Manage rights explicitly delegated to this Admin": "Керування правами, делегованими цьому адміністратору",
+  "Manage rights explicitly delegated to this Admin":
+    "Керування правами, делегованими цьому адміністратору",
   "View workspace access audit events": "Перегляд журналу дій щодо доступу до робочого простору",
   "Member role updated": "Роль учасника оновлено",
   "Permission override saved": "Індивідуальне право збережено",
   "Invitation created and email sent": "Запрошення надіслано на електронну пошту",
-  "Invitation created; copy its link to share it": "Запрошення створено. Скопіюйте посилання, щоб поділитися ним",
+  "Invitation created; copy its link to share it":
+    "Запрошення створено. Скопіюйте посилання, щоб поділитися ним",
   "Invitation revoked": "Запрошення відкликано",
   "Team created": "Команду створено",
-  "Your current permissions do not allow assigning the Admin role": "У вас немає права призначати роль адміністратора",
-  "This permission is delegated by a Super Admin and cannot be changed here": "Це право делегував суперадміністратор. Тут його не можна змінити.",
-  "The server has not delegated this permission and scope to your account": "Це право не делеговане вашому обліковому запису на вибраному рівні доступу",
-  "Your current permissions do not allow inviting Admin users": "У вас немає права запрошувати адміністраторів",
+  "Your current permissions do not allow assigning the Admin role":
+    "У вас немає права призначати роль адміністратора",
+  "This permission is delegated by a Super Admin and cannot be changed here":
+    "Це право делегував суперадміністратор. Тут його не можна змінити.",
+  "The server has not delegated this permission and scope to your account":
+    "Це право не делеговане вашому обліковому запису на вибраному рівні доступу",
+  "Your current permissions do not allow inviting Admin users":
+    "У вас немає права запрошувати адміністраторів",
   "Invitation link copied": "Посилання на запрошення скопійовано",
-  "Could not access the clipboard. Select and copy the link manually.": "Не вдалося скопіювати посилання. Скопіюйте його вручну.",
+  "Could not access the clipboard. Select and copy the link manually.":
+    "Не вдалося скопіювати посилання. Скопіюйте його вручну.",
   "Loading workspace permissions…": "Завантажуємо права доступу…",
   "Administration could not be loaded": "Не вдалося завантажити адміністративний розділ",
   "Administration is unavailable": "Адміністративний розділ недоступний",
-  "Your account does not have administrative workspace permissions.": "У вашого облікового запису немає прав адміністратора цього простору.",
+  "Your account does not have administrative workspace permissions.":
+    "У вашого облікового запису немає прав адміністратора цього простору.",
   "Could not load data": "Не вдалося завантажити дані",
   "Administration sections": "Розділи адміністрування",
   "Server checked · Super Admin": "Перевірено на сервері · суперадміністратор",
@@ -388,18 +505,24 @@ const uk = {
   Joined: "Дата приєднання",
   "Not available": "Недоступно",
   "View individual permissions": "Переглянути індивідуальні права",
-  "The member API does not identify protected Super Admin accounts": "API учасників не позначає захищені облікові записи суперадміністраторів",
+  "The member API does not identify protected Super Admin accounts":
+    "API учасників не позначає захищені облікові записи суперадміністраторів",
   "No users match these filters.": "За вибраними фільтрами користувачів не знайдено.",
-  "No members are available for permission management.": "Немає учасників, для яких можна налаштувати права доступу.",
+  "No members are available for permission management.":
+    "Немає учасників, для яких можна налаштувати права доступу.",
   "Requires permissions.manage": "Потрібне право permissions.manage",
-  "Requires permissions.read to inspect current overrides": "Щоб переглянути індивідуальні права, потрібне permissions.read",
+  "Requires permissions.read to inspect current overrides":
+    "Щоб переглянути індивідуальні права, потрібне permissions.read",
   "This override was delegated by a Super Admin": "Це право делегував суперадміністратор",
-  "No matching delegable grant exists for this permission and scope": "Для цього права та рівня доступу немає відповідного делегування",
+  "No matching delegable grant exists for this permission and scope":
+    "Для цього права та рівня доступу немає відповідного делегування",
   Inherit: "Успадкувати",
   Allow: "Дозволити",
   Deny: "Заборонити",
-  "Delegable overrides may be managed by eligible Admin users": "Адміністратори з відповідними правами можуть керувати делегованими правами",
-  "No analytics permission keys exist in the current permission catalog. Scope target options are still available.": "Аналітичні права поки не налаштовані. Вибрати рівень доступу все одно можна.",
+  "Delegable overrides may be managed by eligible Admin users":
+    "Адміністратори з відповідними правами можуть керувати делегованими правами",
+  "No analytics permission keys exist in the current permission catalog. Scope target options are still available.":
+    "Аналітичні права поки не налаштовані. Вибрати рівень доступу все одно можна.",
   "New team name": "Назва нової команди",
   "Create team": "Створити команду",
   "Workspace teams": "Команди робочого простору",
@@ -407,7 +530,8 @@ const uk = {
   "Create invitation": "Створити запрошення",
   "Invitation created": "Запрошення створено",
   "An email was sent through Supabase Auth.": "Лист надіслано через Supabase Auth.",
-  "Email delivery was unavailable; copy and share this secure one-time link.": "Не вдалося надіслати листа. Скопіюйте посилання та передайте його запрошеному користувачу. Посилання можна використати лише один раз.",
+  "Email delivery was unavailable; copy and share this secure one-time link.":
+    "Не вдалося надіслати листа. Скопіюйте посилання та передайте його запрошеному користувачу. Посилання можна використати лише один раз.",
   "Invitation link": "Посилання на запрошення",
   "Dismiss invitation link": "Закрити посилання на запрошення",
   "Workspace invitations": "Запрошення до простору",
@@ -415,7 +539,8 @@ const uk = {
   Action: "Дія",
   Revoke: "Відкликати",
   "No invitations are available.": "Запрошень немає.",
-  "You can create invitations. Viewing the invitation list requires members.read.": "Ви можете надсилати запрошення. Щоб переглянути список, потрібне право members.read.",
+  "You can create invitations. Viewing the invitation list requires members.read.":
+    "Ви можете надсилати запрошення. Щоб переглянути список, потрібне право members.read.",
   "Email or user ID": "Електронна пошта або ID користувача",
   "All actions": "Усі дії",
   From: "Від",
@@ -426,15 +551,18 @@ const uk = {
   "Subject ID": "ID користувача",
   "Recorded details": "Деталі події",
   "No audit events match these filters.": "За цими фільтрами подій аудиту не знайдено.",
-  "The audit API returns actor and subject IDs plus the recorded action details. Names are shown only when available in the protected member list.": "У журналі показано ID ініціатора й користувача, а також деталі події. Імена відображаються, якщо їх можна знайти у списку учасників.",
+  "The audit API returns actor and subject IDs plus the recorded action details. Names are shown only when available in the protected member list.":
+    "У журналі показано ID ініціатора й користувача, а також деталі події. Імена відображаються, якщо їх можна знайти у списку учасників.",
   "Change member role": "Змінити роль учасника",
   "Workspace role": "Роль у робочому просторі",
-  "Role changes take effect immediately. A Super Admin cannot be modified by an Admin, and the server enforces this rule.": "Зміна ролі набуває чинності одразу. Адміністратор не може змінити роль суперадміністратора — це правило перевіряє сервер.",
+  "Role changes take effect immediately. A Super Admin cannot be modified by an Admin, and the server enforces this rule.":
+    "Зміна ролі набуває чинності одразу. Адміністратор не може змінити роль суперадміністратора — це правило перевіряє сервер.",
   "Save role": "Зберегти роль",
   " scope target": " — ціль доступу",
   "Choose a {scope}": "Виберіть: {scope}",
   "Scope ID (UUID)": "ID області доступу (UUID)",
-  "A valid workspace scope ID is required; the server validates it.": "Потрібен коректний ID області доступу. Його перевірить сервер.",
+  "A valid workspace scope ID is required; the server validates it.":
+    "Потрібен коректний ID області доступу. Його перевірить сервер.",
   Unknown: "Невідомо",
   "Unknown user": "Невідомий користувач",
   Unavailable: "Недоступно",
@@ -451,13 +579,15 @@ const uk = {
   "Next page": "Наступна сторінка",
   "Loading…": "Завантаження…",
   Retry: "Повторити",
-  "Expired": "Строк дії минув",
+  Expired: "Строк дії минув",
   "Email unavailable": "Електронна пошта недоступна",
   "Protected Admin account": "Захищений обліковий запис адміністратора",
   "Your account": "Ваш обліковий запис",
   "Permissions for {email}": "Права доступу для {email}",
-  "Change {member}'s role to {role}? The change takes effect immediately.": "Змінити роль учасника {member} на «{role}»? Зміна набуде чинності одразу.",
-  "Set {permission} to {action} for this member at the selected scope? A Super Admin deny always takes precedence.": "Застосувати право {permission}: «{action}» для учасника на вибраному рівні доступу? Заборона суперадміністратора завжди має пріоритет.",
+  "Change {member}'s role to {role}? The change takes effect immediately.":
+    "Змінити роль учасника {member} на «{role}»? Зміна набуде чинності одразу.",
+  "Set {permission} to {action} for this member at the selected scope? A Super Admin deny always takes precedence.":
+    "Застосувати право {permission}: «{action}» для учасника на вибраному рівні доступу? Заборона суперадміністратора завжди має пріоритет.",
   "Revoke the invitation for {email}?": "Відкликати запрошення для {email}?",
   "Showing {start}–{end} of {total}": "Показано {start}–{end} із {total}",
   Rows: "Рядків",
@@ -468,24 +598,32 @@ const uk = {
   "Server checked · {role}": "Перевірено сервером · {role}",
   "Some overview counts could not be loaded.": "Не вдалося завантажити деякі підсумкові дані.",
   "The audit summary requires audit.read.": "Для зведення аудиту потрібен дозвіл audit.read.",
-  "Capabilities are read from the current server permission checks.": "Доступні дії визначаються перевірками прав на сервері.",
+  "Capabilities are read from the current server permission checks.":
+    "Доступні дії визначаються перевірками прав на сервері.",
   "Super Admin · full workspace access": "Суперадміністратор · повний доступ до простору",
-  "Suspension and team assignment are not available in the current server API. Super Admin membership protection is enforced by the role RPC; ordinary Admin users cannot edit Admin-level rows here.": "Через серверний API поки не можна призупиняти облікові записи чи призначати користувачів до команд. Захист суперадміністратора забезпечує рольова RPC-функція; звичайні адміністратори не можуть змінювати записи адміністраторів.",
+  "Suspension and team assignment are not available in the current server API. Super Admin membership protection is enforced by the role RPC; ordinary Admin users cannot edit Admin-level rows here.":
+    "Через серверний API поки не можна призупиняти облікові записи чи призначати користувачів до команд. Захист суперадміністратора забезпечує рольова RPC-функція; звичайні адміністратори не можуть змінювати записи адміністраторів.",
   Member: "Учасник",
   "Permission scope": "Рівень доступу",
-  "Your account can manage some permissions, but lacks permissions.read. The current API cannot show a member’s overrides safely, so editing is disabled until a Super Admin grants permissions.read.": "Ви можете керувати частиною прав, але без permissions.read не можна безпечно переглянути індивідуальні права учасника. Редагування стане доступним, коли суперадміністратор надасть permissions.read.",
-  "Rows show explicit overrides only. Inherit leaves the member’s workspace role defaults in effect; effective rights for another user are not exposed by the current API.": "Тут показано лише індивідуальні права. «Успадкувати» означає використовувати права ролі учасника. Поточний API не показує повний набір прав інших користувачів.",
+  "Your account can manage some permissions, but lacks permissions.read. The current API cannot show a member’s overrides safely, so editing is disabled until a Super Admin grants permissions.read.":
+    "Ви можете керувати частиною прав, але без permissions.read не можна безпечно переглянути індивідуальні права учасника. Редагування стане доступним, коли суперадміністратор надасть permissions.read.",
+  "Rows show explicit overrides only. Inherit leaves the member’s workspace role defaults in effect; effective rights for another user are not exposed by the current API.":
+    "Тут показано лише індивідуальні права. «Успадкувати» означає використовувати права ролі учасника. Поточний API не показує повний набір прав інших користувачів.",
   "Super Admin denies take precedence.": "Заборони суперадміністратора мають пріоритет.",
   Delegated: "Делеговано",
   Delegable: "Можна делегувати",
   "scope target": "ціль доступу",
-  "Scope target identifiers are checked against the workspace by the server before changes are saved.": "Перед збереженням сервер перевіряє, чи належить вибрана ціль доступу до цього робочого простору.",
-  "You can create teams, but viewing the team list requires teams.read.": "Ви можете створювати команди, але для перегляду списку потрібен дозвіл teams.read.",
+  "Scope target identifiers are checked against the workspace by the server before changes are saved.":
+    "Перед збереженням сервер перевіряє, чи належить вибрана ціль доступу до цього робочого простору.",
+  "You can create teams, but viewing the team list requires teams.read.":
+    "Ви можете створювати команди, але для перегляду списку потрібен дозвіл teams.read.",
   "member assignments unavailable": "призначення учасників недоступне",
-  "Teams can be created and used as permission scopes. The current schema has no user-to-team assignment API, so participants are not inferred from lead records.": "Команди можна створювати та використовувати для обмеження доступу. Додавання користувачів до команд поки не підтримується, тому їхній склад тут не показано.",
+  "Teams can be created and used as permission scopes. The current schema has no user-to-team assignment API, so participants are not inferred from lead records.":
+    "Команди можна створювати та використовувати для обмеження доступу. Додавання користувачів до команд поки не підтримується, тому їхній склад тут не показано.",
   "Email address": "Електронна пошта",
   "Initial role": "Початкова роль",
-  "Assigning the Admin role requires members.assign_admin. Super Admin invitations are not available through workspace invitations.": "Щоб призначити адміністратора, потрібне право members.assign_admin. Запросити суперадміністратора через цей розділ не можна.",
+  "Assigning the Admin role requires members.assign_admin. Super Admin invitations are not available through workspace invitations.":
+    "Щоб призначити адміністратора, потрібне право members.assign_admin. Запросити суперадміністратора через цей розділ не можна.",
   "Copy link": "Скопіювати посилання",
   User: "Користувач",
   "Showing up to 500 latest events": "Показано до 500 останніх подій",
@@ -500,7 +638,8 @@ const uk = {
   "Workspace scope": "Доступ до робочого простору",
   "Unknown status": "Невідомий статус",
   "The request could not be completed.": "Не вдалося виконати запит.",
-  "We couldn't sign you in or create your account. Check your details and try again.": "Не вдалося увійти або створити обліковий запис. Перевірте введені дані й спробуйте ще раз.",
+  "We couldn't sign you in or create your account. Check your details and try again.":
+    "Не вдалося увійти або створити обліковий запис. Перевірте введені дані й спробуйте ще раз.",
 } as const;
 
 export type TranslationKey = keyof typeof uk;
@@ -541,16 +680,22 @@ const en: Partial<Record<TranslationKey, string>> = {
   "User already registered": "An account with this email already exists.",
   "Invitation is invalid or expired": "This invitation is invalid or has expired.",
   "Could not accept invitation": "We couldn't accept this invitation.",
-  "A valid invitation is required to create an account": "A valid invitation is required to create an account.",
-  "Use the email address that received the invitation": "Use the email address the invitation was sent to.",
-  "Check your email to confirm the account and accept the invitation": "Check your email to confirm your account and accept the invitation.",
-  "This account has no workspace access. Ask a workspace administrator for an invitation.": "This account doesn't have access to a workspace. Ask a workspace admin for an invitation.",
+  "A valid invitation is required to create an account":
+    "A valid invitation is required to create an account.",
+  "Use the email address that received the invitation":
+    "Use the email address the invitation was sent to.",
+  "Check your email to confirm the account and accept the invitation":
+    "Check your email to confirm your account and accept the invitation.",
+  "This account has no workspace access. Ask a workspace administrator for an invitation.":
+    "This account doesn't have access to a workspace. Ask a workspace admin for an invitation.",
   "Type a command or search…": "Search or run a command…",
   Navigate: "Navigation",
   "A snapshot of your lead pipeline.": "A quick look at your lead pipeline.",
-  "A premium lead management workspace built for modern teams. Track every prospect, measure every touchpoint, ship with confidence.": "An e-commerce CRM for modern teams. Manage leads, track every interaction, and turn more conversations into sales.",
+  "A premium lead management workspace built for modern teams. Track every prospect, measure every touchpoint, ship with confidence.":
+    "An e-commerce CRM for modern teams. Manage leads, track every interaction, and turn more conversations into sales.",
   "Recent activity": "Recent leads",
-  "No leads yet — head to Leads to add your first one.": "No leads yet. Add your first lead to get started.",
+  "No leads yet — head to Leads to add your first one.":
+    "No leads yet. Add your first lead to get started.",
   "Total leads": "Total leads",
   "New leads — last 14 days": "New leads over the last 14 days",
   "Daily inflow trend": "Daily lead volume",
@@ -560,7 +705,8 @@ const en: Partial<Record<TranslationKey, string>> = {
   "Failed to delete": "Couldn't delete the lead.",
   "Invalid lead data": "Check the lead details and try again.",
   "Breakdown of pipeline": "Pipeline breakdown",
-  "Start building your pipeline. Add your first lead to track conversations and conversions.": "Add your first lead to start tracking conversations and sales.",
+  "Start building your pipeline. Add your first lead to track conversations and conversions.":
+    "Add your first lead to start tracking conversations and sales.",
   "Capture a fresh opportunity.": "Enter the details for a new lead.",
   "Create account": "Create an account",
   "New to the workspace?": "New to this workspace?",
@@ -577,11 +723,14 @@ const en: Partial<Record<TranslationKey, string>> = {
   "No teams are visible in this workspace.": "No teams are available in this workspace.",
   "No invitations are available.": "No invitations to show.",
   "No audit events match these filters.": "No activity matches the selected filters.",
-  "Change {member}'s role to {role}? The change takes effect immediately.": "Change {member}'s role to {role}? This takes effect immediately.",
+  "Change {member}'s role to {role}? The change takes effect immediately.":
+    "Change {member}'s role to {role}? This takes effect immediately.",
   "The request could not be completed.": "We couldn't complete the request.",
   "The server rejected this change": "The server couldn't apply this change.",
-  "Could not access the clipboard. Select and copy the link manually.": "Couldn't copy the link. Copy it manually instead.",
-  "Your account does not have administrative workspace permissions.": "Your account doesn't have admin access to this workspace.",
+  "Could not access the clipboard. Select and copy the link manually.":
+    "Couldn't copy the link. Copy it manually instead.",
+  "Your account does not have administrative workspace permissions.":
+    "Your account doesn't have admin access to this workspace.",
   "The request could not be completed": "We couldn't complete the request.",
   "Insufficient workspace permissions": "You don't have enough permissions in this workspace.",
   "Access changed for": "Access changed for",
@@ -597,20 +746,56 @@ const en: Partial<Record<TranslationKey, string>> = {
   "Search landing pages…": "Search landing pages…",
   "No landing pages yet": "No landing pages yet",
   "No landing pages match your search.": "No landing pages match your search.",
-  "You don't have permission to view landing pages.": "You don't have permission to view landing pages.",
+  "You don't have permission to view landing pages.":
+    "You don't have permission to view landing pages.",
   "Could not load landing pages.": "Couldn't load landing pages.",
   "Landing draft created": "Landing draft created",
   "Could not create landing draft": "Couldn't create the landing draft.",
+  "Edit landing draft": "Edit landing draft",
+  "Update the draft details or replace its source ZIP.":
+    "Update the draft details or replace its source ZIP.",
+  "Replace source ZIP (optional)": "Replace source ZIP (optional)",
+  "Landing draft updated": "Landing draft updated",
+  "Could not update landing draft": "Couldn't update the landing draft.",
+  "Landing draft deleted": "Landing draft deleted",
+  "Could not finish deleting the landing draft. Try again.":
+    "Couldn't finish deleting the landing draft. Try again.",
+  "Status and analysis": "Status and analysis",
+  "ZIP size": "ZIP size",
+  "Analysis ready": "Analysis complete",
+  "Deletion pending": "Deletion pending",
+  "Retry deletion to finish removing this draft.": "Retry deletion to finish removing this draft.",
+  "View analysis for {name}": "View analysis for {name}",
+  "View analysis": "View analysis",
+  "Edit {name}": "Edit {name}",
+  "Delete {name}": "Delete {name}",
+  "Retry deletion for {name}": "Retry deletion for {name}",
+  "Retry deletion": "Retry deletion",
+  "Finish deleting this draft?": "Finish deleting this draft?",
+  "Delete this landing draft?": "Delete this landing draft?",
+  "The previous deletion did not finish. Retry to remove the private ZIP and draft.":
+    "The previous deletion did not finish. Retry to remove the private ZIP and draft.",
+  "This removes the draft and its private source ZIP. Published landing pages cannot be deleted here.":
+    "This removes the draft and its private source ZIP. Published landing pages can't be deleted here.",
+  "Delete draft": "Delete draft",
+  "Only landing drafts can be deleted": "Only landing drafts can be deleted",
+  "Landing draft not found": "Landing draft not found",
+  "This landing draft is no longer editable": "This landing draft is no longer editable",
+  "This landing draft is no longer available for deletion":
+    "This landing draft is no longer available for deletion",
   "Landing name": "Landing name",
   "Choose an active offer": "Choose an active offer",
   "Upload source ZIP": "Upload source ZIP",
-  "ZIP archives up to 25 MB. Files are kept private.": "ZIP archives up to 25 MB. Files are stored privately.",
-  "Create a draft from an existing static landing page ZIP.": "Create a draft from an existing static landing page ZIP.",
+  "ZIP archives up to 25 MB. Files are kept private.":
+    "ZIP archives up to 25 MB. Files are stored privately.",
+  "Create a draft from an existing static landing page ZIP.":
+    "Create a draft from an existing static landing page ZIP.",
   "Landing analysis": "Landing analysis",
   "Site root": "Site root",
   "Archive root": "Archive root",
   "Not determined": "Not determined",
-  "Form analysis is unavailable until a single site root can be identified.": "Form analysis is unavailable until a single site root can be identified.",
+  "Form analysis is unavailable until a single site root can be identified.":
+    "Form analysis is unavailable until a single site root can be identified.",
   "ZIP saved privately": "ZIP saved privately",
   "File count": "File count",
   "Unpacked size": "Unpacked size",
@@ -624,22 +809,26 @@ const en: Partial<Record<TranslationKey, string>> = {
   "No known pixels detected": "No known pixels detected",
   "Needs adaptation": "Needs adaptation",
   "Structure looks recognizable": "Structure looks recognizable",
-  "Draft": "Draft",
-  "Ready": "Ready",
-  "Published": "Published",
-  "Error": "Error",
+  Draft: "Draft",
+  Ready: "Ready",
+  Published: "Published",
+  Error: "Error",
   "Meta Pixel": "Meta Pixel",
   "TikTok Pixel": "TikTok Pixel",
   "Google Analytics": "Google Analytics",
   "Google Tag Manager": "Google Tag Manager",
-  "No index.html found in the archive.": "No index.html was found at the archive root or in a single top-level folder.",
-  "Could not determine a single site root. Review the archive structure.": "Could not determine a single site root. Review the archive structure.",
+  "No index.html found in the archive.":
+    "No index.html was found at the archive root or in a single top-level folder.",
+  "Could not determine a single site root. Review the archive structure.":
+    "Could not determine a single site root. Review the archive structure.",
   "No standard HTML form was detected.": "No standard HTML form was detected.",
   "Could not identify a name field.": "Could not identify a name field.",
   "Could not identify a phone field.": "Could not identify a phone field.",
-  "JavaScript is present; review it before publishing.": "JavaScript is present. Review it before publishing.",
+  "JavaScript is present; review it before publishing.":
+    "JavaScript is present. Review it before publishing.",
   "Standalone JavaScript files are not scanned.": "Standalone JavaScript files are not inspected.",
-  "The ZIP archive is invalid or contains unsupported files.": "The ZIP archive is invalid or contains unsupported files.",
+  "The ZIP archive is invalid or contains unsupported files.":
+    "The ZIP archive is invalid or contains unsupported files.",
   "The ZIP archive exceeds the 25 MB limit": "The ZIP archive exceeds the 25 MB limit.",
   "Choose a ZIP archive": "Choose a ZIP archive.",
   "The ZIP archive is empty": "The ZIP archive is empty.",
@@ -648,11 +837,14 @@ const en: Partial<Record<TranslationKey, string>> = {
   "The upload is empty": "No file was uploaded.",
   "Could not read the ZIP upload": "Couldn't read the ZIP archive.",
   "Invalid landing form fields": "Check the landing details and try again.",
-  "Name, offer, and ZIP archive are required": "Enter a name, choose an offer, and add a ZIP archive.",
+  "Name, offer, and ZIP archive are required":
+    "Enter a name, choose an offer, and add a ZIP archive.",
   "The selected offer is not available": "The selected offer is unavailable.",
   "Could not store the landing archive": "Could not store the landing archive.",
-  "View workspace landing pages and their ZIP analysis": "View workspace landing pages and ZIP analysis",
-  "Create workspace landing drafts and upload source ZIPs": "Create workspace landing drafts and upload source ZIPs",
+  "View workspace landing pages and their ZIP analysis":
+    "View workspace landing pages and ZIP analysis",
+  "Create workspace landing drafts and upload source ZIPs":
+    "Create workspace landing drafts and upload source ZIPs",
   Product: "Product",
   g: "g",
   "Product catalog": "Product catalog",
@@ -694,22 +886,26 @@ const en: Partial<Record<TranslationKey, string>> = {
   "Landing page URL (optional)": "Landing page URL (optional)",
   "Landing page": "Landing page",
   "Landing page connection": "Landing page connection",
-  "Allow one exact origin to submit leads for this offer.": "Allow one exact website origin to submit leads for this offer.",
+  "Allow one exact origin to submit leads for this offer.":
+    "Allow one exact website origin to submit leads for this offer.",
   "Loading connection…": "Loading connection…",
   "Could not load landing connection.": "Couldn't load the landing page connection.",
   "Allowed website origin": "Allowed website origin",
-  "Use the exact website origin, without a page path. HTTPS is required except on localhost.": "Enter the exact website origin without a page path. HTTPS is required except for localhost.",
+  "Use the exact website origin, without a page path. HTTPS is required except on localhost.":
+    "Enter the exact website origin without a page path. HTTPS is required except for localhost.",
   "Public form ID": "Public form ID",
   "Allowed origin": "Allowed origin",
   "Integration example": "Integration example",
   "Copy integration": "Copy integration",
   "Integration example copied": "Integration example copied",
-  "Could not access the clipboard. Select and copy the integration example.": "Couldn't copy the code. Select and copy the integration example manually.",
+  "Could not access the clipboard. Select and copy the integration example.":
+    "Couldn't copy the code. Select and copy the integration example manually.",
   "Deactivate connection": "Deactivate connection",
   "Stop accepting leads from this form?": "Stop accepting leads from this form?",
   "Keep active": "Keep active",
   Deactivate: "Deactivate",
-  "This connection is inactive. Reactivating creates a new form ID; update the landing page code.": "This connection is inactive. Reactivating generates a new form ID, so update the landing page code.",
+  "This connection is inactive. Reactivating creates a new form ID; update the landing page code.":
+    "This connection is inactive. Reactivating generates a new form ID, so update the landing page code.",
   "Reactivate connection": "Reactivate with a new ID",
   "Connect landing page": "Connect landing page",
   "Landing form connected": "Landing page connected",
@@ -722,7 +918,8 @@ const en: Partial<Record<TranslationKey, string>> = {
   "Loading products…": "Loading products…",
   "No offers yet": "No offers yet",
   "No offers match your search.": "No offers match your search.",
-  "Create an offer from a product in your catalog.": "Create an offer from a product in your catalog.",
+  "Create an offer from a product in your catalog.":
+    "Create an offer from a product in your catalog.",
   "You don't have permission to view offers.": "You don't have permission to view offers.",
   "Product not linked": "Product not linked",
   "Offer created": "Offer created",
@@ -741,7 +938,7 @@ export function t(
   values: Record<string, string | number> = {},
   locale: Locale = activeLocale,
 ): string {
-  const message = locale === "uk" ? catalogs.uk[key] : catalogs.en[key] ?? key;
+  const message = locale === "uk" ? catalogs.uk[key] : (catalogs.en[key] ?? key);
   return message.replace(/\{(\w+)\}/g, (match, name: string) =>
     Object.hasOwn(values, name) ? String(values[name]) : match,
   );
@@ -757,7 +954,11 @@ export function translateLabel(value: string, locale: Locale = activeLocale): st
 }
 
 /** Maps known server/auth messages and otherwise uses the caller's localized fallback. */
-export function localizeError(error: unknown, fallback: string, locale: Locale = activeLocale): string {
+export function localizeError(
+  error: unknown,
+  fallback: string,
+  locale: Locale = activeLocale,
+): string {
   const message = error instanceof Error ? error.message : "";
   return Object.hasOwn(uk, message) ? t(message as TranslationKey, {}, locale) : fallback;
 }

@@ -12,6 +12,9 @@ DECLARE
   v_fk_definition TEXT;
   v_bucket_public BOOLEAN;
   v_bucket_limit BIGINT;
+  v_listing_result TEXT;
+  v_adapter_function TEXT;
+  v_storage_policy TEXT;
   v_cross_workspace_rejected BOOLEAN := FALSE;
 BEGIN
   IF v_workspace_id IS NULL THEN
@@ -23,6 +26,54 @@ BEGIN
   WHERE oid = 'public.workspace_landings'::regclass;
   IF NOT COALESCE(v_rls_enabled, FALSE) THEN
     RAISE EXCEPTION 'RLS must remain enabled for workspace_landings';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'workspace_landings'
+      AND column_name = 'source_archive_bytes'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'workspace_landings'
+      AND column_name = 'deletion_started_at'
+  ) THEN
+    RAISE EXCEPTION 'Draft management metadata is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workspace_landings'
+      AND column_name = 'adapted_archive_path'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workspace_landings'
+      AND column_name = 'adapter_status'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workspace_landings'
+      AND column_name = 'intake_public_id'
+  ) THEN
+    RAISE EXCEPTION 'Landing adapter metadata is missing';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger
+    WHERE tgrelid = 'public.workspace_landings'::regclass
+      AND tgname = 'workspace_landings_draft_delete_guard'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'Hard deletion must require a draft marked for deletion';
+  END IF;
+
+  SELECT pg_catalog.pg_get_function_result('public.get_workspace_landings(uuid,text)'::regprocedure)
+  INTO v_listing_result;
+  IF v_listing_result NOT LIKE '%source_archive_bytes%'
+     OR v_listing_result NOT LIKE '%deletion_started_at%'
+     OR v_listing_result NOT LIKE '%adapter_status%'
+     OR v_listing_result NOT LIKE '%has_adapted_archive%' THEN
+    RAISE EXCEPTION 'Landing listing must expose source and adapter state without private ZIP paths';
   END IF;
 
   IF NOT EXISTS (
@@ -90,6 +141,41 @@ BEGIN
   IF has_function_privilege('anon', 'public.get_workspace_landings(uuid,text)', 'EXECUTE')
      OR NOT has_function_privilege('authenticated', 'public.get_workspace_landings(uuid,text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'Landing listing RPC must be authenticated and never executable by anon';
+  END IF;
+
+  IF has_function_privilege('anon', 'public.ensure_landing_form_config_for_adapter(uuid,uuid)', 'EXECUTE')
+     OR has_function_privilege('anon', 'public.configure_landing_form_origin_for_adapter(uuid,uuid,text)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.ensure_landing_form_config_for_adapter(uuid,uuid)', 'EXECUTE')
+     OR NOT has_function_privilege('authenticated', 'public.configure_landing_form_origin_for_adapter(uuid,uuid,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Landing form adapter RPCs must be authenticated and unavailable to anon';
+  END IF;
+
+  SELECT pg_catalog.pg_get_functiondef('public.ensure_landing_form_config_for_adapter(uuid,uuid)'::regprocedure)
+  INTO v_adapter_function;
+  IF v_adapter_function NOT LIKE '%landing_pages.manage%'
+     OR v_adapter_function NOT LIKE '%https://pending.crmonia.invalid%'
+     OR v_adapter_function NOT LIKE '%FALSE%' THEN
+    RAISE EXCEPTION 'Pending landing forms must use landing_pages.manage and remain inactive';
+  END IF;
+
+  SELECT pg_catalog.pg_get_functiondef('public.configure_landing_form_origin_for_adapter(uuid,uuid,text)'::regprocedure)
+  INTO v_adapter_function;
+  IF v_adapter_function NOT LIKE '%landing_pages.manage%'
+     OR v_adapter_function NOT LIKE '%FOR UPDATE%'
+     OR v_adapter_function NOT LIKE '%pending.crmonia.invalid%' THEN
+    RAISE EXCEPTION 'Origin configuration must remain scoped and preserve existing offer configuration';
+  END IF;
+
+  SELECT policy.qual
+  INTO v_storage_policy
+  FROM pg_catalog.pg_policies AS policy
+  WHERE policy.schemaname = 'storage'
+    AND policy.tablename = 'objects'
+    AND policy.policyname = 'landing_archive_read_authorized';
+  IF v_storage_policy IS NULL
+     OR v_storage_policy NOT LIKE '%source_archive_path%'
+     OR v_storage_policy LIKE '%adapted_archive_path%' THEN
+    RAISE EXCEPTION 'Adapted ZIPs must remain accessible through the authorized server endpoint only';
   END IF;
 
   SELECT pg_catalog.pg_get_constraintdef(c.oid)

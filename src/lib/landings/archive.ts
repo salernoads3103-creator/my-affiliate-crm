@@ -4,6 +4,7 @@ import type {
   LandingFormAnalysis,
   LandingPixel,
   LandingAnalysisWarning,
+  LandingAdapterReason,
 } from "./types";
 import { MAX_LANDING_ARCHIVE_BYTES } from "./validation";
 
@@ -17,6 +18,12 @@ const MAX_SCRIPT_SCAN_BYTES = 4 * 1024 * 1024;
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_SIGNATURE = 0x02014b50;
 const LOCAL_SIGNATURE = 0x04034b50;
+const ALLOWED_TRACKING_SCRIPT_HOSTS = new Set([
+  "connect.facebook.net",
+  "analytics.tiktok.com",
+  "www.googletagmanager.com",
+  "www.google-analytics.com",
+]);
 
 const ALLOWED_EXTENSIONS = new Set([
   ".html",
@@ -351,12 +358,17 @@ function parseEntries(bytes: Uint8Array): { entries: ZipEntry[]; uncompressedByt
   return { entries, uncompressedBytes };
 }
 
+const CRC32_TABLE = Uint32Array.from({ length: 256 }, (_, index) => {
+  let value = index;
+  for (let bit = 0; bit < 8; bit += 1) {
+    value = (value >>> 1) ^ (value & 1 ? 0xedb88320 : 0);
+  }
+  return value >>> 0;
+});
+
 function updateCrc32(crc: number, bytes: Uint8Array): number {
   for (const byte of bytes) {
-    crc ^= byte;
-    for (let bit = 0; bit < 8; bit += 1) {
-      crc = (crc >>> 1) ^ (crc & 1 ? 0xedb88320 : 0);
-    }
+    crc = CRC32_TABLE[(crc ^ byte) & 0xff] ^ (crc >>> 8);
   }
   return crc;
 }
@@ -425,10 +437,37 @@ function readAttributes(source: string): Record<string, string> {
   return attributes;
 }
 
+function blankMarkup(source: string): string {
+  return source.replace(/[^\r\n]/g, " ");
+}
+
+function maskNonFormContent(html: string): string {
+  const withoutNonMarkup = html.replace(
+    /<!--[\s\S]*?-->|<(script|style|title|iframe|noscript|template)\b[\s\S]*?<\/\1\s*>/gi,
+    blankMarkup,
+  );
+  return withoutNonMarkup.replace(
+    /(<textarea\b[^>]*>)([\s\S]*?)(<\/textarea\s*>)/gi,
+    (_match, opening: string, content: string, closing: string) =>
+      `${opening}${blankMarkup(content)}${closing}`,
+  );
+}
+
+function hasAmbiguousFormMarkup(markup: string): boolean {
+  const relevantTags = /<(?:form|input|textarea|select)\b[^>]*>/gi;
+  for (const match of markup.matchAll(relevantTags)) {
+    let quote: '"' | "'" | null = null;
+    for (const character of match[0]) {
+      if (quote === character) quote = null;
+      else if (!quote && (character === '"' || character === "'")) quote = character;
+    }
+    if (quote) return true;
+  }
+  return false;
+}
+
 function analyzeForms(html: string): LandingFormAnalysis[] {
-  const markup = html
-    .replace(/<!--[\s\S]*?-->/g, "")
-    .replace(/<script\b[\s\S]*?<\/script\s*>/gi, "");
+  const markup = maskNonFormContent(html);
   const forms = Array.from(markup.matchAll(/<form\b([^>]*)>([\s\S]*?)<\/form\s*>/gi)).slice(0, 20);
 
   return forms.map((form, index) => {
@@ -443,14 +482,7 @@ function analyzeForms(html: string): LandingFormAnalysis[] {
       const type =
         attributes.type?.toLowerCase() || (fieldMatch[1].toLowerCase() === "input" ? null : "text");
       const placeholder = attributes.placeholder || null;
-      const description = [name, id, type, placeholder, attributes.autocomplete]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      const isNameCandidate =
-        /(?:name|first.?name|full.?name|customer|ім.?я|им.?я|прізвище|фио)/iu.test(description);
-      const isPhoneCandidate =
-        type === "tel" || /(?:phone|mobile|tel|телефон|номер)/iu.test(description);
+      const { isName: isNameCandidate, isPhone: isPhoneCandidate } = candidateFlags(fieldMatch[0]);
       fields.push({ name, id, type, placeholder, isNameCandidate, isPhoneCandidate });
     }
 
@@ -578,4 +610,530 @@ export async function analyzeLandingArchive(bytes: Uint8Array): Promise<LandingA
     requiresAdaptation: siteRootPath === null || !hasStandardForm,
     warnings,
   };
+}
+
+type PreparedSite = {
+  entries: ZipEntry[];
+  root: SiteRootSelection;
+  html: string;
+  formMatch: { index: number; html: string; analyzedMarkup: string };
+  nameFieldOffset: number;
+  phoneFieldOffset: number;
+};
+
+export class LandingAdapterError extends Error {
+  constructor(readonly reason: LandingAdapterReason) {
+    super(reason);
+    this.name = "LandingAdapterError";
+  }
+}
+
+function candidateFlags(tag: string): { isName: boolean; isPhone: boolean } {
+  const tagName = /^<(input|textarea|select)\b/i.exec(tag)?.[1]?.toLowerCase();
+  if (!tagName) return { isName: false, isPhone: false };
+  const attributes = readAttributes(tag.slice(tagName.length + 1, -1));
+  const type = attributes.type?.toLowerCase() || (tagName === "input" ? null : "text");
+  if (
+    attributes.disabled !== undefined ||
+    attributes.readonly !== undefined ||
+    ["hidden", "submit", "button", "reset", "image", "checkbox", "radio", "file"].includes(
+      type ?? "",
+    )
+  ) {
+    return { isName: false, isPhone: false };
+  }
+  const identifiers = [attributes.name, attributes.id].filter(Boolean).map(normalizeFieldHint);
+  const isNonPersonName = identifiers.some((value) =>
+    /^(?:product|offer|item|campaign|landing|page|file|image|company) name(?:\s|$)/u.test(value),
+  );
+  const nameSignals = [
+    ...identifiers,
+    normalizeFieldHint(attributes.placeholder ?? ""),
+    normalizeFieldHint(attributes.autocomplete ?? ""),
+  ];
+  return {
+    // Match one physical control by its semantic hints; a control with name,
+    // id, autocomplete, and placeholder signals still contributes only once.
+    isName:
+      !isNonPersonName &&
+      nameSignals.some((value) =>
+        /(?:^|\s)(?:name|first name|full name|given name|family name|customer name|client name|lead name|ім.?я|им.?я|прізвище|фио)(?:\s|$)/iu.test(
+          value,
+        ),
+      ),
+    isPhone:
+      type === "tel" ||
+      /(?:phone|mobile|tel|телефон|номер)/iu.test(
+        [attributes.name, attributes.id, attributes.placeholder, attributes.autocomplete]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase(),
+      ),
+  };
+}
+
+function normalizeFieldHint(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/[^\p{L}\p{N}\s]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function scriptsHaveSubmitBehavior(source: string): boolean {
+  return (
+    /\bonsubmit\s*=|\b(?:addEventListener|attachEvent)\s*\(\s*["']submit["']/i.test(source) ||
+    /\b(?:XMLHttpRequest|fetch\s*\(|\.submit\s*\(|requestSubmit\s*\(|\.ajax\s*\()/i.test(source) ||
+    /\.on\s*\(\s*["']submit["']/i.test(source)
+  );
+}
+
+function isAllowedTrackingScript(source: string): boolean {
+  try {
+    const url = new URL(source.startsWith("//") ? `https:${source}` : source);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      ALLOWED_TRACKING_SCRIPT_HOSTS.has(url.hostname.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function prepareSite(bytes: Uint8Array): Promise<PreparedSite> {
+  const parsed = parseEntries(bytes);
+  const files = parsed.entries.filter((entry) => !entry.isDirectory);
+  const root = selectSiteRoot(files);
+  if (!root.hasIndexHtml) throw new LandingAdapterError("index_missing");
+  if (!root.index || root.siteRootPath === null) {
+    throw new LandingAdapterError("root_ambiguous");
+  }
+
+  const siteEntries = files.filter((entry) => entry.name.startsWith(root.siteRootPath!));
+  if (
+    siteEntries.some(
+      (entry) =>
+        entry.name.slice(root.siteRootPath!.length).toLowerCase() === "crmonia-intake-adapter.js",
+    )
+  ) {
+    throw new LandingAdapterError("adapter_asset_collision");
+  }
+
+  let htmlBytes: Uint8Array | null = null;
+  const scripts: string[] = [];
+  let scannedScriptBytes = 0;
+  let hasUnscannedScript = false;
+
+  for (const entry of siteEntries) {
+    const isIndex = entry === root.index;
+    const isScript = /\.(?:m?js)$/i.test(entry.name);
+    const canScanScript =
+      isScript && scannedScriptBytes + entry.uncompressedSize <= MAX_SCRIPT_SCAN_BYTES;
+    const content = await inspectEntryContent(
+      bytes,
+      entry,
+      isIndex ? MAX_INDEX_HTML_BYTES : canScanScript ? MAX_SCRIPT_SCAN_BYTES : null,
+    );
+    if (isIndex) htmlBytes = content;
+    if (isScript && canScanScript && content) {
+      scannedScriptBytes += content.byteLength;
+      try {
+        scripts.push(new TextDecoder("utf-8", { fatal: true }).decode(content));
+      } catch {
+        throw new LandingAdapterError("external_script_unavailable");
+      }
+    } else if (isScript) {
+      hasUnscannedScript = true;
+    }
+  }
+
+  if (!htmlBytes) throw new LandingAdapterError("index_missing");
+  let html: string;
+  try {
+    html = new TextDecoder("utf-8", { fatal: true }).decode(htmlBytes);
+  } catch {
+    throw new LandingAdapterError("invalid_html_encoding");
+  }
+
+  const markup = maskNonFormContent(html);
+  if (hasAmbiguousFormMarkup(markup)) throw new LandingAdapterError("ambiguous_markup");
+  if (/<base\b/i.test(markup)) throw new LandingAdapterError("base_url_present");
+  const openingForms = Array.from(markup.matchAll(/<form\b/gi)).length;
+  const closingForms = Array.from(markup.matchAll(/<\/form\s*>/gi)).length;
+  if (openingForms !== closingForms) throw new LandingAdapterError("ambiguous_markup");
+  const formMatches = Array.from(markup.matchAll(/<form\b[^>]*>[\s\S]*?<\/form\s*>/gi));
+  if (formMatches.length === 0) throw new LandingAdapterError("form_missing");
+  if (openingForms !== 1 || formMatches.length !== 1) {
+    throw new LandingAdapterError("multiple_forms");
+  }
+  const analyzedMatch = formMatches[0];
+  const formStart = analyzedMatch.index ?? 0;
+  const formHtml = html.slice(formStart, formStart + analyzedMatch[0].length);
+  const openingTag = /^<form\b[^>]*>/i.exec(analyzedMatch[0])?.[0] ?? "";
+  const openingAttributes = readAttributes(openingTag.slice(5, -1));
+  if (Object.keys(openingAttributes).some((attribute) => attribute.startsWith("on"))) {
+    throw new LandingAdapterError("custom_submit_handler");
+  }
+  const formTags = Array.from(analyzedMatch[0].matchAll(/<[a-z][^>]*>/gi));
+  if (
+    formTags.some((tag) =>
+      Object.keys(readAttributes(tag[0].replace(/^<[^\s>]+/, ""))).some((attribute) =>
+        /^(?:onsubmit|onclick)$/i.test(attribute),
+      ),
+    )
+  ) {
+    throw new LandingAdapterError("custom_submit_handler");
+  }
+  if (/\bdata-(?:netlify|formspree|formcarry|hubspot|tilda|amo|bitrix)\b/i.test(openingTag)) {
+    throw new LandingAdapterError("third_party_form_action");
+  }
+  const action = openingAttributes.action;
+  if (action && (/^(?:https?:)?\/\//i.test(action) || /^[a-z][a-z0-9+.-]*:/i.test(action))) {
+    throw new LandingAdapterError("third_party_form_action");
+  }
+  if (/data-crmonia-(?:lead-field|intake)/i.test(analyzedMatch[0])) {
+    throw new LandingAdapterError("custom_submit_handler");
+  }
+
+  const fieldTags = Array.from(analyzedMatch[0].matchAll(/<(input|textarea|select)\b[^>]*>/gi));
+  const nameFields = fieldTags.flatMap((match, index) =>
+    candidateFlags(match[0]).isName ? [index] : [],
+  );
+  const phoneFields = fieldTags.flatMap((match, index) =>
+    candidateFlags(match[0]).isPhone ? [index] : [],
+  );
+  if (nameFields.length === 0) throw new LandingAdapterError("name_field_missing");
+  if (nameFields.length !== 1) throw new LandingAdapterError("name_field_ambiguous");
+  if (phoneFields.length === 0) throw new LandingAdapterError("phone_field_missing");
+  if (phoneFields.length !== 1 || phoneFields[0] === nameFields[0]) {
+    throw new LandingAdapterError("phone_field_ambiguous");
+  }
+
+  const inlineScripts = Array.from(html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi));
+  const remoteScripts = inlineScripts.filter((match) => {
+    const attributes = readAttributes(match[1]);
+    const source = attributes.src;
+    if (!source) return false;
+    if (/^(?:https?:)?\/\//i.test(source)) {
+      return !isAllowedTrackingScript(source);
+    }
+    const resolved = source.split(/[?#]/, 1)[0];
+    const relative = resolved.startsWith("/") ? resolved.slice(1) : resolved;
+    const fileName = `${root.siteRootPath}${relative}`.replace(/\.\//g, "");
+    return !siteEntries.some((entry) => entry.name === fileName);
+  });
+  if (remoteScripts.length > 0) throw new LandingAdapterError("external_script_unavailable");
+  if (
+    scriptsHaveSubmitBehavior(
+      `${inlineScripts.map((match) => match[2]).join("\n")}\n${scripts.join("\n")}`,
+    )
+  ) {
+    throw new LandingAdapterError("custom_submit_handler");
+  }
+  if (hasUnscannedScript) throw new LandingAdapterError("external_script_unavailable");
+
+  return {
+    entries: siteEntries,
+    root,
+    html,
+    formMatch: { index: formStart, html: formHtml, analyzedMarkup: analyzedMatch[0] },
+    nameFieldOffset: fieldTags[nameFields[0]].index ?? 0,
+    phoneFieldOffset: fieldTags[phoneFields[0]].index ?? 0,
+  };
+}
+
+// Kept as a separate preflight so integrations are not created for unsupported forms.
+export async function checkLandingAdapterCompatibility(
+  bytes: Uint8Array,
+): Promise<LandingAdapterReason | null> {
+  try {
+    await prepareSite(bytes);
+    return null;
+  } catch (error) {
+    if (error instanceof LandingAdapterError) return error.reason;
+    if (error instanceof LandingArchiveError) return "invalid_archive";
+    throw error;
+  }
+}
+
+type OutputZipEntry = {
+  name: string;
+  method: 0 | 8;
+  crc32: number;
+  uncompressedSize: number;
+  compressed: Uint8Array;
+};
+
+function write16(view: DataView, offset: number, value: number): void {
+  view.setUint16(offset, value, true);
+}
+
+function write32(view: DataView, offset: number, value: number): void {
+  view.setUint32(offset, value, true);
+}
+
+function checksum(bytes: Uint8Array): number {
+  return (updateCrc32(0xffffffff, bytes) ^ 0xffffffff) >>> 0;
+}
+
+async function deflate(bytes: Uint8Array): Promise<Uint8Array | null> {
+  try {
+    const stream = new Blob([bytes.slice().buffer])
+      .stream()
+      .pipeThrough(new CompressionStream("deflate-raw" as CompressionFormat));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+function escapeAttribute(value: string): string {
+  return value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+}
+
+function safeJavaScriptString(value: string): string {
+  return JSON.stringify(value)
+    .replaceAll("<", "\\u003c")
+    .replaceAll(">", "\\u003e")
+    .replaceAll("&", "\\u0026")
+    .replaceAll("\u2028", "\\u2028")
+    .replaceAll("\u2029", "\\u2029");
+}
+
+function adapterScript(formId: string, endpoint: string | null): string {
+  return `(() => {
+  const formId = ${safeJavaScriptString(formId)};
+  const endpoint = ${safeJavaScriptString(endpoint ?? "")};
+  const bind = () => {
+    document.querySelectorAll('form[data-crmonia-intake="1"]').forEach((form) => {
+      if (form.getAttribute("data-crmonia-form-id") !== formId) return;
+      if (form.dataset.crmoniaBound === "1") return;
+      form.dataset.crmoniaBound = "1";
+      let submitting = false;
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        if (submitting) return;
+        const status = form.nextElementSibling;
+        const copy = document.documentElement.lang.toLowerCase().startsWith("en")
+          ? { sending: "Sending…", success: "Thank you. Your request has been received.", failed: "We couldn't send your request. Please check your details and try again.", config: "Lead intake is not configured yet." }
+          : { sending: "Надсилаємо…", success: "Дякуємо! Заявку отримано.", failed: "Не вдалося надіслати заявку. Перевірте дані й спробуйте ще раз.", config: "Приймання заявок ще не налаштовано." };
+        if (!endpoint) {
+          if (status) { status.textContent = copy.config; status.setAttribute("data-state", "error"); }
+          return;
+        }
+        const nameField = form.querySelector('[data-crmonia-lead-field="name"]');
+        const phoneField = form.querySelector('[data-crmonia-lead-field="phone"]');
+        if (!nameField || !phoneField) {
+          if (status) { status.textContent = copy.failed; status.setAttribute("data-state", "error"); }
+          return;
+        }
+        submitting = true;
+        const submitters = Array.from(form.querySelectorAll('button[type="submit"], button:not([type]), input[type="submit"], input[type="image"]'));
+        const priorDisabled = submitters.map((button) => button.disabled);
+        submitters.forEach((button) => { button.disabled = true; });
+        if (status) { status.textContent = copy.sending; status.setAttribute("data-state", "pending"); }
+        try {
+          const query = new URLSearchParams(window.location.search);
+          const payload = {
+            formId,
+            name: nameField.value,
+            phone: phoneField.value,
+            utmSource: query.get("utm_source") || undefined,
+            utmMedium: query.get("utm_medium") || undefined,
+            utmCampaign: query.get("utm_campaign") || undefined,
+            utmContent: query.get("utm_content") || undefined,
+            utmTerm: query.get("utm_term") || undefined,
+            ttclid: query.get("ttclid") || undefined,
+            subId: query.get("sub_id") || undefined
+          };
+          const requestId = globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
+            ? globalThis.crypto.randomUUID()
+            : undefined;
+          const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...(requestId ? { "Idempotency-Key": requestId } : {}) },
+            body: JSON.stringify(payload)
+          });
+          const result = await response.json().catch(() => null);
+          if (!response.ok || result?.success !== true) throw new Error("INTAKE_FAILED");
+          form.reset();
+          if (status) { status.textContent = copy.success; status.setAttribute("data-state", "success"); }
+        } catch {
+          if (status) { status.textContent = copy.failed; status.setAttribute("data-state", "error"); }
+        } finally {
+          submitters.forEach((button, index) => { button.disabled = priorDisabled[index]; });
+          submitting = false;
+        }
+      });
+    });
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once: true });
+  else bind();
+})();
+`;
+}
+
+function addAdapterToHtml(
+  html: string,
+  formMatch: PreparedSite["formMatch"],
+  nameOffset: number,
+  phoneOffset: number,
+  formId: string,
+): string {
+  const formHtml = formMatch.html;
+  const tagAt = (offset: number): string => {
+    const match = /^<(?:input|textarea|select)\b[^>]*>/i.exec(
+      formMatch.analyzedMarkup.slice(offset),
+    );
+    return match?.[0] ?? "";
+  };
+  const edits = [
+    { offset: nameOffset, tag: tagAt(nameOffset), field: "name" },
+    { offset: phoneOffset, tag: tagAt(phoneOffset), field: "phone" },
+  ].sort((left, right) => right.offset - left.offset);
+  let marked = formHtml;
+  for (const edit of edits) {
+    const replacement = edit.tag.replace(/\/?\s*>$/, ` data-crmonia-lead-field="${edit.field}">`);
+    marked = `${marked.slice(0, edit.offset)}${replacement}${marked.slice(edit.offset + edit.tag.length)}`;
+  }
+  const withFormMarker = marked.replace(
+    /^<form\b/i,
+    `<form data-crmonia-intake="1" data-crmonia-form-id="${escapeAttribute(formId)}"`,
+  );
+  const withStatus = withFormMarker.replace(
+    /<\/form\s*>$/i,
+    '</form><div data-crmonia-intake-status role="status" aria-live="polite"></div>',
+  );
+  const scriptTag = '<script src="crmonia-intake-adapter.js" defer></script>';
+  const at = formMatch.index;
+  let result = html.slice(0, at) + withStatus + html.slice(at + formHtml.length);
+  const bodyClose = /<\/body\s*>/i.exec(result);
+  const htmlClose = /<\/html\s*>/i.exec(result);
+  const insertAt = bodyClose?.index ?? htmlClose?.index ?? result.length;
+  result = result.slice(0, insertAt) + scriptTag + result.slice(insertAt);
+  return result;
+}
+
+async function buildZip(entries: OutputZipEntry[]): Promise<Uint8Array> {
+  const locals: Uint8Array[] = [];
+  const centrals: Uint8Array[] = [];
+  let localOffset = 0;
+  for (const entry of entries) {
+    const name = new TextEncoder().encode(entry.name);
+    const local = new Uint8Array(30 + name.byteLength + entry.compressed.byteLength);
+    const localView = new DataView(local.buffer);
+    write32(localView, 0, LOCAL_SIGNATURE);
+    write16(localView, 4, 20);
+    write16(localView, 6, 0x0800);
+    write16(localView, 8, entry.method);
+    write16(localView, 10, 0);
+    write16(localView, 12, 0x21);
+    write32(localView, 14, entry.crc32);
+    write32(localView, 18, entry.compressed.byteLength);
+    write32(localView, 22, entry.uncompressedSize);
+    write16(localView, 26, name.byteLength);
+    local.set(name, 30);
+    local.set(entry.compressed, 30 + name.byteLength);
+    locals.push(local);
+
+    const central = new Uint8Array(46 + name.byteLength);
+    const centralView = new DataView(central.buffer);
+    write32(centralView, 0, CENTRAL_SIGNATURE);
+    write16(centralView, 4, 0x0314);
+    write16(centralView, 6, 20);
+    write16(centralView, 8, 0x0800);
+    write16(centralView, 10, entry.method);
+    write16(centralView, 12, 0);
+    write16(centralView, 14, 0x21);
+    write32(centralView, 16, entry.crc32);
+    write32(centralView, 20, entry.compressed.byteLength);
+    write32(centralView, 24, entry.uncompressedSize);
+    write16(centralView, 28, name.byteLength);
+    write32(centralView, 38, 0x81a40000);
+    write32(centralView, 42, localOffset);
+    central.set(name, 46);
+    centrals.push(central);
+    localOffset += local.byteLength;
+  }
+
+  const centralSize = centrals.reduce((sum, record) => sum + record.byteLength, 0);
+  const end = new Uint8Array(22);
+  const endView = new DataView(end.buffer);
+  write32(endView, 0, EOCD_SIGNATURE);
+  write16(endView, 8, entries.length);
+  write16(endView, 10, entries.length);
+  write32(endView, 12, centralSize);
+  write32(endView, 16, localOffset);
+  const archive = new Uint8Array(localOffset + centralSize + end.byteLength);
+  let offset = 0;
+  for (const record of [...locals, ...centrals, end]) {
+    archive.set(record, offset);
+    offset += record.byteLength;
+  }
+  if (archive.byteLength > MAX_LANDING_ARCHIVE_BYTES) {
+    throw new LandingAdapterError("archive_too_large");
+  }
+  return archive;
+}
+
+/** Builds a new static ZIP from the private source archive; the source remains untouched. */
+export async function buildAdaptedLandingArchive(
+  bytes: Uint8Array,
+  input: { publicFormId: string; intakeEndpoint: string | null },
+): Promise<Uint8Array> {
+  if (!/^[0-9a-f-]{36}$/i.test(input.publicFormId)) {
+    throw new LandingAdapterError("custom_submit_handler");
+  }
+  const prepared = await prepareSite(bytes);
+  const adaptedForm = addAdapterToHtml(
+    prepared.html,
+    prepared.formMatch,
+    prepared.nameFieldOffset,
+    prepared.phoneFieldOffset,
+    input.publicFormId,
+  );
+  const indexBytes = new TextEncoder().encode(adaptedForm);
+  const outputEntries: OutputZipEntry[] = [];
+  for (const entry of prepared.entries) {
+    if (entry.isDirectory) continue;
+    const name = entry.name.slice(prepared.root.siteRootPath!.length);
+    if (entry === prepared.root.index) {
+      const compressedHtml = entry.method === 0 ? null : await deflate(indexBytes);
+      const method: 0 | 8 = compressedHtml ? 8 : 0;
+      const compressed = compressedHtml ?? indexBytes;
+      outputEntries.push({
+        name: entry === prepared.root.index ? "index.html" : name,
+        method,
+        crc32: checksum(indexBytes),
+        uncompressedSize: indexBytes.byteLength,
+        compressed,
+      });
+    } else {
+      outputEntries.push({
+        name,
+        method: entry.method as 0 | 8,
+        crc32: entry.crc32,
+        uncompressedSize: entry.uncompressedSize,
+        compressed: bytes.subarray(entry.dataStart, entry.dataEnd).slice(),
+      });
+    }
+  }
+  if (outputEntries.length >= MAX_FILES) throw new LandingAdapterError("too_many_files");
+  const adapterBytes = new TextEncoder().encode(
+    adapterScript(input.publicFormId, input.intakeEndpoint),
+  );
+  outputEntries.push({
+    name: "crmonia-intake-adapter.js",
+    method: 0,
+    crc32: checksum(adapterBytes),
+    uncompressedSize: adapterBytes.byteLength,
+    compressed: adapterBytes,
+  });
+  const result = await buildZip(outputEntries);
+  return result;
 }

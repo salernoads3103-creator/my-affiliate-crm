@@ -1,14 +1,33 @@
 import { describe, expect, it } from "bun:test";
 import { analyzeLandingArchive, LandingArchiveError } from "../src/lib/landings/archive";
-import { createLandingDraft } from "../src/lib/landings/service";
+import {
+  buildAdaptedLandingArchive,
+  checkLandingAdapterCompatibility,
+  LandingAdapterError,
+} from "../src/lib/landings/archive";
+import { getPublicLandingIntakeEndpoint } from "../src/lib/landings/config.server";
+import {
+  connectLandingDraft,
+  createLandingDraft,
+  deleteLandingDraft,
+  updateLandingDraft,
+} from "../src/lib/landings/service";
+import { requireWorkspacePermission, type AccessContext } from "../src/lib/access/access.server";
 import { LandingArchiveAnalysisSchema, LandingCreateSchema } from "../src/lib/landings/validation";
 import type {
   LandingArchiveAnalysis,
   LandingArchiveStorage,
+  LandingDraftRecord,
   LandingRepository,
+  LandingStatus,
 } from "../src/lib/landings/types";
 
 const encoder = new TextEncoder();
+const TEST_WORKSPACE_ID = "11111111-1111-4111-8111-111111111111";
+const TEST_USER_ID = "22222222-2222-4222-8222-222222222222";
+const TEST_LANDING_ID = "33333333-3333-4333-8333-333333333333";
+const TEST_OFFER_A_ID = "44444444-4444-4444-8444-444444444444";
+const TEST_OFFER_B_ID = "55555555-5555-4555-8555-555555555555";
 
 function crc32(bytes: Uint8Array): number {
   let crc = 0xffffffff;
@@ -114,29 +133,143 @@ const validHtml = `<!doctype html><form action="/lead" method="post">
 
 function fakeDependencies() {
   let inserted: Parameters<LandingRepository["insertDraft"]>[0] | null = null;
-  let uploadedPath = "";
+  const uploadedPaths: string[] = [];
+  const removedPaths: string[] = [];
   let statusAfterFailure = "draft";
+  let record: LandingDraftRecord | null = null;
+  let failUpdate = false;
+  let failRemove = false;
+  const archiveObjects = new Map<string, Blob>();
+  const now = "2026-10-23T12:00:00.000Z";
   const repository: LandingRepository = {
     async list() {
       return [];
     },
-    async ensureActiveOffer(workspaceId, offerId) {
-      if (workspaceId !== "workspace-a" || offerId !== "offer-a") {
+    async ensureOffer(workspaceId, offerId, activeOnly) {
+      if (
+        !["workspace-a", TEST_WORKSPACE_ID].includes(workspaceId) ||
+        !["offer-a", "offer-b", "offer-inactive", TEST_OFFER_A_ID, TEST_OFFER_B_ID].includes(
+          offerId,
+        ) ||
+        (activeOnly && offerId === "offer-inactive")
+      ) {
         throw new Error("The selected offer is not available");
       }
-      return { name: "Offer A" };
+      return {
+        name: offerId === "offer-b" || offerId === TEST_OFFER_B_ID ? "Offer B" : "Offer A",
+      };
     },
     async insertDraft(input) {
       inserted = input;
-      return { createdAt: "2026-10-23T12:00:00.000Z" };
+      record = {
+        id: input.id,
+        workspace_id: input.workspaceId,
+        name: input.name,
+        offer_id: input.offerId,
+        status: "draft",
+        published_url: null,
+        created_at: now,
+        created_by_user_id: input.createdByUserId,
+        source_archive_path: input.sourceArchivePath,
+        source_archive_bytes: input.sourceArchiveBytes,
+        deletion_started_at: null,
+        adapted_archive_path: null,
+        adapted_archive_bytes: null,
+        adapter_status: "not_connected",
+        adapter_reason: null,
+        intake_public_id: null,
+        analysis: input.analysis,
+      };
+      return { createdAt: now };
     },
     async markError() {
       statusAfterFailure = "error";
     },
+    async getDraft(workspaceId, landingId) {
+      if (!record || record.workspace_id !== workspaceId || record.id !== landingId) return null;
+      return { ...record };
+    },
+    async updateDraft(input) {
+      if (failUpdate) throw new Error("database update failed");
+      if (
+        !record ||
+        record.workspace_id !== input.workspaceId ||
+        record.id !== input.landingId ||
+        record.status !== "draft" ||
+        record.deletion_started_at
+      ) {
+        throw new Error("This landing draft is no longer editable");
+      }
+      record = {
+        ...record,
+        name: input.name,
+        offer_id: input.offerId,
+        ...(input.sourceArchivePath === undefined
+          ? {}
+          : { source_archive_path: input.sourceArchivePath }),
+        ...(input.sourceArchiveBytes === undefined
+          ? {}
+          : { source_archive_bytes: input.sourceArchiveBytes }),
+        ...(input.analysis === undefined ? {} : { analysis: input.analysis }),
+        ...(input.sourceArchivePath === undefined
+          ? {}
+          : {
+              adapted_archive_path: null,
+              adapted_archive_bytes: null,
+              adapter_status: "not_connected",
+              adapter_reason: null,
+              intake_public_id: null,
+            }),
+      };
+      return { ...record };
+    },
+    async updateAdapter(input) {
+      if (
+        !record ||
+        record.workspace_id !== input.workspaceId ||
+        record.id !== input.landingId ||
+        record.status !== "draft" ||
+        record.deletion_started_at
+      ) {
+        throw new Error("This landing draft is no longer editable");
+      }
+      record = {
+        ...record,
+        adapted_archive_path: input.adaptedArchivePath,
+        adapted_archive_bytes: input.adaptedArchiveBytes,
+        adapter_status: input.status,
+        adapter_reason: input.reason,
+        intake_public_id: input.publicFormId ?? null,
+      };
+      return { ...record };
+    },
+    async beginDraftDeletion(workspaceId, landingId) {
+      if (!record || record.workspace_id !== workspaceId || record.id !== landingId) return null;
+      if (record.status !== "draft") throw new Error("Only landing drafts can be deleted");
+      record = { ...record, deletion_started_at: record.deletion_started_at ?? now };
+      return {
+        sourceArchivePath: record.source_archive_path,
+        adaptedArchivePath: record.adapted_archive_path,
+      };
+    },
+    async finishDraftDeletion(workspaceId, landingId) {
+      if (record?.workspace_id === workspaceId && record.id === landingId) record = null;
+    },
   };
   const storage: LandingArchiveStorage = {
-    async put(path) {
-      uploadedPath = path;
+    async put(path, archive) {
+      uploadedPaths.push(path);
+      archiveObjects.set(path, archive);
+    },
+    async remove(path) {
+      if (failRemove) throw new Error("storage removal failed");
+      removedPaths.push(path);
+      archiveObjects.delete(path);
+    },
+    async download(path) {
+      const archive = archiveObjects.get(path);
+      if (!archive) throw new Error("archive not found");
+      return archive;
     },
   };
   return {
@@ -145,11 +278,26 @@ function fakeDependencies() {
     get inserted() {
       return inserted;
     },
-    get uploadedPath() {
-      return uploadedPath;
+    get uploadedPaths() {
+      return uploadedPaths;
+    },
+    get removedPaths() {
+      return removedPaths;
     },
     get statusAfterFailure() {
       return statusAfterFailure;
+    },
+    get record() {
+      return record;
+    },
+    set failUpdate(value: boolean) {
+      failUpdate = value;
+    },
+    set failRemove(value: boolean) {
+      failRemove = value;
+    },
+    set status(value: LandingStatus) {
+      if (record) record = { ...record, status: value };
     },
   };
 }
@@ -208,6 +356,200 @@ describe("Landing Factory ZIP intake", () => {
     expect(analysis.forms[0].hasPhoneCandidate).toBe(true);
     expect(analysis.detectedPixels).toEqual(["meta", "tiktok"]);
     expect(analysis.requiresAdaptation).toBe(false);
+  });
+
+  it("adapts a standard root form and preserves static assets without a local API URL", async () => {
+    const source = makeZip([
+      { name: "index.html", content: validHtml },
+      { name: "assets/site.css", content: "body{color:#123}" },
+      { name: "images/product.svg", content: '<svg xmlns="http://www.w3.org/2000/svg"></svg>' },
+    ]);
+    const adapted = await buildAdaptedLandingArchive(source, {
+      publicFormId: "66666666-6666-4666-8666-666666666666",
+      intakeEndpoint: null,
+    });
+    const analysis = await analyzeLandingArchive(adapted);
+
+    expect(analysis.siteRootPath).toBe("");
+    expect(analysis.forms).toHaveLength(1);
+    expect(analysis.forms[0].hasNameCandidate).toBe(true);
+    expect(analysis.forms[0].hasPhoneCandidate).toBe(true);
+    const archiveText = new TextDecoder().decode(adapted);
+    expect(archiveText).toContain('data-crmonia-intake="1"');
+    expect(archiveText).toContain('data-crmonia-lead-field="name"');
+    expect(archiveText).toContain("crmonia-intake-adapter.js");
+    expect(archiveText).toContain("body{color:#123}");
+    expect(archiveText).not.toContain("localhost");
+    expect(archiveText).not.toContain("service_role");
+    expect(archiveText).not.toContain("workspace_id");
+    expect(archiveText).not.toContain(TEST_WORKSPACE_ID);
+    expect(archiveText).not.toContain("supabase.co");
+  });
+
+  it("strips one detected site-root folder while retaining relative asset paths", async () => {
+    const source = makeZip([
+      { name: "HARKIV HTML/index.html", content: validHtml },
+      { name: "HARKIV HTML/assets/site.css", content: "body{background:#fff}" },
+    ]);
+    const adapted = await buildAdaptedLandingArchive(source, {
+      publicFormId: "66666666-6666-4666-8666-666666666666",
+      intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+    });
+    const analysis = await analyzeLandingArchive(adapted);
+    const archiveText = new TextDecoder().decode(adapted);
+
+    expect(analysis.siteRootPath).toBe("");
+    expect(analysis.hasIndexHtml).toBe(true);
+    expect(archiveText).toContain("assets/site.css");
+    expect(archiveText).toContain("body{background:#fff}");
+    expect(archiveText).not.toContain("HARKIV HTML/index.html");
+    expect(archiveText).toContain("https://crm.example.com/api/v1/intake/leads");
+  });
+
+  it("requires manual adaptation when JavaScript already handles form submission", async () => {
+    const archive = makeZip([
+      {
+        name: "index.html",
+        content: `${validHtml}<script>document.querySelector('form').addEventListener('submit', () => fetch('/send'));</script>`,
+      },
+    ]);
+    expect(await checkLandingAdapterCompatibility(archive)).toBe("custom_submit_handler");
+    await expect(
+      buildAdaptedLandingArchive(archive, {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: null,
+      }),
+    ).rejects.toMatchObject({ reason: "custom_submit_handler" });
+  });
+
+  it("requires adaptation for inline submit behavior and does not count form-like script text", async () => {
+    const standard = makeZip([
+      {
+        name: "index.html",
+        content: `<script>const example = '<form><input name="name"></form>';</script><form><input name="name"><input type="tel" name="phone"></form>`,
+      },
+    ]);
+    const custom = makeZip([
+      {
+        name: "index.html",
+        content: `<form onclick="sendLead()"><input name="name"><input type="tel" name="phone"></form>`,
+      },
+    ]);
+    expect(await checkLandingAdapterCompatibility(standard)).toBeNull();
+    expect(await checkLandingAdapterCompatibility(custom)).toBe("custom_submit_handler");
+  });
+
+  it("adapts one name field despite multiple hints and ignores unrelated name-like fields", async () => {
+    const archive = makeZip([
+      {
+        name: "index.html",
+        content: `<form>
+          <label for="name">Ім'я</label><input id="name" name="name" autocomplete="name">
+          <input id="customer-email" name="customer_email" type="email">
+          <input id="product-name" name="product_name" type="text">
+          <input id="account-username" name="username" type="text">
+          <input id="phone" name="phone" type="tel">
+        </form>`,
+      },
+    ]);
+    const analysis = await analyzeLandingArchive(archive);
+    const nameCandidates = analysis.forms[0].fields.filter((field) => field.isNameCandidate);
+
+    expect(nameCandidates).toHaveLength(1);
+    expect(nameCandidates[0]).toMatchObject({ name: "name", id: "name" });
+    expect(await checkLandingAdapterCompatibility(archive)).toBeNull();
+    await expect(
+      buildAdaptedLandingArchive(archive, {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: null,
+      }),
+    ).resolves.toBeInstanceOf(Uint8Array);
+  });
+
+  it("still requires adaptation when two distinct customer-name fields are present", async () => {
+    const archive = makeZip([
+      {
+        name: "index.html",
+        content: `<form><input name="first_name"><input name="last_name"><input name="phone" type="tel"></form>`,
+      },
+    ]);
+
+    expect(await checkLandingAdapterCompatibility(archive)).toBe("name_field_ambiguous");
+  });
+
+  it("requires adaptation for ambiguous tags and base URL overrides", async () => {
+    const ambiguous = makeZip([
+      {
+        name: "index.html",
+        content: `<form data-note="greater > sign"><input name="name"><input type="tel" name="phone"></form>`,
+      },
+    ]);
+    const baseOverride = makeZip([
+      {
+        name: "index.html",
+        content: `<base href="https://other.example/"><form><input name="name"><input type="tel" name="phone"></form>`,
+      },
+    ]);
+
+    expect(await checkLandingAdapterCompatibility(ambiguous)).toBe("ambiguous_markup");
+    expect(await checkLandingAdapterCompatibility(baseOverride)).toBe("base_url_present");
+  });
+
+  it("does not mistake an attacker-controlled script URL for a pixel integration", async () => {
+    const malicious = makeZip([
+      {
+        name: "index.html",
+        content: `<script src="https://attacker.example/connect.facebook.net/fbevents.js"></script>${validHtml}`,
+      },
+    ]);
+    const knownPixel = makeZip([
+      {
+        name: "index.html",
+        content: `<script src="https://connect.facebook.net/en_US/fbevents.js"></script>${validHtml}`,
+      },
+    ]);
+
+    expect(await checkLandingAdapterCompatibility(malicious)).toBe("external_script_unavailable");
+    expect(await checkLandingAdapterCompatibility(knownPixel)).toBeNull();
+  });
+
+  it("produces repeatable ZIPs when connected more than once", async () => {
+    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const options = {
+      publicFormId: "66666666-6666-4666-8666-666666666666",
+      intakeEndpoint: null,
+    };
+    const first = await buildAdaptedLandingArchive(source, options);
+    const second = await buildAdaptedLandingArchive(source, options);
+    expect(second).toEqual(first);
+    expect(
+      (new TextDecoder().decode(first).match(/<form data-crmonia-intake="1"/g) ?? []).length,
+    ).toBe(1);
+  });
+
+  it("reports a specific error for malformed ZIP input", async () => {
+    expect(await checkLandingAdapterCompatibility(encoder.encode("not zip"))).toBe(
+      "invalid_archive",
+    );
+    await expect(
+      buildAdaptedLandingArchive(encoder.encode("not zip"), {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: null,
+      }),
+    ).rejects.toBeInstanceOf(LandingArchiveError);
+  });
+
+  it("embeds only an exact public HTTPS intake endpoint", () => {
+    expect(getPublicLandingIntakeEndpoint("https://crm.example.com/api/v1/intake/leads")).toBe(
+      "https://crm.example.com/api/v1/intake/leads",
+    );
+    expect(getPublicLandingIntakeEndpoint("")).toBeNull();
+    expect(() =>
+      getPublicLandingIntakeEndpoint("http://crm.example.com/api/v1/intake/leads"),
+    ).toThrow("not configured correctly");
+    expect(() =>
+      getPublicLandingIntakeEndpoint("http://localhost:8080/api/v1/intake/leads"),
+    ).toThrow("not configured correctly");
   });
 
   it("marks multiple possible site roots for adaptation without choosing one", async () => {
@@ -350,7 +692,7 @@ describe("Landing Factory ZIP intake", () => {
     expect(dependencies.inserted?.workspaceId).toBe("workspace-a");
     expect(dependencies.inserted?.createdByUserId).toBe("user-a");
     expect(dependencies.inserted?.analysis.siteRootPath).toBe("");
-    expect(dependencies.uploadedPath).toBe("workspace-a/landing-a/source.zip");
+    expect(dependencies.uploadedPaths).toEqual(["workspace-a/landing-a/source.zip"]);
   });
 
   it("does not create or upload a draft when the offer is outside the workspace", async () => {
@@ -373,7 +715,129 @@ describe("Landing Factory ZIP intake", () => {
       ),
     ).rejects.toThrow("The selected offer is not available");
     expect(dependencies.inserted).toBeNull();
-    expect(dependencies.uploadedPath).toBe("");
+    expect(dependencies.uploadedPaths).toEqual([]);
+  });
+
+  it("stores a private prepared bundle but requires API configuration before publication", async () => {
+    const dependencies = fakeDependencies();
+    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const analysis = await analyzeLandingArchive(source);
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob([source]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+
+    const connected = await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        allowedOriginConfigured: false,
+        intakeEndpoint: null,
+        createArchiveVersion: () => "77777777-7777-4777-8777-777777777777",
+      },
+    );
+
+    expect(connected.adapter_status).toBe("configuration_required");
+    expect(connected.adapter_reason).toBe("api_url_not_configured");
+    expect(connected.has_adapted_archive).toBe(true);
+    expect("adapted_archive_path" in connected).toBe(false);
+    expect(dependencies.record?.source_archive_path).toBe(
+      `${TEST_WORKSPACE_ID}/${TEST_LANDING_ID}/source.zip`,
+    );
+
+    const preparedZip = await dependencies.storage.download(
+      dependencies.record!.adapted_archive_path!,
+    );
+    expect(
+      await analyzeLandingArchive(new Uint8Array(await preparedZip.arrayBuffer())),
+    ).toMatchObject({
+      hasIndexHtml: true,
+      siteRootPath: "",
+    });
+  });
+
+  it("does not adapt a draft through another workspace route", async () => {
+    const dependencies = fakeDependencies();
+    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const analysis = await analyzeLandingArchive(source);
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob([source]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+
+    await expect(
+      connectLandingDraft(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        {
+          workspaceId: "99999999-9999-4999-8999-999999999999",
+          landingId: TEST_LANDING_ID,
+          publicFormId: "66666666-6666-4666-8666-666666666666",
+          allowedOriginConfigured: false,
+          intakeEndpoint: null,
+        },
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(dependencies.uploadedPaths).toEqual([
+      `${TEST_WORKSPACE_ID}/${TEST_LANDING_ID}/source.zip`,
+    ]);
+  });
+
+  it("rebuilds from the original and replaces its adapted archive without duplicate handlers", async () => {
+    const dependencies = fakeDependencies();
+    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const analysis = await analyzeLandingArchive(source);
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob([source]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+    const input = {
+      workspaceId: TEST_WORKSPACE_ID,
+      landingId: TEST_LANDING_ID,
+      publicFormId: "66666666-6666-4666-8666-666666666666",
+      allowedOriginConfigured: true,
+      intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+    };
+    await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      { ...input, createArchiveVersion: () => "77777777-7777-4777-8777-777777777777" },
+    );
+    const firstPath = dependencies.record!.adapted_archive_path!;
+    await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      { ...input, createArchiveVersion: () => "88888888-8888-4888-8888-888888888888" },
+    );
+
+    expect(dependencies.record?.adapter_status).toBe("prepared");
+    expect(dependencies.removedPaths).toContain(firstPath);
+    const current = await dependencies.storage.download(dependencies.record!.adapted_archive_path!);
+    const text = new TextDecoder().decode(new Uint8Array(await current.arrayBuffer()));
+    expect((text.match(/<form data-crmonia-intake="1"/g) ?? []).length).toBe(1);
   });
 
   it("marks the draft as error if the private archive upload fails", async () => {
@@ -384,6 +848,10 @@ describe("Landing Factory ZIP intake", () => {
     const failingStorage: LandingArchiveStorage = {
       async put() {
         throw new Error("storage failure detail");
+      },
+      async remove() {},
+      async download() {
+        throw new Error("storage failure");
       },
     };
 
@@ -402,5 +870,280 @@ describe("Landing Factory ZIP intake", () => {
       ),
     ).rejects.toThrow("Could not store the landing archive");
     expect(dependencies.statusAfterFailure).toBe("error");
+  });
+
+  it("updates a draft name and offer without requiring a replacement ZIP", async () => {
+    const dependencies = fakeDependencies();
+    const analysis = await analyzeLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+    );
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob(["zip"]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+
+    const updated = await updateLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing B",
+        offerId: TEST_OFFER_B_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+      },
+    );
+
+    expect(updated.name).toBe("Landing B");
+    expect(updated.offer_id).toBe(TEST_OFFER_B_ID);
+    expect(updated.offer_name).toBe("Offer B");
+    expect(updated.source_archive_path).toBe(`${TEST_WORKSPACE_ID}/${TEST_LANDING_ID}/source.zip`);
+    expect(dependencies.uploadedPaths).toHaveLength(1);
+    expect(dependencies.removedPaths).toEqual([]);
+  });
+
+  it("uploads a replacement before switching the draft and removes the old ZIP afterward", async () => {
+    const dependencies = fakeDependencies();
+    const initialAnalysis = await analyzeLandingArchive(
+      makeZip([{ name: "index.html", content: "<main>old</main>" }]),
+    );
+    const replacementAnalysis = await analyzeLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+    );
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob(["old archive"]),
+        analysis: initialAnalysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+
+    const updated = await updateLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+        archive: new Blob(["replacement archive"]),
+        analysis: replacementAnalysis,
+        createArchiveVersion: () => "11111111-1111-4111-8111-111111111111",
+      },
+    );
+
+    expect(updated.source_archive_path).toBe(
+      `${TEST_WORKSPACE_ID}/${TEST_LANDING_ID}/source-11111111-1111-4111-8111-111111111111.zip`,
+    );
+    expect(updated.source_archive_bytes).toBe("replacement archive".length);
+    expect(updated.analysis.forms).toHaveLength(1);
+    expect(dependencies.removedPaths).toEqual([
+      `${TEST_WORKSPACE_ID}/${TEST_LANDING_ID}/source.zip`,
+    ]);
+  });
+
+  it("keeps the original archive when the metadata switch fails", async () => {
+    const dependencies = fakeDependencies();
+    const analysis = await analyzeLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+    );
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob(["old archive"]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+    const originalPath = dependencies.record?.source_archive_path;
+    dependencies.failUpdate = true;
+
+    await expect(
+      updateLandingDraft(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        {
+          name: "Renamed",
+          offerId: TEST_OFFER_A_ID,
+          workspaceId: TEST_WORKSPACE_ID,
+          landingId: TEST_LANDING_ID,
+          archive: new Blob(["replacement archive"]),
+          analysis,
+          createArchiveVersion: () => "11111111-1111-4111-8111-111111111111",
+        },
+      ),
+    ).rejects.toThrow("database update failed");
+
+    expect(dependencies.record?.source_archive_path).toBe(originalPath);
+    expect(dependencies.removedPaths).toEqual([
+      `${TEST_WORKSPACE_ID}/${TEST_LANDING_ID}/source-11111111-1111-4111-8111-111111111111.zip`,
+    ]);
+  });
+
+  it("removes a draft archive and metadata, and supports retry after a Storage failure", async () => {
+    const dependencies = fakeDependencies();
+    const analysis = await analyzeLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+    );
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: "offer-a",
+        workspaceId: "workspace-a",
+        createdByUserId: "user-a",
+        archive: new Blob(["archive"]),
+        analysis,
+        createId: () => "landing-a",
+      },
+    );
+    dependencies.failRemove = true;
+
+    await expect(
+      deleteLandingDraft(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        { workspaceId: "workspace-a", landingId: "landing-a" },
+      ),
+    ).rejects.toThrow("storage removal failed");
+    expect(dependencies.record?.deletion_started_at).toBeTruthy();
+    expect(dependencies.record?.source_archive_path).toBe("workspace-a/landing-a/source.zip");
+
+    dependencies.failRemove = false;
+    await deleteLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      { workspaceId: "workspace-a", landingId: "landing-a" },
+    );
+    expect(dependencies.removedPaths).toEqual(["workspace-a/landing-a/source.zip"]);
+    expect(dependencies.record).toBeNull();
+  });
+
+  it("does not expose or delete a draft from another workspace", async () => {
+    const dependencies = fakeDependencies();
+    const analysis = await analyzeLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+    );
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: "offer-a",
+        workspaceId: "workspace-a",
+        createdByUserId: "user-a",
+        archive: new Blob(["archive"]),
+        analysis,
+        createId: () => "landing-a",
+      },
+    );
+
+    await deleteLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      { workspaceId: "workspace-b", landingId: "landing-a" },
+    );
+    expect(dependencies.record?.workspace_id).toBe("workspace-a");
+    expect(dependencies.removedPaths).toEqual([]);
+    await expect(
+      connectLandingDraft(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        {
+          workspaceId: "workspace-b",
+          landingId: "landing-a",
+          publicFormId: "66666666-6666-4666-8666-666666666666",
+          allowedOriginConfigured: true,
+          intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+        },
+      ),
+    ).rejects.toThrow("Landing draft not found");
+    expect(dependencies.uploadedPaths).toEqual(["workspace-a/landing-a/source.zip"]);
+  });
+
+  it("does not update a landing through a different workspace route", async () => {
+    const dependencies = fakeDependencies();
+    const analysis = await analyzeLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+    );
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob(["archive"]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+
+    await expect(
+      updateLandingDraft(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        {
+          name: "Forged workspace",
+          offerId: TEST_OFFER_A_ID,
+          workspaceId: "66666666-6666-4666-8666-666666666666",
+          landingId: TEST_LANDING_ID,
+          archive: new Blob(["replacement"]),
+          analysis,
+        },
+      ),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(dependencies.record?.workspace_id).toBe(TEST_WORKSPACE_ID);
+    expect(dependencies.uploadedPaths).toEqual([
+      `${TEST_WORKSPACE_ID}/${TEST_LANDING_ID}/source.zip`,
+    ]);
+  });
+
+  it("does not delete a published landing page", async () => {
+    const dependencies = fakeDependencies();
+    const analysis = await analyzeLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+    );
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: "offer-a",
+        workspaceId: "workspace-a",
+        createdByUserId: "user-a",
+        archive: new Blob(["archive"]),
+        analysis,
+        createId: () => "landing-a",
+      },
+    );
+    dependencies.status = "published";
+
+    await expect(
+      deleteLandingDraft(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        { workspaceId: "workspace-a", landingId: "landing-a" },
+      ),
+    ).rejects.toThrow("Only landing drafts can be deleted");
+    expect(dependencies.removedPaths).toEqual([]);
+    expect(dependencies.record?.status).toBe("published");
+  });
+
+  it("rejects a landing mutation when the workspace permission check denies access", async () => {
+    const deniedContext = {
+      client: {
+        rpc: async () => ({ data: false, error: null }),
+      },
+    } as unknown as AccessContext;
+
+    await expect(
+      requireWorkspacePermission(deniedContext, TEST_WORKSPACE_ID, "landing_pages.manage"),
+    ).rejects.toMatchObject({ status: 403 });
   });
 });

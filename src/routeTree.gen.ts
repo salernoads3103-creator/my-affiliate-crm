@@ -39,8 +39,10 @@ import { Route as ApiWorkspacesWorkspaceIdProductsProductIdRouteImport } from '.
 import { Route as ApiWorkspacesWorkspaceIdOffersCatalogRouteImport } from './routes/api/workspaces/$workspaceId/offers/catalog'
 import { Route as ApiWorkspacesWorkspaceIdOffersOfferIdRouteImport } from './routes/api/workspaces/$workspaceId/offers/$offerId'
 import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from './routes/api/workspaces/$workspaceId/members/$userId'
+import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport } from './routes/api/workspaces/$workspaceId/invitations/$invitationId'
 import { Route as ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRouteImport } from './routes/api/workspaces/$workspaceId/offers/$offerId/intake-form'
+import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId/adapter'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -205,6 +207,12 @@ const ApiWorkspacesWorkspaceIdMembersUserIdRoute =
     path: '/$userId',
     getParentRoute: () => ApiWorkspacesWorkspaceIdMembersRoute,
   } as any)
+const ApiWorkspacesWorkspaceIdLandingsLandingIdRoute =
+  ApiWorkspacesWorkspaceIdLandingsLandingIdRouteImport.update({
+    id: '/$landingId',
+    path: '/$landingId',
+    getParentRoute: () => ApiWorkspacesWorkspaceIdLandingsRoute,
+  } as any)
 const ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute =
   ApiWorkspacesWorkspaceIdInvitationsInvitationIdRouteImport.update({
     id: '/$invitationId',
@@ -216,6 +224,12 @@ const ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute =
     id: '/intake-form',
     path: '/intake-form',
     getParentRoute: () => ApiWorkspacesWorkspaceIdOffersOfferIdRoute,
+  } as any)
+const ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute =
+  ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRouteImport.update({
+    id: '/adapter',
+    path: '/adapter',
+    getParentRoute: () => ApiWorkspacesWorkspaceIdLandingsLandingIdRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -238,17 +252,19 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
-  '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRoute
+  '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
   '/api/workspaces/$workspaceId/offers': typeof ApiWorkspacesWorkspaceIdOffersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/landings/$landingId': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
 }
 export interface FileRoutesByTo {
@@ -271,17 +287,19 @@ export interface FileRoutesByTo {
   '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
-  '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRoute
+  '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
   '/api/workspaces/$workspaceId/offers': typeof ApiWorkspacesWorkspaceIdOffersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/landings/$landingId': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
 }
 export interface FileRoutesById {
@@ -306,17 +324,19 @@ export interface FileRoutesById {
   '/api/workspaces/$workspaceId/access': typeof ApiWorkspacesWorkspaceIdAccessRoute
   '/api/workspaces/$workspaceId/audit': typeof ApiWorkspacesWorkspaceIdAuditRoute
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
-  '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRoute
+  '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
   '/api/workspaces/$workspaceId/offers': typeof ApiWorkspacesWorkspaceIdOffersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
+  '/api/workspaces/$workspaceId/landings/$landingId': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
 }
 export interface FileRouteTypes {
@@ -348,10 +368,12 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/products'
     | '/api/workspaces/$workspaceId/teams'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/landings/$landingId'
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -381,10 +403,12 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/products'
     | '/api/workspaces/$workspaceId/teams'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/landings/$landingId'
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
   id:
     | '__root__'
@@ -415,10 +439,12 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/products'
     | '/api/workspaces/$workspaceId/teams'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
+    | '/api/workspaces/$workspaceId/landings/$landingId'
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
   fileRoutesById: FileRoutesById
 }
@@ -437,7 +463,7 @@ export interface RootRouteChildren {
   ApiWorkspacesWorkspaceIdAccessRoute: typeof ApiWorkspacesWorkspaceIdAccessRoute
   ApiWorkspacesWorkspaceIdAuditRoute: typeof ApiWorkspacesWorkspaceIdAuditRoute
   ApiWorkspacesWorkspaceIdInvitationsRoute: typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
-  ApiWorkspacesWorkspaceIdLandingsRoute: typeof ApiWorkspacesWorkspaceIdLandingsRoute
+  ApiWorkspacesWorkspaceIdLandingsRoute: typeof ApiWorkspacesWorkspaceIdLandingsRouteWithChildren
   ApiWorkspacesWorkspaceIdMembersRoute: typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
   ApiWorkspacesWorkspaceIdOffersRoute: typeof ApiWorkspacesWorkspaceIdOffersRouteWithChildren
   ApiWorkspacesWorkspaceIdPermissionsRoute: typeof ApiWorkspacesWorkspaceIdPermissionsRoute
@@ -657,6 +683,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdMembersUserIdRouteImport
       parentRoute: typeof ApiWorkspacesWorkspaceIdMembersRoute
     }
+    '/api/workspaces/$workspaceId/landings/$landingId': {
+      id: '/api/workspaces/$workspaceId/landings/$landingId'
+      path: '/$landingId'
+      fullPath: '/api/workspaces/$workspaceId/landings/$landingId'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRouteImport
+      parentRoute: typeof ApiWorkspacesWorkspaceIdLandingsRoute
+    }
     '/api/workspaces/$workspaceId/invitations/$invitationId': {
       id: '/api/workspaces/$workspaceId/invitations/$invitationId'
       path: '/$invitationId'
@@ -670,6 +703,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRouteImport
       parentRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdRoute
+    }
+    '/api/workspaces/$workspaceId/landings/$landingId/adapter': {
+      id: '/api/workspaces/$workspaceId/landings/$landingId/adapter'
+      path: '/adapter'
+      fullPath: '/api/workspaces/$workspaceId/landings/$landingId/adapter'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRouteImport
+      parentRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRoute
     }
   }
 }
@@ -708,6 +748,36 @@ const ApiWorkspacesWorkspaceIdInvitationsRouteChildren: ApiWorkspacesWorkspaceId
 const ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren =
   ApiWorkspacesWorkspaceIdInvitationsRoute._addFileChildren(
     ApiWorkspacesWorkspaceIdInvitationsRouteChildren,
+  )
+
+interface ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren {
+  ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+}
+
+const ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren: ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren =
+  {
+    ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute:
+      ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute,
+  }
+
+const ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren =
+  ApiWorkspacesWorkspaceIdLandingsLandingIdRoute._addFileChildren(
+    ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren,
+  )
+
+interface ApiWorkspacesWorkspaceIdLandingsRouteChildren {
+  ApiWorkspacesWorkspaceIdLandingsLandingIdRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren
+}
+
+const ApiWorkspacesWorkspaceIdLandingsRouteChildren: ApiWorkspacesWorkspaceIdLandingsRouteChildren =
+  {
+    ApiWorkspacesWorkspaceIdLandingsLandingIdRoute:
+      ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren,
+  }
+
+const ApiWorkspacesWorkspaceIdLandingsRouteWithChildren =
+  ApiWorkspacesWorkspaceIdLandingsRoute._addFileChildren(
+    ApiWorkspacesWorkspaceIdLandingsRouteChildren,
   )
 
 interface ApiWorkspacesWorkspaceIdMembersRouteChildren {
@@ -789,7 +859,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorkspacesWorkspaceIdAuditRoute: ApiWorkspacesWorkspaceIdAuditRoute,
   ApiWorkspacesWorkspaceIdInvitationsRoute:
     ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren,
-  ApiWorkspacesWorkspaceIdLandingsRoute: ApiWorkspacesWorkspaceIdLandingsRoute,
+  ApiWorkspacesWorkspaceIdLandingsRoute:
+    ApiWorkspacesWorkspaceIdLandingsRouteWithChildren,
   ApiWorkspacesWorkspaceIdMembersRoute:
     ApiWorkspacesWorkspaceIdMembersRouteWithChildren,
   ApiWorkspacesWorkspaceIdOffersRoute:

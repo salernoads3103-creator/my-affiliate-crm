@@ -220,38 +220,59 @@ export type Database = {
       };
       workspace_landings: {
         Row: {
+          adapted_archive_bytes: number | null;
+          adapted_archive_path: string | null;
+          adapter_reason: string | null;
+          adapter_status: string;
           analysis: Json;
           created_at: string;
           created_by_user_id: string | null;
+          deletion_started_at: string | null;
           id: string;
+          intake_public_id: string | null;
           name: string;
           offer_id: string;
           published_url: string | null;
           source_archive_path: string;
+          source_archive_bytes: number | null;
           status: "draft" | "ready" | "published" | "error";
           workspace_id: string;
         };
         Insert: {
+          adapted_archive_bytes?: number | null;
+          adapted_archive_path?: string | null;
+          adapter_reason?: string | null;
+          adapter_status?: string;
           analysis: Json;
           created_at?: string;
           created_by_user_id?: string | null;
+          deletion_started_at?: string | null;
           id?: string;
+          intake_public_id?: string | null;
           name: string;
           offer_id: string;
           published_url?: string | null;
           source_archive_path: string;
+          source_archive_bytes?: number | null;
           status?: "draft" | "ready" | "published" | "error";
           workspace_id: string;
         };
         Update: {
+          adapted_archive_bytes?: number | null;
+          adapted_archive_path?: string | null;
+          adapter_reason?: string | null;
+          adapter_status?: string;
           analysis?: Json;
           created_at?: string;
           created_by_user_id?: string | null;
+          deletion_started_at?: string | null;
           id?: string;
+          intake_public_id?: string | null;
           name?: string;
           offer_id?: string;
           published_url?: string | null;
           source_archive_path?: string;
+          source_archive_bytes?: number | null;
           status?: "draft" | "ready" | "published" | "error";
           workspace_id?: string;
         };
@@ -327,15 +348,21 @@ export type Database = {
       get_workspace_landings: {
         Args: { p_search: string | null; p_workspace_id: string };
         Returns: {
+          adapted_archive_bytes: number | null;
+          adapter_reason: string | null;
+          adapter_status: string;
           analysis: Json;
           created_at: string;
           created_by_user_id: string | null;
+          deletion_started_at: string | null;
           id: string;
+          has_adapted_archive: boolean;
           name: string;
           offer_id: string;
           offer_name: string;
           published_url: string | null;
           source_archive_path: string;
+          source_archive_bytes: number | null;
           status: string;
           workspace_id: string;
         }[];
@@ -362,6 +389,14 @@ export type Database = {
       deactivate_landing_form_config: {
         Args: { p_offer_id: string; p_workspace_id: string };
         Returns: boolean;
+      };
+      ensure_landing_form_config_for_adapter: {
+        Args: { p_landing_id: string; p_workspace_id: string };
+        Returns: { allowed_origin: string; is_active: boolean; public_id: string }[];
+      };
+      configure_landing_form_origin_for_adapter: {
+        Args: { p_allowed_origin: string; p_landing_id: string; p_workspace_id: string };
+        Returns: { allowed_origin: string; is_active: boolean; public_id: string }[];
       };
       is_landing_origin_allowed: {
         Args: { p_origin: string };
