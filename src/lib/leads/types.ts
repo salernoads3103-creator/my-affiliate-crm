@@ -27,6 +27,9 @@ export interface Lead {
   utm_term: string | null;
   utm_id: string | null;
   ttclid: string | null;
+  gclid: string | null;
+  gbraid: string | null;
+  wbraid: string | null;
   sub_id: string | null;
   delivery_provider: string | null;
   delivery_type: "warehouse" | "postomat" | "address" | null;

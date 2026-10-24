@@ -21,6 +21,8 @@ export type Database = {
           delivery_warehouse_name: string | null;
           delivery_warehouse_ref: string | null;
           email: string | null;
+          gbraid: string | null;
+          gclid: string | null;
           id: string;
           lead_status: Database["public"]["Enums"]["lead_status"];
           name: string;
@@ -33,6 +35,7 @@ export type Database = {
           team_id: string | null;
           traffic_source: string | null;
           ttclid: string | null;
+          wbraid: string | null;
           utm_campaign: string | null;
           utm_content: string | null;
           utm_id: string | null;
@@ -55,6 +58,8 @@ export type Database = {
           delivery_warehouse_name?: string | null;
           delivery_warehouse_ref?: string | null;
           email?: string | null;
+          gbraid?: string | null;
+          gclid?: string | null;
           id?: string;
           lead_status?: Database["public"]["Enums"]["lead_status"];
           name: string;
@@ -67,6 +72,7 @@ export type Database = {
           team_id?: string | null;
           traffic_source?: string | null;
           ttclid?: string | null;
+          wbraid?: string | null;
           utm_campaign?: string | null;
           utm_content?: string | null;
           utm_id?: string | null;
@@ -89,6 +95,8 @@ export type Database = {
           delivery_warehouse_name?: string | null;
           delivery_warehouse_ref?: string | null;
           email?: string | null;
+          gbraid?: string | null;
+          gclid?: string | null;
           id?: string;
           lead_status?: Database["public"]["Enums"]["lead_status"];
           name?: string;
@@ -101,6 +109,7 @@ export type Database = {
           team_id?: string | null;
           traffic_source?: string | null;
           ttclid?: string | null;
+          wbraid?: string | null;
           utm_campaign?: string | null;
           utm_content?: string | null;
           utm_id?: string | null;
@@ -498,6 +507,8 @@ export type Database = {
           created_at: string;
           created_by_user_id: string | null;
           deletion_started_at: string | null;
+          google_ads_conversion_id: string | null;
+          google_ads_conversion_label: string | null;
           id: string;
           intake_public_id: string | null;
           name: string;
@@ -506,6 +517,7 @@ export type Database = {
           source_archive_path: string;
           source_archive_bytes: number | null;
           status: "draft" | "ready" | "published" | "error";
+          tiktok_pixel_id: string | null;
           workspace_id: string;
         };
         Insert: {
@@ -517,6 +529,8 @@ export type Database = {
           created_at?: string;
           created_by_user_id?: string | null;
           deletion_started_at?: string | null;
+          google_ads_conversion_id?: string | null;
+          google_ads_conversion_label?: string | null;
           id?: string;
           intake_public_id?: string | null;
           name: string;
@@ -525,6 +539,7 @@ export type Database = {
           source_archive_path: string;
           source_archive_bytes?: number | null;
           status?: "draft" | "ready" | "published" | "error";
+          tiktok_pixel_id?: string | null;
           workspace_id: string;
         };
         Update: {
@@ -536,6 +551,8 @@ export type Database = {
           created_at?: string;
           created_by_user_id?: string | null;
           deletion_started_at?: string | null;
+          google_ads_conversion_id?: string | null;
+          google_ads_conversion_label?: string | null;
           id?: string;
           intake_public_id?: string | null;
           name?: string;
@@ -544,6 +561,7 @@ export type Database = {
           source_archive_path?: string;
           source_archive_bytes?: number | null;
           status?: "draft" | "ready" | "published" | "error";
+          tiktok_pixel_id?: string | null;
           workspace_id?: string;
         };
         Relationships: [];
@@ -783,6 +801,9 @@ export type Database = {
           source_archive_path: string;
           source_archive_bytes: number | null;
           status: string;
+          tiktok_pixel_id: string | null;
+          google_ads_conversion_id: string | null;
+          google_ads_conversion_label: string | null;
           workspace_id: string;
         }[];
       };
@@ -849,6 +870,34 @@ export type Database = {
           p_utm_medium: string | null;
           p_utm_source: string | null;
           p_utm_term: string | null;
+          p_warehouse_name: string | null;
+          p_warehouse_ref: string | null;
+        };
+        Returns: string;
+      };
+      create_public_landing_lead_with_click_ids: {
+        Args: {
+          p_city_name: string | null;
+          p_city_ref: string | null;
+          p_delivery_type: string | null;
+          p_email: string | null;
+          p_gbraid: string | null;
+          p_gclid: string | null;
+          p_ip_hash: string;
+          p_name: string;
+          p_origin: string | null;
+          p_phone: string;
+          p_phone_normalized: string;
+          p_public_id: string;
+          p_request_key_hash: string;
+          p_sub_id: string | null;
+          p_ttclid: string | null;
+          p_utm_campaign: string | null;
+          p_utm_content: string | null;
+          p_utm_medium: string | null;
+          p_utm_source: string | null;
+          p_utm_term: string | null;
+          p_wbraid: string | null;
           p_warehouse_name: string | null;
           p_warehouse_ref: string | null;
         };

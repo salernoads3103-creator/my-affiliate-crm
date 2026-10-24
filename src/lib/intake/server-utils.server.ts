@@ -1,17 +1,30 @@
-type TrustedProxyHeader = "cf-connecting-ip" | "x-real-ip";
+type TrustedProxyHeader = "cf-connecting-ip" | "x-forwarded-for";
 
-function getTrustedProxyHeader(): TrustedProxyHeader | null {
-  const configured = process.env.LANDING_INTAKE_TRUSTED_PROXY_HEADER?.trim().toLowerCase();
-  if (configured === "cf-connecting-ip" || configured === "x-real-ip") return configured;
-  if (process.env.NODE_ENV === "production") {
-    throw new Error("LANDING_INTAKE_TRUSTED_PROXY_HEADER is required in production");
+export function resolveTrustedProxyHeader(
+  configuredValue: string | undefined,
+  isProduction: boolean,
+): TrustedProxyHeader | null {
+  const configured = configuredValue?.trim().toLowerCase();
+  if (configured === "cf-connecting-ip" || configured === "x-forwarded-for") return configured;
+  if (isProduction) {
+    throw new Error(
+      "LANDING_INTAKE_TRUSTED_PROXY_HEADER must be cf-connecting-ip or x-forwarded-for in production",
+    );
   }
+  if (configured) throw new Error("Unsupported LANDING_INTAKE_TRUSTED_PROXY_HEADER");
   return null;
 }
 
 export function getClientIpForRateLimit(request: Request): string {
-  const header = getTrustedProxyHeader();
-  return getClientIpFromTrustedHeader(request, header);
+  const header = resolveTrustedProxyHeader(
+    process.env.LANDING_INTAKE_TRUSTED_PROXY_HEADER,
+    process.env.NODE_ENV === "production",
+  );
+  const ip = getClientIpFromTrustedHeader(request, header);
+  if (process.env.NODE_ENV === "production" && ip === "unknown") {
+    throw new Error("The configured trusted proxy did not provide one valid client IP");
+  }
+  return ip;
 }
 
 export function getClientIpFromTrustedHeader(
@@ -19,7 +32,12 @@ export function getClientIpFromTrustedHeader(
   header: TrustedProxyHeader | null,
 ): string {
   if (!header) return "unknown";
-  const value = request.headers.get(header)?.trim() ?? "";
+  const rawValue = request.headers.get(header)?.trim() ?? "";
+  // Never choose an address from a forwarded chain: clients can supply entries
+  // in X-Forwarded-For. Render uses Cloudflare's single-address client header;
+  // a custom proxy must overwrite its configured header and send one address.
+  if (!rawValue || rawValue.includes(",")) return "unknown";
+  const value = rawValue;
   return isValidIpAddress(value) ? value.toLowerCase() : "unknown";
 }
 

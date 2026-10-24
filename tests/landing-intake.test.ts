@@ -1,6 +1,9 @@
 import { describe, expect, it } from "bun:test";
 import { createPublicIntakeHandler, type PublicIntakeBackend } from "../src/lib/intake/handler";
-import { getClientIpFromTrustedHeader } from "../src/lib/intake/server-utils.server";
+import {
+  getClientIpFromTrustedHeader,
+  resolveTrustedProxyHeader,
+} from "../src/lib/intake/server-utils.server";
 
 const PUBLIC_FORM_ID = "11111111-1111-4111-8111-111111111111";
 const ALLOWED_ORIGIN = "https://shop.example.test";
@@ -59,16 +62,27 @@ function post(body: unknown, headers: Record<string, string> = {}) {
 }
 
 describe("public landing lead intake", () => {
-  it("uses only a configured, valid proxy address header for IP limiting", () => {
+  it("uses the single-address trusted proxy header and rejects forwarded chains", () => {
     const request = new Request("https://crm.example.test/api/v1/intake/leads", {
-      headers: { "cf-connecting-ip": "203.0.113.10", "x-forwarded-for": "198.51.100.8" },
+      headers: {
+        "x-forwarded-for": "192.0.2.99, 203.0.113.10",
+        "x-real-ip": "192.0.2.99",
+        "cf-connecting-ip": "203.0.113.10",
+      },
     });
     expect(getClientIpFromTrustedHeader(request, null)).toBe("unknown");
     expect(getClientIpFromTrustedHeader(request, "cf-connecting-ip")).toBe("203.0.113.10");
+    expect(getClientIpFromTrustedHeader(request, "x-forwarded-for")).toBe("unknown");
+    expect(
+      getClientIpFromTrustedHeader(
+        new Request(request.url, { headers: { "x-forwarded-for": "198.51.100.12" } }),
+        "x-forwarded-for",
+      ),
+    ).toBe("198.51.100.12");
     expect(
       getClientIpFromTrustedHeader(
         new Request(request.url, {
-          headers: { "cf-connecting-ip": "forged" },
+          headers: { "cf-connecting-ip": "forged, 203.0.113.10" },
         }),
         "cf-connecting-ip",
       ),
@@ -89,6 +103,9 @@ describe("public landing lead intake", () => {
         "cf-connecting-ip",
       ),
     ).toBe("unknown");
+    expect(resolveTrustedProxyHeader("cf-connecting-ip", true)).toBe("cf-connecting-ip");
+    expect(resolveTrustedProxyHeader("x-forwarded-for", true)).toBe("x-forwarded-for");
+    expect(() => resolveTrustedProxyHeader("x-real-ip", true)).toThrow("must be cf-connecting-ip");
   });
 
   it("accepts a valid Ukrainian phone and returns no lead or workspace details", async () => {
@@ -105,6 +122,36 @@ describe("public landing lead intake", () => {
       email: null,
     });
     expect(submissions[0]?.payload).not.toHaveProperty("workspace_id");
+  });
+
+  it("preserves TikTok click IDs and UTM attribution through intake normalization", async () => {
+    const { handler, submissions } = createHandler();
+    const response = await handler(
+      post(
+        {
+          ...BASE_PAYLOAD,
+          utmSource: "tiktok",
+          utmCampaign: "launch-26-10",
+          utmContent: "video-a",
+          ttclid: "click-id-123",
+          gclid: "  g-click-id-1  ",
+          gbraid: "g-bridge-id-1",
+          wbraid: "w-bridge-id-1",
+        },
+        { origin: ALLOWED_ORIGIN },
+      ),
+    );
+
+    expect(response.status).toBe(202);
+    expect(submissions[0]?.payload).toMatchObject({
+      utmSource: "tiktok",
+      utmCampaign: "launch-26-10",
+      utmContent: "video-a",
+      ttclid: "click-id-123",
+      gclid: "g-click-id-1",
+      gbraid: "g-bridge-id-1",
+      wbraid: "w-bridge-id-1",
+    });
   });
 
   it("rejects invalid Ukrainian phones before calling the backend", async () => {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "bun:test";
+import { runInNewContext } from "node:vm";
 import { analyzeLandingArchive, LandingArchiveError } from "../src/lib/landings/archive";
 import {
   buildAdaptedLandingArchive,
@@ -10,6 +11,7 @@ import {
   connectLandingDraft,
   createLandingDraft,
   deleteLandingDraft,
+  getDownloadableAdaptedArchive,
   updateLandingDraft,
 } from "../src/lib/landings/service";
 import { requireWorkspacePermission, type AccessContext } from "../src/lib/access/access.server";
@@ -119,6 +121,134 @@ function makeZip(entries: ZipFixtureEntry[]): Uint8Array {
   return archive;
 }
 
+function readStoredZipEntry(archive: Uint8Array, entryName: string): string | null {
+  const view = new DataView(archive.buffer, archive.byteOffset, archive.byteLength);
+  const decoder = new TextDecoder();
+  let offset = 0;
+  while (offset + 30 <= archive.byteLength && view.getUint32(offset, true) === 0x04034b50) {
+    const method = view.getUint16(offset + 8, true);
+    const compressedSize = view.getUint32(offset + 18, true);
+    const fileNameLength = view.getUint16(offset + 26, true);
+    const extraLength = view.getUint16(offset + 28, true);
+    const nameStart = offset + 30;
+    const contentStart = nameStart + fileNameLength + extraLength;
+    const name = decoder.decode(archive.subarray(nameStart, nameStart + fileNameLength));
+    if (name === entryName && method === 0) {
+      return decoder.decode(archive.subarray(contentStart, contentStart + compressedSize));
+    }
+    offset = contentStart + compressedSize;
+  }
+  return null;
+}
+
+type AdapterResponseBody = { success: boolean; accepted: boolean };
+type AdapterRequest = {
+  method: string;
+  headers: Record<string, string>;
+  body: string;
+  signal: AbortSignal;
+};
+type AdapterResponse = { status: number; json: () => Promise<AdapterResponseBody> };
+type AdapterFetch = (url: string, request: AdapterRequest) => Promise<AdapterResponse>;
+
+function runGeneratedAdapter(script: string, fetcher: AdapterFetch) {
+  let submitHandler: ((event: { preventDefault: () => void }) => Promise<void>) | null = null;
+  const timeouts = new Map<number, () => void>();
+  let nextTimeoutId = 0;
+  const nameField = { value: "Олена" };
+  const phoneField = { value: "0501234567" };
+  const honeypot = { value: "" };
+  const submitButton = { disabled: false };
+  const status = {
+    textContent: "",
+    state: "",
+    setAttribute(_name: string, value: string) {
+      this.state = value;
+    },
+  };
+  const form = {
+    dataset: {} as Record<string, string>,
+    nextElementSibling: status,
+    getAttribute(name: string) {
+      return name === "data-crmonia-form-id" ? "66666666-6666-4666-8666-666666666666" : null;
+    },
+    querySelector(selector: string) {
+      if (selector === '[data-crmonia-lead-field="name"]') return nameField;
+      if (selector === '[data-crmonia-lead-field="phone"]') return phoneField;
+      if (selector === '[name="website"]') return honeypot;
+      return null;
+    },
+    querySelectorAll() {
+      return [submitButton];
+    },
+    addEventListener(_name: string, callback: typeof submitHandler) {
+      submitHandler = callback as typeof submitHandler;
+    },
+    reset() {
+      nameField.value = "";
+      phoneField.value = "";
+      honeypot.value = "";
+    },
+  };
+  const pixelEvents: Array<{ id: string; event: string }> = [];
+  const googleAdsEvents: unknown[][] = [];
+  const context = {
+    document: {
+      readyState: "complete",
+      documentElement: { lang: "uk" },
+      querySelectorAll: () => [form],
+    },
+    window: {
+      location: {
+        search:
+          "?utm_source=tiktok&utm_campaign=launch-26-10&utm_content=video-a&ttclid=click-123&gclid=g-click-1&gbraid=g-bridge-1&wbraid=w-bridge-1",
+      },
+      setTimeout(callback: () => void) {
+        const id = ++nextTimeoutId;
+        timeouts.set(id, callback);
+        return id;
+      },
+      clearTimeout(id: number) {
+        timeouts.delete(id);
+      },
+      ttq: {
+        instance(id: string) {
+          return { track: (event: string) => pixelEvents.push({ id, event }) };
+        },
+      },
+      gtag(...args: unknown[]) {
+        googleAdsEvents.push(args);
+      },
+    },
+    fetch: fetcher,
+    crypto: { randomUUID: () => "attempt-key-12345678" },
+    URLSearchParams,
+    AbortController,
+  };
+  runInNewContext(script, context);
+
+  return {
+    nameField,
+    phoneField,
+    honeypot,
+    status,
+    submitButton,
+    pixelEvents,
+    googleAdsEvents,
+    get pendingTimeouts() {
+      return [...timeouts.values()];
+    },
+    async submit() {
+      if (!submitHandler) throw new Error("Generated adapter did not bind the form");
+      await submitHandler({ preventDefault() {} });
+    },
+    submitWithoutWaiting() {
+      if (!submitHandler) throw new Error("Generated adapter did not bind the form");
+      return submitHandler({ preventDefault() {} });
+    },
+  };
+}
+
 async function deflateRaw(bytes: Uint8Array): Promise<Uint8Array> {
   const stream = new Blob([bytes.slice().buffer])
     .stream()
@@ -177,6 +307,9 @@ function fakeDependencies() {
         adapted_archive_bytes: null,
         adapter_status: "not_connected",
         adapter_reason: null,
+        tiktok_pixel_id: null,
+        google_ads_conversion_id: null,
+        google_ads_conversion_label: null,
         intake_public_id: null,
         analysis: input.analysis,
       };
@@ -239,6 +372,13 @@ function fakeDependencies() {
         adapted_archive_bytes: input.adaptedArchiveBytes,
         adapter_status: input.status,
         adapter_reason: input.reason,
+        ...(input.tiktokPixelId === undefined ? {} : { tiktok_pixel_id: input.tiktokPixelId }),
+        ...(input.googleAdsConversionId === undefined
+          ? {}
+          : { google_ads_conversion_id: input.googleAdsConversionId }),
+        ...(input.googleAdsConversionLabel === undefined
+          ? {}
+          : { google_ads_conversion_label: input.googleAdsConversionLabel }),
         intake_public_id: input.publicFormId ?? null,
       };
       return { ...record };
@@ -384,6 +524,238 @@ describe("Landing Factory ZIP intake", () => {
     expect(archiveText).not.toContain("workspace_id");
     expect(archiveText).not.toContain(TEST_WORKSPACE_ID);
     expect(archiveText).not.toContain("supabase.co");
+  });
+
+  it("injects one TikTok base code and honeypot, then tracks SubmitForm only after API acceptance", async () => {
+    const pixelId = "TT1234567890";
+    const archive = await buildAdaptedLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+      {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+        tiktokPixelId: pixelId,
+      },
+    );
+    const html = readStoredZipEntry(archive, "index.html");
+    const script = readStoredZipEntry(archive, "crmonia-intake-adapter.js");
+    expect(html).toContain('name="website"');
+    expect(html).toContain('ttq.load("TT1234567890")');
+    expect(html).toContain("ttq.page()");
+    expect(script).toContain('pixel.track("SubmitForm")');
+
+    const requests: AdapterRequest[] = [];
+    const harness = runGeneratedAdapter(script!, async (_url, request) => {
+      requests.push(request);
+      return { status: 202, json: async () => ({ success: true, accepted: true }) };
+    });
+    await harness.submit();
+
+    expect(requests).toHaveLength(1);
+    expect(JSON.parse(requests[0]!.body)).toMatchObject({
+      utmSource: "tiktok",
+      utmCampaign: "launch-26-10",
+      utmContent: "video-a",
+      ttclid: "click-123",
+      website: "",
+    });
+    expect(harness.pixelEvents).toEqual([{ id: pixelId, event: "SubmitForm" }]);
+    expect(harness.status.state).toBe("success");
+  });
+
+  it("tracks a Google Ads conversion once after acceptance and forwards Google click IDs", async () => {
+    const archive = await buildAdaptedLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+      {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+        tiktokPixelId: "TT1234567890",
+        googleAdsConversionId: "AW-123456789",
+        googleAdsConversionLabel: "AbC-D_efG-h12_34-567",
+      },
+    );
+    const html = readStoredZipEntry(archive, "index.html")!;
+    const script = readStoredZipEntry(archive, "crmonia-intake-adapter.js")!;
+    expect(html).toContain("googletagmanager.com/gtag/js?id=");
+    expect(html).toContain("window.gtag('config',\"AW-123456789\")");
+
+    const requests: AdapterRequest[] = [];
+    const harness = runGeneratedAdapter(script, async (_url, request) => {
+      requests.push(request);
+      return { status: 202, json: async () => ({ success: true, accepted: true }) };
+    });
+    await harness.submit();
+
+    expect(JSON.parse(requests[0]!.body)).toMatchObject({
+      gclid: "g-click-1",
+      gbraid: "g-bridge-1",
+      wbraid: "w-bridge-1",
+    });
+    expect(harness.pixelEvents).toEqual([{ id: "TT1234567890", event: "SubmitForm" }]);
+    expect(harness.googleAdsEvents).toEqual([
+      ["event", "conversion", { send_to: "AW-123456789/AbC-D_efG-h12_34-567" }],
+    ]);
+  });
+
+  it("does not track SubmitForm when the intake API rejects the request", async () => {
+    const archive = await buildAdaptedLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+      {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+        tiktokPixelId: "TT1234567890",
+        googleAdsConversionId: "AW-123456789",
+        googleAdsConversionLabel: "conversion-label",
+      },
+    );
+    const harness = runGeneratedAdapter(
+      readStoredZipEntry(archive, "crmonia-intake-adapter.js")!,
+      async () => ({ status: 503, json: async () => ({ success: false, accepted: false }) }),
+    );
+
+    await harness.submit();
+
+    expect(harness.pixelEvents).toEqual([]);
+    expect(harness.googleAdsEvents).toEqual([]);
+    expect(harness.status.state).toBe("error");
+  });
+
+  it("ignores a second submit while the first request is in flight", async () => {
+    const archive = await buildAdaptedLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+      {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+        tiktokPixelId: "TT1234567890",
+        googleAdsConversionId: "AW-123456789",
+        googleAdsConversionLabel: "conversion-label",
+      },
+    );
+    const requests: AdapterRequest[] = [];
+    let resolveRequest: ((response: AdapterResponse) => void) | undefined;
+    const harness = runGeneratedAdapter(
+      readStoredZipEntry(archive, "crmonia-intake-adapter.js")!,
+      async (_url, request) => {
+        requests.push(request);
+        return new Promise((resolve) => {
+          resolveRequest = resolve;
+        });
+      },
+    );
+
+    const first = harness.submitWithoutWaiting();
+    const second = harness.submitWithoutWaiting();
+    expect(requests).toHaveLength(1);
+    resolveRequest?.({ status: 202, json: async () => ({ success: true, accepted: true }) });
+    await Promise.all([first, second]);
+    expect(harness.pixelEvents).toHaveLength(1);
+    expect(harness.googleAdsEvents).toHaveLength(1);
+  });
+
+  it("reuses the same idempotency key when retrying after a request timeout", async () => {
+    const archive = await buildAdaptedLandingArchive(
+      makeZip([{ name: "index.html", content: validHtml }]),
+      {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+        tiktokPixelId: "TT1234567890",
+        googleAdsConversionId: "AW-123456789",
+        googleAdsConversionLabel: "conversion-label",
+      },
+    );
+    const requests: AdapterRequest[] = [];
+    let callCount = 0;
+    const harness = runGeneratedAdapter(
+      readStoredZipEntry(archive, "crmonia-intake-adapter.js")!,
+      async (_url, request) => {
+        requests.push(request);
+        callCount += 1;
+        if (callCount === 1) {
+          return new Promise((_resolve, reject) => {
+            request.signal.addEventListener("abort", () => reject(new Error("timeout")), {
+              once: true,
+            });
+          });
+        }
+        return { status: 202, json: async () => ({ success: true, accepted: true }) };
+      },
+    );
+
+    const timedOutRequest = harness.submitWithoutWaiting();
+    harness.pendingTimeouts[0]?.();
+    await timedOutRequest;
+    expect(harness.status.state).toBe("error");
+    expect(harness.pixelEvents).toEqual([]);
+    await harness.submit();
+
+    expect(requests).toHaveLength(2);
+    expect(requests[0]?.headers["Idempotency-Key"]).toBe(requests[1]?.headers["Idempotency-Key"]);
+    expect(harness.pixelEvents).toEqual([{ id: "TT1234567890", event: "SubmitForm" }]);
+    expect(harness.googleAdsEvents).toHaveLength(1);
+  });
+
+  it("reuses an existing matching Pixel without injecting another base code and blocks conflicts", async () => {
+    const pixelHtml = `${validHtml}<script>ttq.load('TT1234567890');ttq.page();</script>`;
+    const matching = await buildAdaptedLandingArchive(
+      makeZip([{ name: "index.html", content: pixelHtml }]),
+      {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+        tiktokPixelId: "TT1234567890",
+      },
+    );
+    const matchingHtml = readStoredZipEntry(matching, "index.html")!;
+    expect((matchingHtml.match(/ttq\.load\(/g) ?? []).length).toBe(1);
+    expect(matchingHtml).not.toContain("analytics.tiktok.com/i18n/pixel/events.js");
+
+    await expect(
+      buildAdaptedLandingArchive(makeZip([{ name: "index.html", content: pixelHtml }]), {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+        tiktokPixelId: "DIFFERENTPIXEL",
+      }),
+    ).rejects.toMatchObject({ reason: "tiktok_pixel_conflict" });
+
+    await expect(
+      buildAdaptedLandingArchive(
+        makeZip([
+          {
+            name: "index.html",
+            content: `${validHtml}<script src="https://www.googletagmanager.com/gtm.js?id=GTM-ABCDE"></script>`,
+          },
+        ]),
+        {
+          publicFormId: "66666666-6666-4666-8666-666666666666",
+          intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+          tiktokPixelId: "TT1234567890",
+        },
+      ),
+    ).rejects.toMatchObject({ reason: "tiktok_pixel_conflict" });
+  });
+
+  it("blocks Google Ads when another Google tag is already installed", async () => {
+    const existingTags = [
+      `${validHtml}<script>var gtagUrl = "https://www.googletagmanager.com/gtag/js?id=AW-123456789";</script>`,
+      `${validHtml}<script>window.google_conversion_id = 123456789;window.google_conversion_label = 'existing';var conversionUrl = "https://www.googleadservices.com/pagead/conversion.js";</script>`,
+      `${validHtml}<script>gtag('config', 'AW-123456789');</script>`,
+    ];
+    for (const existingGoogleTag of existingTags) {
+      await expect(
+        buildAdaptedLandingArchive(makeZip([{ name: "index.html", content: existingGoogleTag }]), {
+          publicFormId: "66666666-6666-4666-8666-666666666666",
+          intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+          googleAdsConversionId: "AW-123456789",
+          googleAdsConversionLabel: "conversion-label",
+        }),
+      ).rejects.toMatchObject({ reason: "google_ads_tag_conflict" });
+    }
+
+    await expect(
+      buildAdaptedLandingArchive(makeZip([{ name: "index.html", content: validHtml }]), {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+        googleAdsConversionId: "AW-123456789",
+      }),
+    ).rejects.toMatchObject({ reason: "google_ads_configuration_invalid" });
   });
 
   it("strips one detected site-root folder while retaining relative asset paths", async () => {
@@ -764,6 +1136,48 @@ describe("Landing Factory ZIP intake", () => {
       hasIndexHtml: true,
       siteRootPath: "",
     });
+  });
+
+  it("persists the Pixel ID and refuses to download a configuration-required ZIP", async () => {
+    const dependencies = fakeDependencies();
+    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const analysis = await analyzeLandingArchive(source);
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob([source]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+    const connected = await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        allowedOriginConfigured: false,
+        intakeEndpoint: null,
+        tiktokPixelId: "TT1234567890",
+        googleAdsConversionId: "AW-123456789",
+        googleAdsConversionLabel: "conversion-label",
+      },
+    );
+
+    expect(connected.tiktok_pixel_id).toBe("TT1234567890");
+    expect(connected.google_ads_conversion_id).toBe("AW-123456789");
+    expect(connected.google_ads_conversion_label).toBe("conversion-label");
+    expect(dependencies.record?.tiktok_pixel_id).toBe("TT1234567890");
+    await expect(
+      getDownloadableAdaptedArchive(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        { workspaceId: TEST_WORKSPACE_ID, landingId: TEST_LANDING_ID },
+      ),
+    ).rejects.toMatchObject({ status: 409 });
   });
 
   it("does not adapt a draft through another workspace route", async () => {

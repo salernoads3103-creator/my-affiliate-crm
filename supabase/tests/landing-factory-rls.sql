@@ -1,5 +1,6 @@
 -- Run only against a disposable local Supabase database after the Landing
--- Factory migration. Fixture writes are rolled back at the end.
+-- Factory, Adapter, and tracking configuration migrations. Fixture writes
+-- are rolled back at the end.
 BEGIN;
 
 DO $$
@@ -15,6 +16,8 @@ DECLARE
   v_listing_result TEXT;
   v_adapter_function TEXT;
   v_storage_policy TEXT;
+  v_pixel_constraint TEXT;
+  v_google_ads_constraint TEXT;
   v_cross_workspace_rejected BOOLEAN := FALSE;
 BEGIN
   IF v_workspace_id IS NULL THEN
@@ -54,8 +57,44 @@ BEGIN
     SELECT 1 FROM information_schema.columns
     WHERE table_schema = 'public' AND table_name = 'workspace_landings'
       AND column_name = 'intake_public_id'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workspace_landings'
+      AND column_name = 'tiktok_pixel_id'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workspace_landings'
+      AND column_name = 'google_ads_conversion_id'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'workspace_landings'
+      AND column_name = 'google_ads_conversion_label'
   ) THEN
     RAISE EXCEPTION 'Landing adapter metadata is missing';
+  END IF;
+
+  SELECT pg_catalog.pg_get_constraintdef(c.oid)
+  INTO v_pixel_constraint
+  FROM pg_catalog.pg_constraint AS c
+  WHERE c.conrelid = 'public.workspace_landings'::regclass
+    AND c.conname = 'workspace_landings_tiktok_pixel_id_check'
+    AND c.contype = 'c'
+    AND c.convalidated;
+  IF v_pixel_constraint IS NULL OR v_pixel_constraint NOT LIKE '%A-Za-z0-9_%' THEN
+    RAISE EXCEPTION 'TikTok Pixel IDs must reject values unsafe for generated JavaScript';
+  END IF;
+
+  SELECT pg_catalog.pg_get_constraintdef(c.oid)
+  INTO v_google_ads_constraint
+  FROM pg_catalog.pg_constraint AS c
+  WHERE c.conrelid = 'public.workspace_landings'::regclass
+    AND c.conname = 'workspace_landings_google_ads_settings_check'
+    AND c.contype = 'c'
+    AND c.convalidated;
+  IF v_google_ads_constraint IS NULL
+     OR v_google_ads_constraint NOT LIKE '%AW-%'
+     OR v_google_ads_constraint NOT LIKE '%google_ads_conversion_label%' THEN
+    RAISE EXCEPTION 'Google Ads conversion ID and label must be stored as a validated pair';
   END IF;
 
   IF NOT EXISTS (
@@ -72,7 +111,10 @@ BEGIN
   IF v_listing_result NOT LIKE '%source_archive_bytes%'
      OR v_listing_result NOT LIKE '%deletion_started_at%'
      OR v_listing_result NOT LIKE '%adapter_status%'
-     OR v_listing_result NOT LIKE '%has_adapted_archive%' THEN
+     OR v_listing_result NOT LIKE '%has_adapted_archive%'
+     OR v_listing_result NOT LIKE '%tiktok_pixel_id%'
+     OR v_listing_result NOT LIKE '%google_ads_conversion_id%'
+     OR v_listing_result NOT LIKE '%google_ads_conversion_label%' THEN
     RAISE EXCEPTION 'Landing listing must expose source and adapter state without private ZIP paths';
   END IF;
 

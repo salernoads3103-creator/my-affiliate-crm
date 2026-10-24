@@ -16,7 +16,13 @@ export type LandingFormAnalysis = {
   hasPhoneCandidate: boolean;
 };
 
-export type LandingPixel = "meta" | "tiktok" | "google_analytics" | "google_tag_manager";
+export type LandingPixel =
+  | "meta"
+  | "tiktok"
+  | "google_analytics"
+  | "google_tag_manager"
+  | "google_tag"
+  | "google_ads";
 
 export type LandingAnalysisWarning =
   | "index_missing"
@@ -47,7 +53,10 @@ export type LandingAdapterReason =
   | "too_many_files"
   | "archive_too_large"
   | "api_url_not_configured"
-  | "landing_origin_not_configured";
+  | "landing_origin_not_configured"
+  | "tiktok_pixel_conflict"
+  | "google_ads_configuration_invalid"
+  | "google_ads_tag_conflict";
 
 export type LandingAdapterStatus =
   | "not_connected"
@@ -88,13 +97,22 @@ export type LandingPage = {
   has_adapted_archive: boolean;
   adapter_status: LandingAdapterStatus;
   adapter_reason: LandingAdapterReason | null;
+  tiktok_pixel_id: string | null;
+  google_ads_conversion_id: string | null;
+  google_ads_conversion_label: string | null;
   analysis: LandingArchiveAnalysis;
 };
 
 export type LandingListResponse = { landings: LandingPage[] };
 export type LandingAdapterResponse = Pick<
   LandingPage,
-  "adapter_status" | "adapter_reason" | "has_adapted_archive" | "adapted_archive_bytes"
+  | "adapter_status"
+  | "adapter_reason"
+  | "has_adapted_archive"
+  | "adapted_archive_bytes"
+  | "tiktok_pixel_id"
+  | "google_ads_conversion_id"
+  | "google_ads_conversion_label"
 >;
 
 export type LandingCreateInput = {
@@ -150,6 +168,9 @@ export interface LandingRepository {
     adaptedArchivePath: string | null;
     adaptedArchiveBytes: number | null;
     publicFormId?: string | null;
+    tiktokPixelId?: string | null;
+    googleAdsConversionId?: string | null;
+    googleAdsConversionLabel?: string | null;
     expectedSourceArchivePath?: string;
     expectedOfferId?: string;
   }): Promise<LandingDraftRecord>;

@@ -18,6 +18,8 @@ services:
         value: node-server
       - key: NITRO_HOST
         value: 0.0.0.0
+      - key: CRMONIA_PUBLIC_INTAKE_API_URL
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY

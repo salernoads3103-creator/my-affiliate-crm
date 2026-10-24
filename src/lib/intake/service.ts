@@ -28,7 +28,7 @@ export class LandingIntakeService implements PublicIntakeBackend {
 
   async submit(input: Parameters<PublicIntakeBackend["submit"]>[0]) {
     const { payload } = input;
-    const { data, error } = await this.client.rpc("create_public_landing_lead", {
+    const { data, error } = await this.client.rpc("create_public_landing_lead_with_click_ids", {
       p_public_id: input.formId,
       p_request_key_hash: input.requestKeyHash,
       p_ip_hash: input.ipHash,
@@ -43,6 +43,9 @@ export class LandingIntakeService implements PublicIntakeBackend {
       p_utm_content: payload.utmContent ?? null,
       p_utm_term: payload.utmTerm ?? null,
       p_ttclid: payload.ttclid ?? null,
+      p_gclid: payload.gclid ?? null,
+      p_gbraid: payload.gbraid ?? null,
+      p_wbraid: payload.wbraid ?? null,
       p_sub_id: payload.subId ?? null,
       p_delivery_type: payload.deliveryType ?? null,
       p_city_ref: payload.cityRef ?? null,

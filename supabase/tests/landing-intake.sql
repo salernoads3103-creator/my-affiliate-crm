@@ -1,4 +1,5 @@
--- Run only against a disposable local Supabase database after the intake migration.
+-- Run only against a disposable local Supabase database after the intake and
+-- Google Ads click-attribution migrations.
 -- All fixture data is rolled back.
 BEGIN;
 
@@ -22,6 +23,19 @@ DECLARE
 BEGIN
   IF v_workspace IS NULL THEN
     RAISE EXCEPTION 'A main workspace is required';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'leads' AND column_name = 'gclid'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'leads' AND column_name = 'gbraid'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'leads' AND column_name = 'wbraid'
+  ) THEN
+    RAISE EXCEPTION 'Google Ads click-attribution columns are missing from leads';
   END IF;
 
   FOREACH v_table IN ARRAY ARRAY[
@@ -66,6 +80,13 @@ BEGIN
   IF NOT has_function_privilege('service_role', 'public.create_public_landing_lead(uuid,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'service_role must execute create_public_landing_lead';
   END IF;
+  IF has_function_privilege('anon', 'public.create_public_landing_lead_with_click_ids(uuid,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text)', 'EXECUTE')
+     OR has_function_privilege('authenticated', 'public.create_public_landing_lead_with_click_ids(uuid,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'Anonymous and authenticated callers must not execute the click-attribution RPC';
+  END IF;
+  IF NOT has_function_privilege('service_role', 'public.create_public_landing_lead_with_click_ids(uuid,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text,text)', 'EXECUTE') THEN
+    RAISE EXCEPTION 'service_role must execute the click-attribution RPC';
+  END IF;
   IF has_function_privilege('anon', 'public.consume_landing_intake_ip_limit(text)', 'EXECUTE') THEN
     RAISE EXCEPTION 'anon must not execute consume_landing_intake_ip_limit';
   END IF;
@@ -108,19 +129,21 @@ BEGIN
     RAISE EXCEPTION 'Landing form configuration must not link an offer from another workspace';
   END IF;
 
-  v_result := public.create_public_landing_lead(
+  v_result := public.create_public_landing_lead_with_click_ids(
     v_public_id, v_key, v_ip_hash, 'https://shop.example.test',
     'Test buyer', '0501234567', '+380501234567', NULL,
-    'tiktok', 'paid', 'campaign-a', NULL, NULL, 'click-1', 'sub-1',
+    'google', 'paid', 'campaign-a', 'ad-1', NULL, 'tt-click-1',
+    'g-click-1', 'g-bridge-1', 'w-bridge-1', 'sub-1',
     'warehouse', 'city-ref', 'Kyiv', 'warehouse-ref', 'Branch 1'
   );
   IF v_result <> 'accepted' THEN RAISE EXCEPTION 'Expected accepted intake result, got %', v_result; END IF;
 
   -- A replay returns the same minimal result and creates no second lead.
-  v_result := public.create_public_landing_lead(
+  v_result := public.create_public_landing_lead_with_click_ids(
     v_public_id, v_key, v_ip_hash, 'https://shop.example.test',
     'Test buyer', '0501234567', '+380501234567', NULL,
-    'tiktok', 'paid', 'campaign-a', NULL, NULL, 'click-1', 'sub-1',
+    'google', 'paid', 'campaign-a', 'ad-1', NULL, 'tt-click-1',
+    'g-click-1', 'g-bridge-1', 'w-bridge-1', 'sub-1',
     'warehouse', 'city-ref', 'Kyiv', 'warehouse-ref', 'Branch 1'
   );
   SELECT count(*) INTO v_rows FROM public.leads
@@ -134,6 +157,8 @@ BEGIN
     WHERE workspace_id = v_workspace AND offer_id = v_offer
       AND lead_status = 'New' AND user_id IS NULL AND created_by_user_id IS NULL
       AND phone_normalized = '+380501234567' AND delivery_city_ref = 'city-ref'
+      AND ttclid = 'tt-click-1' AND gclid = 'g-click-1'
+      AND gbraid = 'g-bridge-1' AND wbraid = 'w-bridge-1'
   ) THEN
     RAISE EXCEPTION 'Landing lead must keep server-derived scope, null author, normalized phone, and delivery refs';
   END IF;

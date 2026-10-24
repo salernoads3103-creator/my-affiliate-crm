@@ -123,6 +123,9 @@ export function LeadDetailsDrawer({ lead, onClose, locale }: LeadDetailsDrawerPr
                     { label: "UTM term", value: lead.utm_term },
                     { label: "UTM ID", value: lead.utm_id },
                     { label: "ttclid", value: lead.ttclid },
+                    { label: "gclid", value: lead.gclid },
+                    { label: "gbraid", value: lead.gbraid },
+                    { label: "wbraid", value: lead.wbraid },
                     { label: "sub_id", value: lead.sub_id },
                   ]}
                 />

@@ -102,6 +102,11 @@ const ADAPTER_REASON_LABEL: Record<LandingAdapterReason, TranslationKey> = {
     "Set the public HTTPS intake URL on the CRM server, then rebuild this ZIP.",
   landing_origin_not_configured:
     "Set the landing page origin to enable submissions and publishing.",
+  tiktok_pixel_conflict:
+    "A TikTok Pixel or Google Tag Manager may already install tracking, but no single matching Pixel ID could be confirmed. Remove or verify the existing integration before adding this Pixel ID.",
+  google_ads_configuration_invalid: "Enter a valid Google Ads Conversion ID and label.",
+  google_ads_tag_conflict:
+    "A Google tag or Google Tag Manager is already present. Remove it or verify the setup before enabling Google Ads here.",
 };
 
 const PIXEL_LABELS = {
@@ -109,6 +114,8 @@ const PIXEL_LABELS = {
   tiktok: "TikTok Pixel",
   google_analytics: "Google Analytics",
   google_tag_manager: "Google Tag Manager",
+  google_tag: "Google tag",
+  google_ads: "Google Ads tag",
 } as const satisfies Record<LandingPage["analysis"]["detectedPixels"][number], TranslationKey>;
 
 function formatBytes(bytes: number, locale: "uk" | "en"): string {
@@ -294,6 +301,9 @@ function LandingsPage() {
   const [editingLanding, setEditingLanding] = useState<LandingPage | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LandingPage | null>(null);
   const [adapterOrigin, setAdapterOrigin] = useState("");
+  const [tiktokPixelId, setTiktokPixelId] = useState("");
+  const [googleAdsConversionId, setGoogleAdsConversionId] = useState("");
+  const [googleAdsConversionLabel, setGoogleAdsConversionLabel] = useState("");
 
   const landingsQuery = useQuery({
     queryKey: [...LANDINGS_QUERY_KEY, workspaceId, search.trim()],
@@ -345,9 +355,16 @@ function LandingsPage() {
     },
   });
   const connectFormMutation = useMutation({
-    mutationFn: (input: { landingId: string; allowedOrigin?: string }) => {
+    mutationFn: (input: {
+      landingId: string;
+      allowedOrigin?: string;
+      tiktokPixelId: string | null;
+      googleAdsConversionId: string | null;
+      googleAdsConversionLabel: string | null;
+    }) => {
       if (!workspaceId) throw new Error("Workspace is unavailable");
-      return landingService.connectForm(workspaceId, input.landingId, input.allowedOrigin);
+      const { landingId, ...config } = input;
+      return landingService.connectForm(workspaceId, landingId, config);
     },
     onSuccess: async (result, input) => {
       setAnalysisLanding((current) =>
@@ -523,6 +540,11 @@ function LandingsPage() {
                             title={t("View analysis")}
                             onClick={() => {
                               setAdapterOrigin("");
+                              setTiktokPixelId(landing.tiktok_pixel_id ?? "");
+                              setGoogleAdsConversionId(landing.google_ads_conversion_id ?? "");
+                              setGoogleAdsConversionLabel(
+                                landing.google_ads_conversion_label ?? "",
+                              );
                               setAnalysisLanding(landing);
                             }}
                           >
@@ -649,12 +671,82 @@ function LandingsPage() {
                     )}
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="landing-tiktok-pixel-id">{t("TikTok Pixel ID (optional)")}</Label>
+                  <Input
+                    id="landing-tiktok-pixel-id"
+                    autoComplete="off"
+                    maxLength={64}
+                    value={tiktokPixelId}
+                    onChange={(event) => setTiktokPixelId(event.target.value)}
+                    placeholder="CXXXXXXXXXXXXXXX"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("The Pixel ID is public and is stored with this landing.")}
+                  </p>
+                  {(analysisLanding.analysis.detectedPixels.includes("tiktok") ||
+                    analysisLanding.analysis.detectedPixels.includes("google_tag_manager")) && (
+                    <p className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span>
+                        {t(
+                          "A TikTok Pixel is already present. The adapter reuses it only when its ID matches; otherwise connection is blocked to avoid duplicate tracking.",
+                        )}
+                      </span>
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="landing-google-ads-conversion-id">
+                    {t("Google Ads Conversion ID (optional)")}
+                  </Label>
+                  <Input
+                    id="landing-google-ads-conversion-id"
+                    autoComplete="off"
+                    maxLength={23}
+                    value={googleAdsConversionId}
+                    onChange={(event) => setGoogleAdsConversionId(event.target.value)}
+                    placeholder="AW-123456789"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="landing-google-ads-conversion-label">
+                    {t("Google Ads Conversion Label (optional)")}
+                  </Label>
+                  <Input
+                    id="landing-google-ads-conversion-label"
+                    autoComplete="off"
+                    maxLength={128}
+                    value={googleAdsConversionLabel}
+                    onChange={(event) => setGoogleAdsConversionLabel(event.target.value)}
+                    placeholder="AbC-D_efG-h12_34-567"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("Use the ID and label from the Google Ads conversion tag.")}
+                  </p>
+                  {(analysisLanding.analysis.detectedPixels.includes("google_analytics") ||
+                    analysisLanding.analysis.detectedPixels.includes("google_tag") ||
+                    analysisLanding.analysis.detectedPixels.includes("google_ads") ||
+                    analysisLanding.analysis.detectedPixels.includes("google_tag_manager")) && (
+                    <p className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-200">
+                      <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+                      <span>
+                        {t(
+                          "A Google tag is already present. Verify it before enabling Google Ads here.",
+                        )}
+                      </span>
+                    </p>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() =>
                       connectFormMutation.mutate({
                         landingId: analysisLanding.id,
                         ...(adapterOrigin.trim() ? { allowedOrigin: adapterOrigin.trim() } : {}),
+                        tiktokPixelId: tiktokPixelId.trim() || null,
+                        googleAdsConversionId: googleAdsConversionId.trim() || null,
+                        googleAdsConversionLabel: googleAdsConversionLabel.trim() || null,
                       })
                     }
                     disabled={connectFormMutation.isPending || downloadAdapterMutation.isPending}
@@ -666,20 +758,23 @@ function LandingsPage() {
                     )}
                     {t("Connect form")}
                   </Button>
-                  {analysisLanding.has_adapted_archive && (
-                    <Button
-                      variant="outline"
-                      onClick={() => downloadAdapterMutation.mutate(analysisLanding.id)}
-                      disabled={downloadAdapterMutation.isPending || connectFormMutation.isPending}
-                    >
-                      {downloadAdapterMutation.isPending ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Download className="mr-2 h-4 w-4" />
-                      )}
-                      {t("Download ZIP")}
-                    </Button>
-                  )}
+                  {analysisLanding.has_adapted_archive &&
+                    analysisLanding.adapter_status === "prepared" && (
+                      <Button
+                        variant="outline"
+                        onClick={() => downloadAdapterMutation.mutate(analysisLanding.id)}
+                        disabled={
+                          downloadAdapterMutation.isPending || connectFormMutation.isPending
+                        }
+                      >
+                        {downloadAdapterMutation.isPending ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Download className="mr-2 h-4 w-4" />
+                        )}
+                        {t("Download ZIP")}
+                      </Button>
+                    )}
                 </div>
               </section>
             )}

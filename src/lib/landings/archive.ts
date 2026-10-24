@@ -505,11 +505,21 @@ function detectPixels(html: string): LandingPixel[] {
   if (/\bttq\.(?:load|page|track)\s*\(|analytics\.tiktok\.com/i.test(html)) {
     pixels.push("tiktok");
   }
-  if (/\bgtag\s*\(|google-analytics\.com\/analytics\.js/i.test(html)) {
+  if (/google-analytics\.com\/analytics\.js/i.test(html)) {
     pixels.push("google_analytics");
+  }
+  if (/\bgtag\s*\(|googletagmanager\.com\/gtag\/js/i.test(html)) {
+    pixels.push("google_tag");
   }
   if (/googletagmanager\.com\/gtm\.js|\bGTM-[A-Z0-9]+/i.test(html)) {
     pixels.push("google_tag_manager");
+  }
+  if (
+    /googleadservices\.com\/pagead\/conversion(?:\.js|\b)|\bgoogle_conversion_(?:id|label)\b/i.test(
+      html,
+    )
+  ) {
+    pixels.push("google_ads");
   }
   return pixels;
 }
@@ -616,6 +626,7 @@ type PreparedSite = {
   entries: ZipEntry[];
   root: SiteRootSelection;
   html: string;
+  scannedScripts: string[];
   formMatch: { index: number; html: string; analyzedMarkup: string };
   nameFieldOffset: number;
   phoneFieldOffset: number;
@@ -841,6 +852,7 @@ async function prepareSite(bytes: Uint8Array): Promise<PreparedSite> {
     entries: siteEntries,
     root,
     html,
+    scannedScripts: scripts,
     formMatch: { index: formStart, html: formHtml, analyzedMarkup: analyzedMatch[0] },
     nameFieldOffset: fieldTags[nameFields[0]].index ?? 0,
     phoneFieldOffset: fieldTags[phoneFields[0]].index ?? 0,
@@ -905,16 +917,26 @@ function safeJavaScriptString(value: string): string {
     .replaceAll("\u2029", "\\u2029");
 }
 
-function adapterScript(formId: string, endpoint: string | null): string {
+function adapterScript(
+  formId: string,
+  endpoint: string | null,
+  pixelId: string | null,
+  googleAdsConversionId: string | null,
+  googleAdsConversionLabel: string | null,
+): string {
   return `(() => {
   const formId = ${safeJavaScriptString(formId)};
   const endpoint = ${safeJavaScriptString(endpoint ?? "")};
+  const pixelId = ${safeJavaScriptString(pixelId ?? "")};
+  const googleAdsConversionId = ${safeJavaScriptString(googleAdsConversionId ?? "")};
+  const googleAdsConversionLabel = ${safeJavaScriptString(googleAdsConversionLabel ?? "")};
   const bind = () => {
     document.querySelectorAll('form[data-crmonia-intake="1"]').forEach((form) => {
       if (form.getAttribute("data-crmonia-form-id") !== formId) return;
       if (form.dataset.crmoniaBound === "1") return;
       form.dataset.crmoniaBound = "1";
       let submitting = false;
+      let attempt = null;
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         if (submitting) return;
@@ -932,42 +954,93 @@ function adapterScript(formId: string, endpoint: string | null): string {
           if (status) { status.textContent = copy.failed; status.setAttribute("data-state", "error"); }
           return;
         }
+        const query = new URLSearchParams(window.location.search);
+        const honeypot = form.querySelector('[name="website"]');
+        const payload = {
+          formId,
+          name: nameField.value,
+          phone: phoneField.value,
+          website: honeypot ? honeypot.value : "",
+          utmSource: query.get("utm_source") || undefined,
+          utmMedium: query.get("utm_medium") || undefined,
+          utmCampaign: query.get("utm_campaign") || undefined,
+          utmContent: query.get("utm_content") || undefined,
+          utmTerm: query.get("utm_term") || undefined,
+          ttclid: query.get("ttclid") || undefined,
+          gclid: query.get("gclid") || undefined,
+          gbraid: query.get("gbraid") || undefined,
+          wbraid: query.get("wbraid") || undefined,
+          subId: query.get("sub_id") || undefined
+        };
+        const fingerprint = JSON.stringify(payload);
+        if (!attempt || attempt.fingerprint !== fingerprint) {
+          const cryptoApi = globalThis.crypto;
+          let requestKey = cryptoApi && typeof cryptoApi.randomUUID === "function"
+            ? cryptoApi.randomUUID()
+            : null;
+          if (!requestKey && cryptoApi && typeof cryptoApi.getRandomValues === "function") {
+            const bytes = cryptoApi.getRandomValues(new Uint8Array(16));
+            bytes[6] = (bytes[6] & 15) | 64;
+            bytes[8] = (bytes[8] & 63) | 128;
+            const hex = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+            requestKey = hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
+          }
+          if (!requestKey) {
+            if (status) { status.textContent = copy.failed; status.setAttribute("data-state", "error"); }
+            return;
+          }
+          attempt = { fingerprint, key: requestKey };
+        }
         submitting = true;
         const submitters = Array.from(form.querySelectorAll('button[type="submit"], button:not([type]), input[type="submit"], input[type="image"]'));
         const priorDisabled = submitters.map((button) => button.disabled);
         submitters.forEach((button) => { button.disabled = true; });
         if (status) { status.textContent = copy.sending; status.setAttribute("data-state", "pending"); }
+        let accepted = false;
+        const controller = new AbortController();
+        const timeout = window.setTimeout(() => controller.abort(), 15000);
         try {
-          const query = new URLSearchParams(window.location.search);
-          const payload = {
-            formId,
-            name: nameField.value,
-            phone: phoneField.value,
-            utmSource: query.get("utm_source") || undefined,
-            utmMedium: query.get("utm_medium") || undefined,
-            utmCampaign: query.get("utm_campaign") || undefined,
-            utmContent: query.get("utm_content") || undefined,
-            utmTerm: query.get("utm_term") || undefined,
-            ttclid: query.get("ttclid") || undefined,
-            subId: query.get("sub_id") || undefined
-          };
-          const requestId = globalThis.crypto && typeof globalThis.crypto.randomUUID === "function"
-            ? globalThis.crypto.randomUUID()
-            : undefined;
           const response = await fetch(endpoint, {
             method: "POST",
-            headers: { "Content-Type": "application/json", ...(requestId ? { "Idempotency-Key": requestId } : {}) },
-            body: JSON.stringify(payload)
+            headers: { "Content-Type": "application/json", "Idempotency-Key": attempt.key },
+            body: JSON.stringify(payload),
+            signal: controller.signal
           });
           const result = await response.json().catch(() => null);
-          if (!response.ok || result?.success !== true) throw new Error("INTAKE_FAILED");
-          form.reset();
-          if (status) { status.textContent = copy.success; status.setAttribute("data-state", "success"); }
+          if (response.status !== 202 || result?.success !== true || result?.accepted !== true) {
+            throw new Error("INTAKE_FAILED");
+          }
+          accepted = true;
         } catch {
           if (status) { status.textContent = copy.failed; status.setAttribute("data-state", "error"); }
         } finally {
+          window.clearTimeout(timeout);
           submitters.forEach((button, index) => { button.disabled = priorDisabled[index]; });
           submitting = false;
+        }
+        if (accepted) {
+          const isHoneypotSubmission = Boolean(honeypot && honeypot.value.trim());
+          form.reset();
+          attempt = null;
+          if (status) { status.textContent = copy.success; status.setAttribute("data-state", "success"); }
+          if (!isHoneypotSubmission && pixelId && window.ttq && typeof window.ttq.instance === "function") {
+            try {
+              const pixel = window.ttq.instance(pixelId);
+              if (pixel && typeof pixel.track === "function") pixel.track("SubmitForm");
+            } catch { /* Pixel tracking must not change the accepted lead result. */ }
+          }
+          if (
+            !isHoneypotSubmission &&
+            googleAdsConversionId &&
+            googleAdsConversionLabel &&
+            typeof window.gtag === "function"
+          ) {
+            try {
+              window.gtag("event", "conversion", {
+                send_to: googleAdsConversionId + "/" + googleAdsConversionLabel,
+              });
+            } catch { /* Google Ads tracking must not change the accepted lead result. */ }
+          }
         }
       });
     });
@@ -978,12 +1051,34 @@ function adapterScript(formId: string, endpoint: string | null): string {
 `;
 }
 
+function tiktokPixelBaseScript(pixelId: string): string {
+  const safePixelId = safeJavaScriptString(pixelId);
+  return `!function(w,d,t){w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=d.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=d.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};ttq.load(${safePixelId});ttq.page()}(window,document,"ttq");`;
+}
+
+function googleAdsBaseScript(conversionId: string): string {
+  const safeConversionId = safeJavaScriptString(conversionId);
+  return `window.dataLayer=window.dataLayer||[];window.gtag=window.gtag||function(){window.dataLayer.push(arguments)};window.gtag('js',new Date());window.gtag('config',${safeConversionId});var crmoniaGoogleTag=document.createElement('script');crmoniaGoogleTag.async=true;crmoniaGoogleTag.src='https://www.googletagmanager.com/gtag/js?id='+encodeURIComponent(${safeConversionId});var crmoniaFirstScript=document.getElementsByTagName('script')[0];if(crmoniaFirstScript&&crmoniaFirstScript.parentNode)crmoniaFirstScript.parentNode.insertBefore(crmoniaGoogleTag,crmoniaFirstScript);`;
+}
+
+function getTikTokPixelIds(source: string): Set<string> {
+  const ids = new Set<string>();
+  for (const match of source.matchAll(/\bttq\s*\.\s*load\s*\(\s*(['"])([A-Za-z0-9_-]{1,64})\1/gi)) {
+    if (match[2]) ids.add(match[2]);
+  }
+  for (const match of source.matchAll(/[?&]sdkid=([A-Za-z0-9_-]{1,64})/gi)) {
+    if (match[1]) ids.add(match[1]);
+  }
+  return ids;
+}
+
 function addAdapterToHtml(
   html: string,
   formMatch: PreparedSite["formMatch"],
   nameOffset: number,
   phoneOffset: number,
   formId: string,
+  trackingBaseCodes: readonly string[],
 ): string {
   const formHtml = formMatch.html;
   const tagAt = (offset: number): string => {
@@ -1005,7 +1100,11 @@ function addAdapterToHtml(
     /^<form\b/i,
     `<form data-crmonia-intake="1" data-crmonia-form-id="${escapeAttribute(formId)}"`,
   );
-  const withStatus = withFormMarker.replace(
+  const withHoneypot = withFormMarker.replace(
+    /<\/form\s*>$/i,
+    '<label aria-hidden="true" data-crmonia-honeypot style="position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden" tabindex="-1">Website<input name="website" tabindex="-1" autocomplete="off"></label></form>',
+  );
+  const withStatus = withHoneypot.replace(
     /<\/form\s*>$/i,
     '</form><div data-crmonia-intake-status role="status" aria-live="polite"></div>',
   );
@@ -1016,6 +1115,13 @@ function addAdapterToHtml(
   const htmlClose = /<\/html\s*>/i.exec(result);
   const insertAt = bodyClose?.index ?? htmlClose?.index ?? result.length;
   result = result.slice(0, insertAt) + scriptTag + result.slice(insertAt);
+  if (trackingBaseCodes.length > 0) {
+    const trackingScripts = trackingBaseCodes.map((code) => `<script>${code}</script>`).join("");
+    const headClose = /<\/head\s*>/i.exec(result);
+    const adapterAt = result.indexOf(scriptTag);
+    const pixelAt = headClose?.index ?? (adapterAt >= 0 ? adapterAt : result.length);
+    result = result.slice(0, pixelAt) + trackingScripts + result.slice(pixelAt);
+  }
   return result;
 }
 
@@ -1084,18 +1190,64 @@ async function buildZip(entries: OutputZipEntry[]): Promise<Uint8Array> {
 /** Builds a new static ZIP from the private source archive; the source remains untouched. */
 export async function buildAdaptedLandingArchive(
   bytes: Uint8Array,
-  input: { publicFormId: string; intakeEndpoint: string | null },
+  input: {
+    publicFormId: string;
+    intakeEndpoint: string | null;
+    tiktokPixelId?: string | null;
+    googleAdsConversionId?: string | null;
+    googleAdsConversionLabel?: string | null;
+  },
 ): Promise<Uint8Array> {
   if (!/^[0-9a-f-]{36}$/i.test(input.publicFormId)) {
     throw new LandingAdapterError("custom_submit_handler");
   }
+  const pixelId = input.tiktokPixelId?.trim() || null;
+  if (pixelId && !/^[A-Za-z0-9_-]{1,64}$/.test(pixelId)) {
+    throw new LandingAdapterError("tiktok_pixel_conflict");
+  }
+  const googleAdsConversionId = input.googleAdsConversionId?.trim() || null;
+  const googleAdsConversionLabel = input.googleAdsConversionLabel?.trim() || null;
+  if (
+    Boolean(googleAdsConversionId) !== Boolean(googleAdsConversionLabel) ||
+    (googleAdsConversionId !== null && !/^AW-[0-9]{1,20}$/.test(googleAdsConversionId)) ||
+    (googleAdsConversionLabel !== null && !/^[A-Za-z0-9_-]{1,128}$/.test(googleAdsConversionLabel))
+  ) {
+    throw new LandingAdapterError("google_ads_configuration_invalid");
+  }
   const prepared = await prepareSite(bytes);
+  const trackingBaseCodes: string[] = [];
+  const trackingSource = `${prepared.html}\n${prepared.scannedScripts.join("\n")}`;
+  const detectedPixels = detectPixels(trackingSource);
+  if (
+    googleAdsConversionId &&
+    (detectedPixels.includes("google_analytics") ||
+      detectedPixels.includes("google_tag") ||
+      detectedPixels.includes("google_tag_manager") ||
+      detectedPixels.includes("google_ads"))
+  ) {
+    throw new LandingAdapterError("google_ads_tag_conflict");
+  }
+  if (pixelId) {
+    if (detectedPixels.includes("google_tag_manager")) {
+      throw new LandingAdapterError("tiktok_pixel_conflict");
+    }
+    if (detectedPixels.includes("tiktok")) {
+      const installedPixelIds = getTikTokPixelIds(trackingSource);
+      if (installedPixelIds.size !== 1 || !installedPixelIds.has(pixelId)) {
+        throw new LandingAdapterError("tiktok_pixel_conflict");
+      }
+    } else {
+      trackingBaseCodes.push(tiktokPixelBaseScript(pixelId));
+    }
+  }
+  if (googleAdsConversionId) trackingBaseCodes.push(googleAdsBaseScript(googleAdsConversionId));
   const adaptedForm = addAdapterToHtml(
     prepared.html,
     prepared.formMatch,
     prepared.nameFieldOffset,
     prepared.phoneFieldOffset,
     input.publicFormId,
+    trackingBaseCodes,
   );
   const indexBytes = new TextEncoder().encode(adaptedForm);
   const outputEntries: OutputZipEntry[] = [];
@@ -1125,7 +1277,13 @@ export async function buildAdaptedLandingArchive(
   }
   if (outputEntries.length >= MAX_FILES) throw new LandingAdapterError("too_many_files");
   const adapterBytes = new TextEncoder().encode(
-    adapterScript(input.publicFormId, input.intakeEndpoint),
+    adapterScript(
+      input.publicFormId,
+      input.intakeEndpoint,
+      pixelId,
+      googleAdsConversionId,
+      googleAdsConversionLabel,
+    ),
   );
   outputEntries.push({
     name: "crmonia-intake-adapter.js",

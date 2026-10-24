@@ -265,6 +265,21 @@ const uk = {
   "Could not prepare the ZIP": "Не вдалося підготувати ZIP",
   "Landing form connection": "Підключення форми",
   "Published landing origin": "Адреса лендингу",
+  "TikTok Pixel ID (optional)": "ID пікселя TikTok (необов'язково)",
+  "The Pixel ID is public and is stored with this landing.":
+    "ID пікселя є публічним і зберігається разом із цим лендингом.",
+  "Google Ads Conversion ID (optional)": "ID конверсії Google Ads (необов'язково)",
+  "Google Ads Conversion Label (optional)": "Мітка конверсії Google Ads (необов'язково)",
+  "Use the ID and label from the Google Ads conversion tag.":
+    "Візьміть ID і мітку з налаштувань конверсії Google Ads.",
+  "A Google tag is already present. Verify it before enabling Google Ads here.":
+    "У лендингу вже знайдено тег Google. Перевірте його, перш ніж підключати Google Ads тут.",
+  "Enter a valid Google Ads Conversion ID and label.":
+    "Вкажіть коректні ID та мітку конверсії Google Ads.",
+  "A Google tag or Google Tag Manager is already present. Remove it or verify the setup before enabling Google Ads here.":
+    "У лендингу вже є тег Google або Google Tag Manager. Перевірте чи приберіть його перед підключенням Google Ads.",
+  "A TikTok Pixel is already present. The adapter reuses it only when its ID matches; otherwise connection is blocked to avoid duplicate tracking.":
+    "У лендингу вже знайдено TikTok Pixel або Google Tag Manager. Адаптер використає піксель лише за збігу ID. Перевірте налаштування GTM, щоб не дублювати відстеження.",
   "Optional. Enter the exact HTTPS origin when it is known; no wildcard is allowed.":
     "Необов'язково. Коли адреса буде відома, вкажіть точний HTTPS origin без масок.",
   "Connect form": "Підключити форму",
@@ -307,6 +322,8 @@ const uk = {
     "Налаштуйте публічну HTTPS-адресу API на сервері CRM і створіть адаптований ZIP ще раз.",
   "Set the landing page origin to enable submissions and publishing.":
     "Вкажіть origin лендингу, щоб увімкнути надсилання заявок і підготувати його до публікації.",
+  "A TikTok Pixel or Google Tag Manager may already install tracking, but no single matching Pixel ID could be confirmed. Remove or verify the existing integration before adding this Pixel ID.":
+    "У лендингу вже може працювати TikTok Pixel або Google Tag Manager, але підтвердити один відповідний ID не вдалося. Перевірте або приберіть наявне підключення перед додаванням цього Pixel ID.",
   "This offer already uses a different landing origin. Use the existing origin or a separate offer.":
     "Для цього офера вже налаштовано інший origin. Використайте його або створіть окремий офер.",
   "Structure looks recognizable": "Структуру розпізнано",
@@ -318,6 +335,8 @@ const uk = {
   "TikTok Pixel": "TikTok Pixel",
   "Google Analytics": "Google Analytics",
   "Google Tag Manager": "Google Tag Manager",
+  "Google tag": "Тег Google",
+  "Google Ads tag": "Тег Google Ads",
   "No index.html found in the archive.":
     "Не знайдено index.html у корені ZIP-архіву чи в єдиній зовнішній папці.",
   "Could not determine a single site root. Review the archive structure.":
@@ -1105,6 +1124,23 @@ const en: Partial<Record<TranslationKey, string>> = {
   "Detected pixels": "Detected pixels",
   "No known pixels detected": "No known pixels detected",
   "Needs adaptation": "Needs adaptation",
+  "TikTok Pixel ID (optional)": "TikTok Pixel ID (optional)",
+  "The Pixel ID is public and is stored with this landing.":
+    "The Pixel ID is public and is stored with this landing.",
+  "Google Ads Conversion ID (optional)": "Google Ads Conversion ID (optional)",
+  "Google Ads Conversion Label (optional)": "Google Ads Conversion Label (optional)",
+  "Use the ID and label from the Google Ads conversion tag.":
+    "Use the ID and label from the Google Ads conversion tag.",
+  "A Google tag is already present. Verify it before enabling Google Ads here.":
+    "A Google tag is already present. Verify it before enabling Google Ads here.",
+  "Enter a valid Google Ads Conversion ID and label.":
+    "Enter a valid Google Ads Conversion ID and label.",
+  "A Google tag or Google Tag Manager is already present. Remove it or verify the setup before enabling Google Ads here.":
+    "A Google tag or Google Tag Manager is already present. Remove it or verify the setup before enabling Google Ads here.",
+  "A TikTok Pixel is already present. The adapter reuses it only when its ID matches; otherwise connection is blocked to avoid duplicate tracking.":
+    "A TikTok Pixel or Google Tag Manager is already present. The adapter reuses a Pixel only when its ID matches. Verify the GTM setup to avoid duplicate tracking.",
+  "A TikTok Pixel or Google Tag Manager may already install tracking, but no single matching Pixel ID could be confirmed. Remove or verify the existing integration before adding this Pixel ID.":
+    "A TikTok Pixel or Google Tag Manager may already install tracking, but no single matching Pixel ID could be confirmed. Remove or verify the existing integration before adding this Pixel ID.",
   "Structure looks recognizable": "Structure looks recognizable",
   Draft: "Draft",
   Ready: "Ready",
@@ -1114,6 +1150,8 @@ const en: Partial<Record<TranslationKey, string>> = {
   "TikTok Pixel": "TikTok Pixel",
   "Google Analytics": "Google Analytics",
   "Google Tag Manager": "Google Tag Manager",
+  "Google tag": "Google tag",
+  "Google Ads tag": "Google Ads tag",
   "No index.html found in the archive.":
     "No index.html was found at the archive root or in a single top-level folder.",
   "Could not determine a single site root. Review the archive structure.":

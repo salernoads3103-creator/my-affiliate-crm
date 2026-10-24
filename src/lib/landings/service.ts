@@ -48,6 +48,9 @@ function toLandingPage(record: LandingDraftRecord, offerName: string): LandingPa
     has_adapted_archive: Boolean(record.adapted_archive_path),
     adapter_status: record.adapter_status,
     adapter_reason: record.adapter_reason,
+    tiktok_pixel_id: record.tiktok_pixel_id,
+    google_ads_conversion_id: record.google_ads_conversion_id,
+    google_ads_conversion_label: record.google_ads_conversion_label,
     analysis: record.analysis,
   };
 }
@@ -69,6 +72,9 @@ type LandingDraftDbRow = Pick<
   | "adapted_archive_bytes"
   | "adapter_status"
   | "adapter_reason"
+  | "tiktok_pixel_id"
+  | "google_ads_conversion_id"
+  | "google_ads_conversion_label"
   | "analysis"
 >;
 
@@ -90,6 +96,9 @@ function toLandingDraftRecord(data: LandingDraftDbRow): LandingDraftRecord {
     adapter_status: LandingAdapterStatusSchema.parse(data.adapter_status),
     adapter_reason:
       data.adapter_reason === null ? null : LandingAdapterReasonSchema.parse(data.adapter_reason),
+    tiktok_pixel_id: data.tiktok_pixel_id,
+    google_ads_conversion_id: data.google_ads_conversion_id,
+    google_ads_conversion_label: data.google_ads_conversion_label,
     analysis: LandingArchiveAnalysisSchema.parse(data.analysis),
   };
 }
@@ -165,6 +174,9 @@ export class SupabaseLandingRepository implements LandingRepository {
         adapted_archive_bytes: null,
         adapter_status: "not_connected",
         adapter_reason: null,
+        tiktok_pixel_id: null,
+        google_ads_conversion_id: null,
+        google_ads_conversion_label: null,
         intake_public_id: null,
         analysis: input.analysis,
       })
@@ -187,7 +199,7 @@ export class SupabaseLandingRepository implements LandingRepository {
     const { data, error } = await this.privilegedClient
       .from("workspace_landings")
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, intake_public_id, analysis",
       )
       .eq("workspace_id", workspaceId)
       .eq("id", landingId)
@@ -234,7 +246,7 @@ export class SupabaseLandingRepository implements LandingRepository {
       .eq("status", "draft")
       .is("deletion_started_at", null)
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, intake_public_id, analysis",
       )
       .maybeSingle();
     if (error) throw databaseError(error);
@@ -250,6 +262,9 @@ export class SupabaseLandingRepository implements LandingRepository {
     adaptedArchivePath: string | null;
     adaptedArchiveBytes: number | null;
     publicFormId?: string | null;
+    tiktokPixelId?: string | null;
+    googleAdsConversionId?: string | null;
+    googleAdsConversionLabel?: string | null;
     expectedSourceArchivePath?: string;
     expectedOfferId?: string;
   }): Promise<LandingDraftRecord> {
@@ -260,6 +275,13 @@ export class SupabaseLandingRepository implements LandingRepository {
         adapter_reason: input.reason,
         adapted_archive_path: input.adaptedArchivePath,
         adapted_archive_bytes: input.adaptedArchiveBytes,
+        ...(input.tiktokPixelId === undefined ? {} : { tiktok_pixel_id: input.tiktokPixelId }),
+        ...(input.googleAdsConversionId === undefined
+          ? {}
+          : { google_ads_conversion_id: input.googleAdsConversionId }),
+        ...(input.googleAdsConversionLabel === undefined
+          ? {}
+          : { google_ads_conversion_label: input.googleAdsConversionLabel }),
         intake_public_id: input.publicFormId ?? null,
       })
       .eq("workspace_id", input.workspaceId)
@@ -272,7 +294,7 @@ export class SupabaseLandingRepository implements LandingRepository {
     const { data, error } = await query
       .is("deletion_started_at", null)
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, intake_public_id, analysis",
       )
       .maybeSingle();
     if (error) throw databaseError(error);
@@ -436,6 +458,9 @@ export async function createLandingDraft(
     has_adapted_archive: false,
     adapter_status: "not_connected",
     adapter_reason: null,
+    tiktok_pixel_id: null,
+    google_ads_conversion_id: null,
+    google_ads_conversion_label: null,
     analysis: input.analysis,
   };
 }
@@ -526,6 +551,9 @@ export async function connectLandingDraft(
     publicFormId: string;
     allowedOriginConfigured: boolean;
     intakeEndpoint: string | null;
+    tiktokPixelId?: string | null;
+    googleAdsConversionId?: string | null;
+    googleAdsConversionLabel?: string | null;
     createArchiveVersion?: () => string;
   },
 ): Promise<LandingPage> {
@@ -539,12 +567,32 @@ export async function connectLandingDraft(
     current.offer_id,
     true,
   );
+  const tiktokPixelId =
+    input.tiktokPixelId === undefined ? current.tiktok_pixel_id : input.tiktokPixelId;
+  const googleAdsConversionId =
+    input.googleAdsConversionId === undefined
+      ? current.google_ads_conversion_id
+      : input.googleAdsConversionId;
+  const googleAdsConversionLabel =
+    input.googleAdsConversionLabel === undefined
+      ? current.google_ads_conversion_label
+      : input.googleAdsConversionLabel;
+  if (Boolean(googleAdsConversionId) !== Boolean(googleAdsConversionLabel)) {
+    throw new ApiError(
+      400,
+      "Both Google Ads conversion ID and label are required",
+      "VALIDATION_ERROR",
+    );
+  }
   const source = await dependencies.storage.download(current.source_archive_path);
   let adaptedArchive: Uint8Array;
   try {
     adaptedArchive = await buildAdaptedLandingArchive(new Uint8Array(await source.arrayBuffer()), {
       publicFormId: input.publicFormId,
       intakeEndpoint: input.intakeEndpoint,
+      tiktokPixelId,
+      googleAdsConversionId,
+      googleAdsConversionLabel,
     });
   } catch (error) {
     if (!(error instanceof LandingAdapterError)) throw error;
@@ -556,6 +604,9 @@ export async function connectLandingDraft(
       adaptedArchivePath: null,
       adaptedArchiveBytes: null,
       publicFormId: null,
+      tiktokPixelId,
+      googleAdsConversionId,
+      googleAdsConversionLabel,
       expectedSourceArchivePath: current.source_archive_path,
       expectedOfferId: current.offer_id,
     });
@@ -594,6 +645,9 @@ export async function connectLandingDraft(
       adaptedArchivePath: archivePath,
       adaptedArchiveBytes: adaptedArchive.byteLength,
       publicFormId: input.publicFormId,
+      tiktokPixelId,
+      googleAdsConversionId,
+      googleAdsConversionLabel,
       expectedSourceArchivePath: current.source_archive_path,
       expectedOfferId: current.offer_id,
     });
@@ -635,6 +689,24 @@ export async function deleteLandingDraft(
   await dependencies.repository.finishDraftDeletion(input.workspaceId, input.landingId);
 }
 
+export async function getDownloadableAdaptedArchive(
+  dependencies: { repository: LandingRepository; storage: LandingArchiveStorage },
+  input: { workspaceId: string; landingId: string },
+): Promise<Blob> {
+  const landing = await dependencies.repository.getDraft(input.workspaceId, input.landingId);
+  if (!landing) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+  if (landing.status !== "draft" || landing.deletion_started_at) {
+    throw new ApiError(409, "This landing draft is not available", "CONFLICT");
+  }
+  if (landing.adapter_status !== "prepared") {
+    throw new ApiError(409, "The adapted ZIP is not ready to publish", "CONFLICT");
+  }
+  if (!landing.adapted_archive_path) {
+    throw new ApiError(404, "No adapted ZIP is available", "NOT_FOUND");
+  }
+  return dependencies.storage.download(landing.adapted_archive_path);
+}
+
 export class LandingService {
   private readonly repository: SupabaseLandingRepository;
   private readonly storage: SupabaseLandingArchiveStorage;
@@ -654,7 +726,13 @@ export class LandingService {
   async inspectDraftAdapter(
     workspaceId: string,
     landingId: string,
-  ): Promise<{ reason: LandingAdapterReason | null; sourceArchivePath: string }> {
+  ): Promise<{
+    reason: LandingAdapterReason | null;
+    sourceArchivePath: string;
+    tiktokPixelId: string | null;
+    googleAdsConversionId: string | null;
+    googleAdsConversionLabel: string | null;
+  }> {
     const draft = await this.repository.getDraft(workspaceId, landingId);
     if (!draft) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
     if (draft.status !== "draft" || draft.deletion_started_at) {
@@ -664,6 +742,9 @@ export class LandingService {
     return {
       reason: await checkLandingAdapterCompatibility(new Uint8Array(await archive.arrayBuffer())),
       sourceArchivePath: draft.source_archive_path,
+      tiktokPixelId: draft.tiktok_pixel_id,
+      googleAdsConversionId: draft.google_ads_conversion_id,
+      googleAdsConversionLabel: draft.google_ads_conversion_label,
     };
   }
 
@@ -728,14 +809,9 @@ export class LandingService {
   }
 
   async downloadAdaptedArchive(workspaceId: string, landingId: string): Promise<Blob> {
-    const landing = await this.repository.getDraft(workspaceId, landingId);
-    if (!landing) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
-    if (landing.status !== "draft" || landing.deletion_started_at) {
-      throw new ApiError(409, "This landing draft is not available", "CONFLICT");
-    }
-    if (!landing.adapted_archive_path) {
-      throw new ApiError(404, "No adapted ZIP is available", "NOT_FOUND");
-    }
-    return this.storage.download(landing.adapted_archive_path);
+    return getDownloadableAdaptedArchive(
+      { repository: this.repository, storage: this.storage },
+      { workspaceId, landingId },
+    );
   }
 }

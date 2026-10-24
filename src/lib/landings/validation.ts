@@ -40,6 +40,9 @@ export const LandingAdapterReasonSchema = z.enum([
   "archive_too_large",
   "api_url_not_configured",
   "landing_origin_not_configured",
+  "tiktok_pixel_conflict",
+  "google_ads_configuration_invalid",
+  "google_ads_tag_conflict",
 ]) satisfies z.ZodType<LandingAdapterReason>;
 
 export const LandingArchiveAnalysisSchema = z
@@ -80,8 +83,17 @@ export const LandingArchiveAnalysisSchema = z
       )
       .max(20),
     detectedPixels: z
-      .array(z.enum(["meta", "tiktok", "google_analytics", "google_tag_manager"]))
-      .max(4),
+      .array(
+        z.enum([
+          "meta",
+          "tiktok",
+          "google_analytics",
+          "google_tag_manager",
+          "google_tag",
+          "google_ads",
+        ]),
+      )
+      .max(6),
     hasJavaScript: z.boolean(),
     requiresAdaptation: z.boolean(),
     warnings: z
@@ -129,6 +141,18 @@ export const LandingPageSchema = z
     has_adapted_archive: z.boolean(),
     adapter_status: LandingAdapterStatusSchema,
     adapter_reason: LandingAdapterReasonSchema.nullable(),
+    tiktok_pixel_id: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,64}$/)
+      .nullable(),
+    google_ads_conversion_id: z
+      .string()
+      .regex(/^AW-[0-9]{1,20}$/)
+      .nullable(),
+    google_ads_conversion_label: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]{1,128}$/)
+      .nullable(),
     analysis: LandingArchiveAnalysisSchema,
   })
   .strict();

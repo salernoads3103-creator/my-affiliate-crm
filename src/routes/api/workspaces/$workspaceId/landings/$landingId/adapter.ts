@@ -14,7 +14,40 @@ import { LandingService } from "@/lib/landings/service";
 import type { LandingAdapterResponse } from "@/lib/landings/types";
 import { parseLandingRouteId } from "@/lib/landings/http.server";
 
-const connectSchema = z.object({ allowedOrigin: LandingOriginSchema.optional() }).strict();
+const connectSchema = z
+  .object({
+    allowedOrigin: LandingOriginSchema.optional(),
+    tiktokPixelId: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_-]{1,64}$/)
+      .nullable()
+      .optional(),
+    googleAdsConversionId: z
+      .string()
+      .trim()
+      .regex(/^AW-[0-9]{1,20}$/)
+      .nullable()
+      .optional(),
+    googleAdsConversionLabel: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z0-9_-]{1,128}$/)
+      .nullable()
+      .optional(),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const hasId = value.googleAdsConversionId !== undefined;
+    const hasLabel = value.googleAdsConversionLabel !== undefined;
+    if (hasId !== hasLabel) {
+      context.addIssue({ code: "custom", message: "Google Ads ID and label must be set together" });
+      return;
+    }
+    if (hasId && Boolean(value.googleAdsConversionId) !== Boolean(value.googleAdsConversionLabel)) {
+      context.addIssue({ code: "custom", message: "Google Ads ID and label must be set together" });
+    }
+  });
 const PENDING_ORIGIN = "https://pending.crmonia.invalid";
 
 function adapterResponse(page: {
@@ -22,12 +55,18 @@ function adapterResponse(page: {
   adapter_reason: LandingAdapterResponse["adapter_reason"];
   has_adapted_archive: boolean;
   adapted_archive_bytes: number | null;
+  tiktok_pixel_id: string | null;
+  google_ads_conversion_id: string | null;
+  google_ads_conversion_label: string | null;
 }): LandingAdapterResponse {
   return {
     adapter_status: page.adapter_status,
     adapter_reason: page.adapter_reason,
     has_adapted_archive: page.has_adapted_archive,
     adapted_archive_bytes: page.adapted_archive_bytes,
+    tiktok_pixel_id: page.tiktok_pixel_id,
+    google_ads_conversion_id: page.google_ads_conversion_id,
+    google_ads_conversion_label: page.google_ads_conversion_label,
   };
 }
 
@@ -100,6 +139,18 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/landings/$lan
             publicFormId: config.public_id,
             allowedOriginConfigured: config.is_active && config.allowed_origin !== PENDING_ORIGIN,
             intakeEndpoint,
+            tiktokPixelId:
+              parsed.data.tiktokPixelId === undefined
+                ? inspection.tiktokPixelId
+                : parsed.data.tiktokPixelId,
+            googleAdsConversionId:
+              parsed.data.googleAdsConversionId === undefined
+                ? inspection.googleAdsConversionId
+                : parsed.data.googleAdsConversionId,
+            googleAdsConversionLabel:
+              parsed.data.googleAdsConversionLabel === undefined
+                ? inspection.googleAdsConversionLabel
+                : parsed.data.googleAdsConversionLabel,
           });
           return accessSuccessResponse(adapterResponse(page));
         } catch (error) {

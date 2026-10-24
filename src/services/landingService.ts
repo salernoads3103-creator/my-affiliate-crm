@@ -38,9 +38,18 @@ export const landingService = {
   ) => accessApi.patchForm<LandingPage>(itemPath(workspaceId, landingId), toFormData(input)),
   deleteDraft: (workspaceId: string, landingId: string) =>
     accessApi.delete<{ deleted: boolean }>(itemPath(workspaceId, landingId)),
-  connectForm: (workspaceId: string, landingId: string, allowedOrigin?: string) =>
+  connectForm: (
+    workspaceId: string,
+    landingId: string,
+    input: {
+      allowedOrigin?: string;
+      tiktokPixelId: string | null;
+      googleAdsConversionId: string | null;
+      googleAdsConversionLabel: string | null;
+    },
+  ) =>
     accessApi.post<LandingAdapterResponse>(adapterPath(workspaceId, landingId), {
-      ...(allowedOrigin ? { allowedOrigin } : {}),
+      ...input,
     }),
   downloadAdaptedArchive: (workspaceId: string, landingId: string) =>
     accessApi.getBlob(adapterPath(workspaceId, landingId)),
