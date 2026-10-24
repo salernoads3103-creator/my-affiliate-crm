@@ -476,17 +476,31 @@ function LandingsPage() {
         toast.success(t("Landing form connected"));
       }
     },
-    onError: (error) =>
-      toast.error(localizeError(error, t("Could not connect the landing form."), locale)),
+    onError: async (error, input) => {
+      toast.error(localizeError(error, t("Could not connect the landing form."), locale));
+      const refreshed = await landingsQuery.refetch();
+      const latest = refreshed.data?.landings.find((landing) => landing.id === input.landingId);
+      if (latest) setAnalysisLanding(latest);
+      await queryClient.invalidateQueries({
+        queryKey: ["landing-tracking-config", workspaceId, input.landingId],
+      });
+    },
   });
   const downloadAdapterMutation = useMutation({
-    mutationFn: (landingId: string) => {
+    mutationFn: (input: { landingId: string; version: "current" | "previous" }) => {
       if (!workspaceId) throw new Error("Workspace is unavailable");
-      return landingService.downloadAdaptedArchive(workspaceId, landingId);
+      return landingService.downloadAdaptedArchive(workspaceId, input.landingId, input.version);
     },
-    onSuccess: (archive) => {
-      downloadBlob(archive, "crmonia-landing-adapted.zip");
-      toast.success(t("Adapted ZIP downloaded"));
+    onSuccess: (archive, input) => {
+      downloadBlob(
+        archive,
+        input.version === "previous"
+          ? "crmonia-landing-previous.zip"
+          : "crmonia-landing-adapted.zip",
+      );
+      toast.success(
+        t(input.version === "previous" ? "Previous ZIP downloaded" : "Adapted ZIP downloaded"),
+      );
     },
     onError: (error) =>
       toast.error(localizeError(error, t("Could not download the adapted ZIP."), locale)),
@@ -516,6 +530,13 @@ function LandingsPage() {
   const adapterInputsChanged = trackingSelectionChanged || originSelectionChanged;
   const zipReadyForCurrentSelection = Boolean(
     trackingConfiguration?.readiness.zipReady && !adapterInputsChanged,
+  );
+  const previousZipAvailable = Boolean(
+    analysisLanding?.has_adapted_archive &&
+    (adapterInputsChanged ||
+      trackingConfiguration?.needsRepublish ||
+      analysisLanding.adapter_status === "needs_adaptation" ||
+      analysisLanding.adapter_status === "error"),
   );
   const tiktokProfiles = (trackingProfilesQuery.data ?? []).filter(
     (profile) =>
@@ -1002,6 +1023,13 @@ function LandingsPage() {
                           {t("A current ZIP is required before download.")}
                         </p>
                       )}
+                    {previousZipAvailable && (
+                      <p className="text-amber-800 dark:text-amber-200">
+                        {t(
+                          "The previous ZIP is retained for recovery. It may not match the current origin or tracking settings.",
+                        )}
+                      </p>
+                    )}
                     <p className="text-muted-foreground">
                       {t(
                         "This checks configuration only; DNS, HTTPS reachability, and publication are not verified.",
@@ -1077,7 +1105,12 @@ function LandingsPage() {
                     zipReadyForCurrentSelection && (
                       <Button
                         variant="outline"
-                        onClick={() => downloadAdapterMutation.mutate(analysisLanding.id)}
+                        onClick={() =>
+                          downloadAdapterMutation.mutate({
+                            landingId: analysisLanding.id,
+                            version: "current",
+                          })
+                        }
                         disabled={
                           downloadAdapterMutation.isPending || connectFormMutation.isPending
                         }
@@ -1090,6 +1123,25 @@ function LandingsPage() {
                         {t("Download ZIP")}
                       </Button>
                     )}
+                  {previousZipAvailable && (
+                    <Button
+                      variant="outline"
+                      onClick={() =>
+                        downloadAdapterMutation.mutate({
+                          landingId: analysisLanding.id,
+                          version: "previous",
+                        })
+                      }
+                      disabled={downloadAdapterMutation.isPending || connectFormMutation.isPending}
+                    >
+                      {downloadAdapterMutation.isPending ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Download className="mr-2 h-4 w-4" />
+                      )}
+                      {t("Download previous ZIP")}
+                    </Button>
+                  )}
                 </div>
               </section>
             )}

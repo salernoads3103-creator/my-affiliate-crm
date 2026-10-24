@@ -373,7 +373,7 @@ export class SupabaseLandingRepository implements LandingRepository {
         ...(input.adaptedBuildFingerprint === undefined
           ? {}
           : { adapted_build_fingerprint: input.adaptedBuildFingerprint }),
-        intake_public_id: input.publicFormId ?? null,
+        ...(input.publicFormId === undefined ? {} : { intake_public_id: input.publicFormId }),
       })
       .eq("workspace_id", input.workspaceId)
       .eq("id", input.landingId)
@@ -693,90 +693,59 @@ export async function connectLandingDraft(
       "VALIDATION_ERROR",
     );
   }
-  const source = await dependencies.storage.download(current.source_archive_path);
-  const sourceBytes = new Uint8Array(await source.arrayBuffer());
-  let adaptedArchive: Uint8Array;
+  let archivePath: string | null = null;
   try {
-    adaptedArchive = await buildAdaptedLandingArchive(sourceBytes, {
+    const source = await dependencies.storage.download(current.source_archive_path);
+    const sourceBytes = new Uint8Array(await source.arrayBuffer());
+    const adaptedArchive = await buildAdaptedLandingArchive(sourceBytes, {
       publicFormId: input.publicFormId,
       intakeEndpoint: input.intakeEndpoint,
       tiktokPixelId,
       googleAdsConversionId,
       googleAdsConversionLabel,
     });
-  } catch (error) {
-    if (!(error instanceof LandingAdapterError)) throw error;
-    const updated = await dependencies.repository.updateAdapter({
+
+    const reason = !input.intakeEndpoint
+      ? "api_url_not_configured"
+      : !input.allowedOriginConfigured
+        ? "landing_origin_not_configured"
+        : null;
+    const status = reason ? "configuration_required" : "prepared";
+    const buildFingerprint = await landingBuildFingerprint({
+      sourceArchiveSha256: await sha256Hex(sourceBytes),
       workspaceId: input.workspaceId,
-      landingId: input.landingId,
-      status: "needs_adaptation",
-      reason: error.reason,
-      adaptedArchivePath: null,
-      adaptedArchiveBytes: null,
-      publicFormId: null,
-      tiktokPixelId,
-      googleAdsConversionId,
-      googleAdsConversionLabel,
-      tiktokTrackingProfileId,
-      googleAdsTrackingProfileId,
-      adaptedTrackingFingerprint: null,
-      adaptedBuildFingerprint: null,
-      expectedSourceArchivePath: current.source_archive_path,
-      expectedOfferId: current.offer_id,
+      offer: {
+        id: offer.id,
+        name: offer.name,
+        priceMinor: offer.priceMinor,
+        productId: offer.productId,
+        isActive: offer.isActive,
+        landingUrl: offer.landingUrl,
+      },
+      formId: input.publicFormId,
+      allowedOrigin: input.allowedOrigin ?? formConfig?.allowedOrigin ?? null,
+      formActive: input.formActive ?? formConfig?.isActive ?? input.allowedOriginConfigured,
+      intakeEndpoint: input.intakeEndpoint,
+      tracking: {
+        tiktokProfileId: tiktokTrackingProfileId,
+        tiktokPixelId,
+        googleAdsProfileId: googleAdsTrackingProfileId,
+        googleAdsConversionId,
+        googleAdsConversionLabel,
+        tiktokProfileActive: input.tiktokProfileActive ?? true,
+        googleAdsProfileActive: input.googleAdsProfileActive ?? true,
+      },
     });
-    if (current.adapted_archive_path) {
-      try {
-        await dependencies.storage.remove(current.adapted_archive_path);
-      } catch (cleanupError) {
-        console.error("[landings] Could not remove an obsolete adapted archive", cleanupError);
-      }
-    }
-    return toLandingPage(updated, offer.name);
-  }
+    const version = input.createArchiveVersion?.() ?? crypto.randomUUID();
+    archivePath = `${input.workspaceId}/${input.landingId}/adapted-${version}.zip`;
+    const adaptedBuffer = new ArrayBuffer(adaptedArchive.byteLength);
+    new Uint8Array(adaptedBuffer).set(adaptedArchive);
+    await dependencies.storage.put(
+      archivePath,
+      new Blob([adaptedBuffer], { type: "application/zip" }),
+    );
 
-  const reason = !input.intakeEndpoint
-    ? "api_url_not_configured"
-    : !input.allowedOriginConfigured
-      ? "landing_origin_not_configured"
-      : null;
-  const status = reason ? "configuration_required" : "prepared";
-  const buildFingerprint = await landingBuildFingerprint({
-    sourceArchiveSha256: await sha256Hex(sourceBytes),
-    workspaceId: input.workspaceId,
-    offer: {
-      id: offer.id,
-      name: offer.name,
-      priceMinor: offer.priceMinor,
-      productId: offer.productId,
-      isActive: offer.isActive,
-      landingUrl: offer.landingUrl,
-    },
-    formId: input.publicFormId,
-    allowedOrigin: input.allowedOrigin ?? formConfig?.allowedOrigin ?? null,
-    formActive: input.formActive ?? formConfig?.isActive ?? input.allowedOriginConfigured,
-    intakeEndpoint: input.intakeEndpoint,
-    tracking: {
-      tiktokProfileId: tiktokTrackingProfileId,
-      tiktokPixelId,
-      tiktokProfileActive: input.tiktokProfileActive ?? true,
-      googleAdsProfileId: googleAdsTrackingProfileId,
-      googleAdsConversionId,
-      googleAdsConversionLabel,
-      googleAdsProfileActive: input.googleAdsProfileActive ?? true,
-    },
-  });
-  const version = input.createArchiveVersion?.() ?? crypto.randomUUID();
-  const archivePath = `${input.workspaceId}/${input.landingId}/adapted-${version}.zip`;
-  const adaptedBuffer = new ArrayBuffer(adaptedArchive.byteLength);
-  new Uint8Array(adaptedBuffer).set(adaptedArchive);
-  await dependencies.storage.put(
-    archivePath,
-    new Blob([adaptedBuffer], { type: "application/zip" }),
-  );
-
-  let updated: LandingDraftRecord;
-  try {
-    updated = await dependencies.repository.updateAdapter({
+    const updated = await dependencies.repository.updateAdapter({
       workspaceId: input.workspaceId,
       landingId: input.landingId,
       status,
@@ -800,23 +769,48 @@ export async function connectLandingDraft(
       expectedSourceArchivePath: current.source_archive_path,
       expectedOfferId: current.offer_id,
     });
+    archivePath = null;
+
+    if (current.adapted_archive_path) {
+      try {
+        await dependencies.storage.remove(current.adapted_archive_path);
+      } catch (cleanupError) {
+        console.error("[landings] Could not remove the previous adapted archive", cleanupError);
+      }
+    }
+    return toLandingPage(updated, offer.name);
   } catch (error) {
+    if (archivePath) {
+      try {
+        await dependencies.storage.remove(archivePath);
+      } catch (cleanupError) {
+        console.error("[landings] Could not remove an unused adapted archive", cleanupError);
+      }
+    }
+    const isAdapterError = error instanceof LandingAdapterError;
     try {
-      await dependencies.storage.remove(archivePath);
-    } catch (cleanupError) {
-      console.error("[landings] Could not remove an unused adapted archive", cleanupError);
+      const updated = await dependencies.repository.updateAdapter({
+        workspaceId: input.workspaceId,
+        landingId: input.landingId,
+        status: isAdapterError ? "needs_adaptation" : "error",
+        reason: isAdapterError ? error.reason : null,
+        adaptedArchivePath: current.adapted_archive_path,
+        adaptedArchiveBytes: current.adapted_archive_bytes,
+        publicFormId: input.publicFormId,
+        tiktokPixelId,
+        googleAdsConversionId,
+        googleAdsConversionLabel,
+        tiktokTrackingProfileId,
+        googleAdsTrackingProfileId,
+        expectedSourceArchivePath: current.source_archive_path,
+        expectedOfferId: current.offer_id,
+      });
+      if (isAdapterError) return toLandingPage(updated, offer.name);
+    } catch (persistError) {
+      console.error("[landings] Could not record the failed preparation", persistError);
     }
     throw error;
   }
-
-  if (current.adapted_archive_path && current.adapted_archive_path !== archivePath) {
-    try {
-      await dependencies.storage.remove(current.adapted_archive_path);
-    } catch (cleanupError) {
-      console.error("[landings] Could not remove the previous adapted archive", cleanupError);
-    }
-  }
-  return toLandingPage(updated, offer.name);
 }
 
 export async function deleteLandingDraft(
@@ -856,6 +850,21 @@ export async function getDownloadableAdaptedArchive(
   }
   if (!landing.adapted_archive_path) {
     throw new ApiError(404, "No adapted ZIP is available", "NOT_FOUND");
+  }
+  return dependencies.storage.download(landing.adapted_archive_path);
+}
+
+export async function getDownloadablePreviousAdaptedArchive(
+  dependencies: { repository: LandingRepository; storage: LandingArchiveStorage },
+  input: { workspaceId: string; landingId: string },
+): Promise<Blob> {
+  const landing = await dependencies.repository.getDraft(input.workspaceId, input.landingId);
+  if (!landing) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+  if (landing.status !== "draft" || landing.deletion_started_at) {
+    throw new ApiError(409, "This landing draft is not available", "CONFLICT");
+  }
+  if (!landing.adapted_archive_path) {
+    throw new ApiError(404, "No previous adapted ZIP is available", "NOT_FOUND");
   }
   return dependencies.storage.download(landing.adapted_archive_path);
 }
@@ -918,21 +927,11 @@ export class LandingService {
       landingId,
       status: "needs_adaptation",
       reason,
-      adaptedArchivePath: null,
-      adaptedArchiveBytes: null,
-      publicFormId: null,
-      adaptedTrackingFingerprint: null,
-      adaptedBuildFingerprint: null,
+      adaptedArchivePath: draft.adapted_archive_path,
+      adaptedArchiveBytes: draft.adapted_archive_bytes,
       expectedSourceArchivePath,
       expectedOfferId: draft.offer_id,
     });
-    if (draft.adapted_archive_path) {
-      try {
-        await this.storage.remove(draft.adapted_archive_path);
-      } catch (cleanupError) {
-        console.error("[landings] Could not remove an obsolete adapted archive", cleanupError);
-      }
-    }
     const offer = await this.repository.ensureOffer(workspaceId, draft.offer_id, false);
     return toLandingPage(updated, offer.name);
   }
@@ -986,6 +985,13 @@ export class LandingService {
       { repository: this.repository, storage: this.storage },
       { workspaceId, landingId },
       readiness.currentFingerprint,
+    );
+  }
+
+  async downloadPreviousAdaptedArchive(workspaceId: string, landingId: string): Promise<Blob> {
+    return getDownloadablePreviousAdaptedArchive(
+      { repository: this.repository, storage: this.storage },
+      { workspaceId, landingId },
     );
   }
 

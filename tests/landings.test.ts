@@ -12,6 +12,7 @@ import {
   createLandingDraft,
   deleteLandingDraft,
   getDownloadableAdaptedArchive,
+  getDownloadablePreviousAdaptedArchive,
   updateLandingDraft,
 } from "../src/lib/landings/service";
 import { requireWorkspacePermission, type AccessContext } from "../src/lib/access/access.server";
@@ -271,6 +272,7 @@ function fakeDependencies() {
   let inserted: Parameters<LandingRepository["insertDraft"]>[0] | null = null;
   const uploadedPaths: string[] = [];
   const removedPaths: string[] = [];
+  const downloadedPaths: string[] = [];
   let statusAfterFailure = "draft";
   let record: LandingDraftRecord | null = null;
   let failUpdate = false;
@@ -431,7 +433,7 @@ function fakeDependencies() {
         ...(input.adaptedBuildFingerprint === undefined
           ? {}
           : { adapted_build_fingerprint: input.adaptedBuildFingerprint }),
-        intake_public_id: input.publicFormId ?? null,
+        ...(input.publicFormId === undefined ? {} : { intake_public_id: input.publicFormId }),
       };
       return { ...record };
     },
@@ -459,6 +461,7 @@ function fakeDependencies() {
       archiveObjects.delete(path);
     },
     async download(path) {
+      downloadedPaths.push(path);
       const archive = archiveObjects.get(path);
       if (!archive) throw new Error("archive not found");
       return archive;
@@ -475,6 +478,9 @@ function fakeDependencies() {
     },
     get removedPaths() {
       return removedPaths;
+    },
+    get downloadedPaths() {
+      return downloadedPaths;
     },
     get statusAfterFailure() {
       return statusAfterFailure;
@@ -576,6 +582,28 @@ describe("Landing Factory ZIP intake", () => {
     expect(archiveText).not.toContain("workspace_id");
     expect(archiveText).not.toContain(TEST_WORKSPACE_ID);
     expect(archiveText).not.toContain("supabase.co");
+  });
+
+  it("uses a free adapter filename and preserves a same-named source asset", async () => {
+    const sourceScript = "window.originalLandingScript = true;";
+    const adapted = await buildAdaptedLandingArchive(
+      makeZip([
+        { name: "index.html", content: validHtml },
+        { name: "crmonia-intake-adapter.js", content: sourceScript },
+      ]),
+      {
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        intakeEndpoint: "https://crm.example.test/api/v1/intake/leads",
+      },
+    );
+
+    expect(readStoredZipEntry(adapted, "crmonia-intake-adapter.js")).toBe(sourceScript);
+    expect(readStoredZipEntry(adapted, "crmonia-intake-adapter-1.js")).toContain(
+      "api/v1/intake/leads",
+    );
+    expect(readStoredZipEntry(adapted, "index.html")).toContain(
+      '<script src="crmonia-intake-adapter-1.js" defer></script>',
+    );
   });
 
   it("injects one TikTok base code and honeypot, then tracks SubmitForm only after API acceptance", async () => {
@@ -1500,7 +1528,10 @@ describe("Landing Factory ZIP intake", () => {
 
   it("rebuilds from the original and replaces its adapted archive without duplicate handlers", async () => {
     const dependencies = fakeDependencies();
-    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const source = makeZip([
+      { name: "index.html", content: validHtml },
+      { name: "crmonia-intake-adapter.js", content: "window.originalLandingScript = true;" },
+    ]);
     const analysis = await analyzeLandingArchive(source);
     await createLandingDraft(
       { repository: dependencies.repository, storage: dependencies.storage },
@@ -1514,6 +1545,7 @@ describe("Landing Factory ZIP intake", () => {
         createId: () => TEST_LANDING_ID,
       },
     );
+    const sourcePath = dependencies.record!.source_archive_path;
     const input = {
       workspaceId: TEST_WORKSPACE_ID,
       landingId: TEST_LANDING_ID,
@@ -1526,16 +1558,113 @@ describe("Landing Factory ZIP intake", () => {
       { ...input, createArchiveVersion: () => "77777777-7777-4777-8777-777777777777" },
     );
     const firstPath = dependencies.record!.adapted_archive_path!;
+    const firstFingerprint = dependencies.record!.adapted_build_fingerprint;
     await connectLandingDraft(
       { repository: dependencies.repository, storage: dependencies.storage },
-      { ...input, createArchiveVersion: () => "88888888-8888-4888-8888-888888888888" },
+      {
+        ...input,
+        allowedOrigin: "https://updated-shop.example.com",
+        tiktokPixelId: "TT-UPDATED-PIXEL",
+        tiktokTrackingProfileId: "99999999-9999-4999-8999-999999999999",
+        createArchiveVersion: () => "88888888-8888-4888-8888-888888888888",
+      },
     );
 
     expect(dependencies.record?.adapter_status).toBe("prepared");
+    expect(dependencies.record?.adapted_build_fingerprint).not.toBe(firstFingerprint);
     expect(dependencies.removedPaths).toContain(firstPath);
+    expect(dependencies.downloadedPaths).toEqual([sourcePath, sourcePath]);
     const current = await dependencies.storage.download(dependencies.record!.adapted_archive_path!);
-    const text = new TextDecoder().decode(new Uint8Array(await current.arrayBuffer()));
+    const currentBytes = new Uint8Array(await current.arrayBuffer());
+    const text = new TextDecoder().decode(currentBytes);
     expect((text.match(/<form data-crmonia-intake="1"/g) ?? []).length).toBe(1);
+    expect(readStoredZipEntry(currentBytes, "index.html")).toContain(
+      'ttq.load("TT-UPDATED-PIXEL")',
+    );
+    expect(readStoredZipEntry(currentBytes, "crmonia-intake-adapter.js")).toBe(
+      "window.originalLandingScript = true;",
+    );
+    expect(readStoredZipEntry(currentBytes, "crmonia-intake-adapter-1.js")).toContain(
+      "api/v1/intake/leads",
+    );
+  });
+
+  it("keeps a stale previous ZIP available when a changed Pixel conflicts during rebuild", async () => {
+    const dependencies = fakeDependencies();
+    const source = makeZip([
+      {
+        name: "index.html",
+        content: `${validHtml}<script>ttq.load("TT-ORIGINAL-PIXEL")</script>`,
+      },
+    ]);
+    const analysis = await analyzeLandingArchive(source);
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob([source]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+    const first = await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        allowedOriginConfigured: true,
+        allowedOrigin: "https://shop.example.com",
+        formActive: true,
+        intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+        createArchiveVersion: () => "77777777-7777-4777-8777-777777777777",
+      },
+    );
+    const previousPath = dependencies.record!.adapted_archive_path!;
+    const previousFingerprint = dependencies.record!.adapted_build_fingerprint;
+
+    const failedRebuild = await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        allowedOriginConfigured: true,
+        allowedOrigin: "https://new-shop.example.com",
+        formActive: true,
+        intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+        tiktokPixelId: "TT-NEW-PIXEL",
+        tiktokTrackingProfileId: "99999999-9999-4999-8999-999999999999",
+        createArchiveVersion: () => "88888888-8888-4888-8888-888888888888",
+      },
+    );
+
+    expect(first.adapter_status).toBe("prepared");
+    expect(failedRebuild.adapter_status).toBe("needs_adaptation");
+    expect(failedRebuild.adapter_reason).toBe("tiktok_pixel_conflict");
+    expect(failedRebuild.has_adapted_archive).toBe(true);
+    expect(dependencies.record?.adapted_archive_path).toBe(previousPath);
+    expect(dependencies.record?.adapted_build_fingerprint).toBe(previousFingerprint);
+    expect(dependencies.record?.intake_public_id).toBe("66666666-6666-4666-8666-666666666666");
+    expect(dependencies.record?.tiktok_pixel_id).toBe("TT-NEW-PIXEL");
+    expect(dependencies.removedPaths).not.toContain(previousPath);
+    expect(await dependencies.storage.download(previousPath)).toBeInstanceOf(Blob);
+    await expect(
+      getDownloadablePreviousAdaptedArchive(dependencies, {
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+      }),
+    ).resolves.toBeInstanceOf(Blob);
+    await expect(
+      getDownloadableAdaptedArchive(
+        dependencies,
+        { workspaceId: TEST_WORKSPACE_ID, landingId: TEST_LANDING_ID },
+        "changed-build-fingerprint",
+      ),
+    ).rejects.toMatchObject({ status: 409 });
   });
 
   it("marks the draft as error if the private archive upload fails", async () => {

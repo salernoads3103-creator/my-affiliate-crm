@@ -54,8 +54,14 @@ export const landingService = {
     accessApi.post<LandingAdapterResponse>(adapterPath(workspaceId, landingId), {
       ...input,
     }),
-  downloadAdaptedArchive: (workspaceId: string, landingId: string) =>
-    accessApi.getBlob(adapterPath(workspaceId, landingId)),
+  downloadAdaptedArchive: (
+    workspaceId: string,
+    landingId: string,
+    version: "current" | "previous" = "current",
+  ) =>
+    accessApi.getBlob(
+      `${adapterPath(workspaceId, landingId)}${version === "previous" ? "?version=previous" : ""}`,
+    ),
   trackingConfiguration: (workspaceId: string, landingId: string) =>
     accessApi.get<LandingTrackingConfiguration>(
       `/api/workspaces/${workspaceId}/landings/${landingId}/tracking-config`,

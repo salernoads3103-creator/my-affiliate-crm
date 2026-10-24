@@ -184,10 +184,15 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/landings/$lan
           const landingId = parseLandingRouteId(params.landingId, "landing");
           const context = await requireAccessContext(request);
           await requireWorkspacePermission(context, workspaceId, "landing_pages.manage");
-          const archive = await new LandingService(context.client).downloadAdaptedArchive(
-            workspaceId,
-            landingId,
-          );
+          const version = new URL(request.url).searchParams.get("version");
+          if (version !== null && version !== "previous") {
+            throw new ApiError(400, "Unsupported adapted ZIP version", "VALIDATION_ERROR");
+          }
+          const service = new LandingService(context.client);
+          const archive =
+            version === "previous"
+              ? await service.downloadPreviousAdaptedArchive(workspaceId, landingId)
+              : await service.downloadAdaptedArchive(workspaceId, landingId);
           return new Response(archive, {
             status: 200,
             headers: {

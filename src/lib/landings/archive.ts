@@ -625,6 +625,7 @@ export async function analyzeLandingArchive(bytes: Uint8Array): Promise<LandingA
 type PreparedSite = {
   entries: ZipEntry[];
   root: SiteRootSelection;
+  adapterAssetName: string;
   html: string;
   scannedScripts: string[];
   formMatch: { index: number; html: string; analyzedMarkup: string };
@@ -726,13 +727,16 @@ async function prepareSite(bytes: Uint8Array): Promise<PreparedSite> {
   }
 
   const siteEntries = files.filter((entry) => entry.name.startsWith(root.siteRootPath!));
-  if (
-    siteEntries.some(
-      (entry) =>
-        entry.name.slice(root.siteRootPath!.length).toLowerCase() === "crmonia-intake-adapter.js",
-    )
-  ) {
-    throw new LandingAdapterError("adapter_asset_collision");
+  const sitePaths = new Set(
+    parsed.entries
+      .filter((entry) => entry.name.startsWith(root.siteRootPath!))
+      .map((entry) => entry.name.slice(root.siteRootPath!.length).toLowerCase()),
+  );
+  let adapterAssetName = "crmonia-intake-adapter.js";
+  let suffix = 0;
+  while (sitePaths.has(adapterAssetName.toLowerCase())) {
+    suffix += 1;
+    adapterAssetName = `crmonia-intake-adapter-${suffix}.js`;
   }
 
   let htmlBytes: Uint8Array | null = null;
@@ -851,6 +855,7 @@ async function prepareSite(bytes: Uint8Array): Promise<PreparedSite> {
   return {
     entries: siteEntries,
     root,
+    adapterAssetName,
     html,
     scannedScripts: scripts,
     formMatch: { index: formStart, html: formHtml, analyzedMarkup: analyzedMatch[0] },
@@ -1078,6 +1083,7 @@ function addAdapterToHtml(
   nameOffset: number,
   phoneOffset: number,
   formId: string,
+  adapterAssetName: string,
   trackingBaseCodes: readonly string[],
 ): string {
   const formHtml = formMatch.html;
@@ -1108,7 +1114,7 @@ function addAdapterToHtml(
     /<\/form\s*>$/i,
     '</form><div data-crmonia-intake-status role="status" aria-live="polite"></div>',
   );
-  const scriptTag = '<script src="crmonia-intake-adapter.js" defer></script>';
+  const scriptTag = `<script src="${adapterAssetName}" defer></script>`;
   const at = formMatch.index;
   let result = html.slice(0, at) + withStatus + html.slice(at + formHtml.length);
   const bodyClose = /<\/body\s*>/i.exec(result);
@@ -1247,6 +1253,7 @@ export async function buildAdaptedLandingArchive(
     prepared.nameFieldOffset,
     prepared.phoneFieldOffset,
     input.publicFormId,
+    prepared.adapterAssetName,
     trackingBaseCodes,
   );
   const indexBytes = new TextEncoder().encode(adaptedForm);
@@ -1286,12 +1293,30 @@ export async function buildAdaptedLandingArchive(
     ),
   );
   outputEntries.push({
-    name: "crmonia-intake-adapter.js",
+    name: prepared.adapterAssetName,
     method: 0,
     crc32: checksum(adapterBytes),
     uncompressedSize: adapterBytes.byteLength,
     compressed: adapterBytes,
   });
   const result = await buildZip(outputEntries);
+  const verifiedEntries = parseEntries(result).entries.filter((entry) => !entry.isDirectory);
+  const verifiedIndex = verifiedEntries.find((entry) => entry.name.toLowerCase() === "index.html");
+  const verifiedAdapter = verifiedEntries.find(
+    (entry) => entry.name.toLowerCase() === prepared.adapterAssetName.toLowerCase(),
+  );
+  const verifiedIndexBytes = verifiedIndex
+    ? await inspectEntryContent(result, verifiedIndex, MAX_INDEX_HTML_BYTES)
+    : null;
+  const verifiedHtml = verifiedIndexBytes
+    ? new TextDecoder("utf-8", { fatal: true }).decode(verifiedIndexBytes)
+    : "";
+  if (
+    !verifiedAdapter ||
+    !verifiedHtml.includes(`<script src="${prepared.adapterAssetName}" defer></script>`) ||
+    (verifiedHtml.match(/data-crmonia-intake="1"/g) ?? []).length !== 1
+  ) {
+    throw new LandingAdapterError("invalid_archive");
+  }
   return result;
 }

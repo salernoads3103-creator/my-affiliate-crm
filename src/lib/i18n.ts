@@ -390,7 +390,11 @@ const uk = {
     "Адаптований ZIP збережено, але потрібно завершити налаштування.",
   "Could not connect the landing form.": "Не вдалося підключити форму лендингу.",
   "Adapted ZIP downloaded": "Адаптований ZIP завантажено",
+  "Previous ZIP downloaded": "Попередню версію ZIP завантажено",
   "Could not download the adapted ZIP.": "Не вдалося завантажити адаптований ZIP.",
+  "Download previous ZIP": "Завантажити попередній ZIP",
+  "The previous ZIP is retained for recovery. It may not match the current origin or tracking settings.":
+    "Попередню версію ZIP збережено для відновлення. Вона може не відповідати поточному домену або налаштуванням пікселів.",
   "The archive does not contain index.html.": "В архіві немає index.html.",
   "The site root is unclear. Keep one index.html at the archive root.":
     "Не вдалося визначити корінь сайту. Залиште один index.html у корені архіву.",
