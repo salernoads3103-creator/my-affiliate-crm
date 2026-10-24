@@ -15,6 +15,7 @@ import {
   Package,
   Tag,
   Files,
+  ShoppingCart,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -55,6 +56,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       ? [{ to: "/products" as const, label: "Products", icon: Package }]
       : []),
     ...(permissions["offers.read"] ? [{ to: "/offers" as const, label: "Offers", icon: Tag }] : []),
+    ...(permissions["orders.read"] || permissions["orders.manage"]
+      ? [{ to: "/orders" as const, label: "Orders", icon: ShoppingCart }]
+      : []),
     ...(permissions["landing_pages.read"] || permissions["landing_pages.manage"]
       ? [{ to: "/landings" as const, label: "Landing pages", icon: Files }]
       : []),

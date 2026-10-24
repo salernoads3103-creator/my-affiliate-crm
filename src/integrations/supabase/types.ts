@@ -218,6 +218,87 @@ export type Database = {
         };
         Relationships: [];
       };
+      workspace_orders: {
+        Row: {
+          buyer_email: string | null;
+          buyer_name: string;
+          buyer_phone: string;
+          cancelled_at: string | null;
+          confirmed_at: string | null;
+          created_at: string;
+          created_by_user_id: string | null;
+          currency: string;
+          id: string;
+          idempotency_key: string;
+          lead_id: string;
+          offer_id: string;
+          offer_name_snapshot: string;
+          operator_comment: string | null;
+          product_id: string;
+          product_name_snapshot: string;
+          product_sku_snapshot: string | null;
+          quantity: number;
+          status: "draft" | "confirmed" | "cancelled";
+          total_amount_minor: number;
+          unit_price_minor: number;
+          updated_at: string;
+          updated_by_user_id: string | null;
+          workspace_id: string;
+        };
+        Insert: {
+          buyer_email?: string | null;
+          buyer_name: string;
+          buyer_phone: string;
+          cancelled_at?: string | null;
+          confirmed_at?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          currency?: string;
+          id?: string;
+          idempotency_key: string;
+          lead_id: string;
+          offer_id: string;
+          offer_name_snapshot: string;
+          operator_comment?: string | null;
+          product_id: string;
+          product_name_snapshot: string;
+          product_sku_snapshot?: string | null;
+          quantity?: number;
+          status?: "draft" | "confirmed" | "cancelled";
+          total_amount_minor?: never;
+          unit_price_minor: number;
+          updated_at?: string;
+          updated_by_user_id?: string | null;
+          workspace_id: string;
+        };
+        Update: {
+          buyer_email?: string | null;
+          buyer_name?: string;
+          buyer_phone?: string;
+          cancelled_at?: string | null;
+          confirmed_at?: string | null;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          currency?: string;
+          id?: string;
+          idempotency_key?: string;
+          lead_id?: string;
+          offer_id?: string;
+          offer_name_snapshot?: string;
+          operator_comment?: string | null;
+          product_id?: string;
+          product_name_snapshot?: string;
+          product_sku_snapshot?: string | null;
+          quantity?: number;
+          status?: "draft" | "confirmed" | "cancelled";
+          total_amount_minor?: never;
+          unit_price_minor?: number;
+          updated_at?: string;
+          updated_by_user_id?: string | null;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       workspace_landings: {
         Row: {
           adapted_archive_bytes: number | null;
@@ -310,6 +391,20 @@ export type Database = {
         };
         Returns: string;
       };
+      create_workspace_order: {
+        Args: {
+          p_buyer_email: string | null;
+          p_buyer_name: string;
+          p_buyer_phone: string;
+          p_idempotency_key: string;
+          p_lead_id: string;
+          p_operator_comment: string | null;
+          p_quantity: number;
+          p_unit_price_minor: number;
+          p_workspace_id: string;
+        };
+        Returns: string;
+      };
       update_product: {
         Args: {
           p_cost_price_minor: number | null;
@@ -344,6 +439,39 @@ export type Database = {
           updated_at: string;
           workspace_id: string;
         }[];
+      };
+      get_workspace_order_context: {
+        Args: { p_lead_id: string; p_workspace_id: string };
+        Returns: {
+          buyer_email: string | null;
+          buyer_phone: string | null;
+          lead_id: string;
+          lead_name: string;
+          offer_id: string | null;
+          offer_name: string | null;
+          offer_price_minor: number | null;
+          product_id: string | null;
+          product_name: string | null;
+          product_sale_price_minor: number | null;
+          product_sku: string | null;
+        }[];
+      };
+      transition_workspace_order: {
+        Args: { p_order_id: string; p_status: string; p_workspace_id: string };
+        Returns: string;
+      };
+      update_workspace_order_draft: {
+        Args: {
+          p_buyer_email: string | null;
+          p_buyer_name: string;
+          p_buyer_phone: string;
+          p_operator_comment: string | null;
+          p_order_id: string;
+          p_quantity: number;
+          p_unit_price_minor: number;
+          p_workspace_id: string;
+        };
+        Returns: string;
       };
       get_workspace_landings: {
         Args: { p_search: string | null; p_workspace_id: string };

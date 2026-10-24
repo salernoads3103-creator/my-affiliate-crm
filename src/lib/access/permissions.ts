@@ -17,6 +17,8 @@ export const WORKSPACE_PERMISSIONS = [
   "teams.manage",
   "offers.read",
   "offers.manage",
+  "orders.read",
+  "orders.manage",
   "landing_pages.read",
   "landing_pages.manage",
   "products.read",

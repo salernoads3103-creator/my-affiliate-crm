@@ -91,6 +91,16 @@ const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "offers.read", category: "Offers", description: "View offers in the granted data scope" },
   { key: "offers.manage", category: "Offers", description: "Create and update workspace offers" },
   {
+    key: "orders.read",
+    category: "Orders",
+    description: "View orders in the granted lead scope",
+  },
+  {
+    key: "orders.manage",
+    category: "Orders",
+    description: "Create, update drafts, and change order status in the granted lead scope",
+  },
+  {
     key: "landing_pages.read",
     category: "Landing pages",
     description: "View workspace landing pages and their ZIP analysis",
