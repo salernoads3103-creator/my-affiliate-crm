@@ -58,6 +58,7 @@ export const ADMINISTRATION_PERMISSION_KEYS = [
   "teams.read",
   "teams.manage",
   "audit.read",
+  "shipping.manage",
 ] as const;
 
 export function canAccessAdministration(permissions: Record<string, boolean>) {

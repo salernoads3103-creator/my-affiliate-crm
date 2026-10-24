@@ -29,7 +29,7 @@ type DetailRow = {
 };
 
 export function LeadDetailsDrawer({ lead, onClose, locale }: LeadDetailsDrawerProps) {
-  const { workspace, permissions } = useWorkspaceAccess();
+  const { workspace, permissions, isSuperAdmin } = useWorkspaceAccess();
   const [orderDialogOpen, setOrderDialogOpen] = useState(false);
   const canManageOrders = permissions["orders.manage"] === true;
   const canReadOfferDetails =
@@ -154,6 +154,7 @@ export function LeadDetailsDrawer({ lead, onClose, locale }: LeadDetailsDrawerPr
         onOpenChange={setOrderDialogOpen}
         workspaceId={workspace?.id ?? ""}
         leadId={lead?.id}
+        canManageShipping={isSuperAdmin || permissions["shipping.manage"] === true}
         onSaved={() => undefined}
       />
     </>

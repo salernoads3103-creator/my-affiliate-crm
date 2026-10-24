@@ -17,28 +17,26 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ORDER_KEYS } from "@/hooks/useOrdersApi";
 import type { Order } from "@/lib/orders/types";
+import {
+  EMPTY_ORDER_FORM,
+  orderFormFromLeadContext,
+  orderFormFromOrder,
+  preserveManualOrderFormValues,
+  type OrderFormValues,
+} from "@/lib/orders/form";
 import { CreateOrderRequestSchema, UpdateOrderDraftRequestSchema } from "@/lib/orders/validation";
-import { formatMinorUnitsInput } from "@/lib/products/money";
 import { localizeError, t } from "@/lib/i18n";
 import { orderService } from "@/services/orderService";
-
-type FormValues = {
-  quantity: string;
-  unitPriceUah: string;
-  buyerName: string;
-  buyerPhone: string;
-  buyerEmail: string;
-  operatorComment: string;
-};
-
-const blankValues: FormValues = {
-  quantity: "1",
-  unitPriceUah: "",
-  buyerName: "",
-  buyerPhone: "",
-  buyerEmail: "",
-  operatorComment: "",
-};
+import { shippingService } from "@/services/shippingService";
+import { OrderDeliveryFields } from "@/components/shipping/OrderDeliveryFields";
+import {
+  deliveryFormFromLead,
+  deliveryFormFromRow,
+  deliveryFormFromOrderSnapshot,
+  EMPTY_DELIVERY_FORM,
+  toOrderDeliveryInput,
+  type DeliveryDraftForm,
+} from "@/lib/shipping/delivery-form";
 
 export function OrderFormDialog({
   open,
@@ -46,6 +44,7 @@ export function OrderFormDialog({
   workspaceId,
   leadId,
   order,
+  canManageShipping,
   onSaved,
 }: {
   open: boolean;
@@ -53,15 +52,22 @@ export function OrderFormDialog({
   workspaceId: string;
   leadId?: string;
   order?: Order | null;
+  canManageShipping: boolean;
   onSaved: (orderId: string) => void;
 }) {
   const { locale } = useLocale();
   const queryClient = useQueryClient();
-  const [values, setValues] = useState<FormValues>(blankValues);
+  const [values, setValues] = useState<OrderFormValues>(EMPTY_ORDER_FORM);
+  const [delivery, setDelivery] = useState<DeliveryDraftForm>(EMPTY_DELIVERY_FORM);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const submissionLock = useRef(false);
   const idempotencyKey = useRef<{ leadId: string; key: string } | null>(null);
+  const formSession = order ? `order:${order.id}` : `lead:${leadId ?? ""}`;
+  const initializedSession = useRef<string | null>(null);
+  const initializedLeadContext = useRef<string | null>(null);
+  const initializedDelivery = useRef<string | null>(null);
+  const editedOrderFields = useRef(new Set<keyof OrderFormValues>());
   const isEditing = Boolean(order);
   const contextQuery = useQuery({
     queryKey: ORDER_KEYS.context(workspaceId, leadId ?? ""),
@@ -69,42 +75,95 @@ export function OrderFormDialog({
     enabled: open && !order && Boolean(workspaceId && leadId),
   });
   const context = contextQuery.data;
-  const contextPrice = context?.offer_price_minor ?? context?.product_sale_price_minor ?? null;
-  const canCreateFromLead = Boolean(context?.offer_id && context?.product_id && contextPrice);
-
+  const deliveryQuery = useQuery({
+    queryKey: ["order-delivery", workspaceId, order?.id],
+    queryFn: () => shippingService.getDelivery(workspaceId, order!.id),
+    enabled: open && Boolean(order?.id && canManageShipping),
+  });
   useEffect(() => {
-    if (!open) return;
-    submissionLock.current = false;
-    setErrorMessage(null);
-    if (order) {
-      setValues({
-        quantity: String(order.quantity),
-        unitPriceUah: formatMinorUnitsInput(order.unit_price_minor),
-        buyerName: order.buyer_name,
-        buyerPhone: order.buyer_phone,
-        buyerEmail: order.buyer_email ?? "",
-        operatorComment: order.operator_comment ?? "",
-      });
+    if (!open) {
+      initializedSession.current = null;
+      initializedLeadContext.current = null;
+      initializedDelivery.current = null;
       return;
     }
-    setValues(blankValues);
-  }, [open, order]);
+    if (initializedSession.current === formSession) return;
+    initializedSession.current = formSession;
+    initializedLeadContext.current = null;
+    initializedDelivery.current = null;
+    editedOrderFields.current = new Set();
+    submissionLock.current = false;
+    setErrorMessage(null);
+    setValues(order ? orderFormFromOrder(order) : EMPTY_ORDER_FORM);
+    setDelivery(order ? deliveryFormFromOrderSnapshot(order) : EMPTY_DELIVERY_FORM);
+  }, [open, formSession, order]);
 
   useEffect(() => {
-    if (!open || order || !context) return;
-    setValues({
-      quantity: "1",
-      unitPriceUah: formatMinorUnitsInput(contextPrice),
-      buyerName: context.lead_name,
-      buyerPhone: context.buyer_phone ?? "",
-      buyerEmail: context.buyer_email ?? "",
-      operatorComment: "",
-    });
-  }, [open, order, context, contextPrice]);
+    if (!open || order || !leadId || !context || contextQuery.isFetching || contextQuery.isError)
+      return;
+    const session = `lead:${leadId}`;
+    const isFirstContext = initializedLeadContext.current !== session;
+    initializedLeadContext.current = session;
+    setValues((current) =>
+      preserveManualOrderFormValues(current, context, editedOrderFields.current),
+    );
+    if (isFirstContext) {
+      setDelivery(deliveryFormFromLead(context));
+      initializedDelivery.current = session;
+    }
+  }, [open, order, leadId, context, contextQuery.isFetching, contextQuery.isError]);
+
+  useEffect(() => {
+    if (
+      !open ||
+      !order ||
+      !canManageShipping ||
+      !deliveryQuery.isSuccess ||
+      deliveryQuery.isFetching ||
+      deliveryQuery.isError
+    )
+      return;
+    const session = `order:${order.id}`;
+    if (initializedDelivery.current === session) return;
+    initializedDelivery.current = session;
+    setDelivery(deliveryFormFromRow(deliveryQuery.data ?? null, order));
+  }, [
+    open,
+    order,
+    canManageShipping,
+    deliveryQuery.data,
+    deliveryQuery.isSuccess,
+    deliveryQuery.isFetching,
+    deliveryQuery.isError,
+  ]);
+
+  const contextPrice = context?.offer_price_minor ?? context?.product_sale_price_minor ?? null;
+  const canCreateFromLead = Boolean(context?.offer_id && context?.product_id && contextPrice);
+  const leadContextLoading = Boolean(
+    !order &&
+    leadId &&
+    initializedLeadContext.current !== `lead:${leadId}` &&
+    (contextQuery.isLoading || contextQuery.isFetching),
+  );
+  const deliveryLoading = Boolean(
+    order &&
+    canManageShipping &&
+    initializedDelivery.current !== `order:${order.id}` &&
+    (deliveryQuery.isPending || deliveryQuery.isFetching),
+  );
+  const deliveryLoadError = Boolean(
+    order &&
+    canManageShipping &&
+    initializedDelivery.current !== `order:${order.id}` &&
+    deliveryQuery.isError,
+  );
 
   const change =
-    (field: keyof FormValues) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    (field: keyof OrderFormValues) =>
+    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      editedOrderFields.current.add(field);
       setValues((previous) => ({ ...previous, [field]: event.target.value }));
+    };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -137,10 +196,15 @@ export function OrderFormDialog({
         });
         const result = await orderService.create(workspaceId, parsed);
         orderId = result.id;
-        idempotencyKey.current = null;
+      }
+
+      if (canManageShipping) {
+        await shippingService.saveDelivery(workspaceId, orderId, toOrderDeliveryInput(delivery));
+        await queryClient.invalidateQueries({ queryKey: ["order-delivery", workspaceId, orderId] });
       }
 
       await queryClient.invalidateQueries({ queryKey: ORDER_KEYS.all });
+      if (!order) idempotencyKey.current = null;
       toast.success(isEditing ? t("Draft order updated") : t("Order draft created"));
       onSaved(orderId);
       onOpenChange(false);
@@ -164,7 +228,7 @@ export function OrderFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !saving && onOpenChange(nextOpen)}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
+      <DialogContent className="w-[calc(100vw-2rem)] min-w-0 max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{isEditing ? t("Edit draft order") : t("Create order")}</DialogTitle>
           <DialogDescription>
@@ -174,7 +238,7 @@ export function OrderFormDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {!isEditing && contextQuery.isLoading ? (
+        {!isEditing && leadContextLoading ? (
           <div className="flex min-h-36 items-center justify-center">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
@@ -183,7 +247,7 @@ export function OrderFormDialog({
             {localizeError(contextQuery.error, t("Could not load order details."), locale)}
           </p>
         ) : (
-          <form onSubmit={(event) => void submit(event)} className="space-y-4">
+          <form onSubmit={(event) => void submit(event)} className="w-full min-w-0 space-y-4">
             {!isEditing && context && (
               <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-sm">
                 <p className="font-medium">{context.product_name ?? t("Product not linked")}</p>
@@ -199,8 +263,8 @@ export function OrderFormDialog({
               </p>
             )}
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="order-quantity">{t("Quantity")}</Label>
                 <Input
                   id="order-quantity"
@@ -213,7 +277,7 @@ export function OrderFormDialog({
                   onChange={change("quantity")}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="order-price">{t("Unit price (UAH)")}</Label>
                 <Input
                   id="order-price"
@@ -226,7 +290,7 @@ export function OrderFormDialog({
               </div>
             </div>
 
-            <div className="space-y-1.5">
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="order-buyer-name">{t("Customer name")}</Label>
               <Input
                 id="order-buyer-name"
@@ -237,8 +301,8 @@ export function OrderFormDialog({
                 onChange={change("buyerName")}
               />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-1.5">
+            <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="order-buyer-phone">{t("Phone")}</Label>
                 <Input
                   id="order-buyer-phone"
@@ -250,7 +314,7 @@ export function OrderFormDialog({
                   onChange={change("buyerPhone")}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="min-w-0 space-y-1.5">
                 <Label htmlFor="order-buyer-email">{t("Email (optional)")}</Label>
                 <Input
                   id="order-buyer-email"
@@ -262,7 +326,21 @@ export function OrderFormDialog({
                 />
               </div>
             </div>
-            <div className="space-y-1.5">
+            {canManageShipping && (
+              <OrderDeliveryFields
+                workspaceId={workspaceId}
+                value={delivery}
+                setValue={setDelivery}
+                disabled={saving || deliveryLoading}
+              />
+            )}
+            {order && deliveryLoadError && (
+              <p className="text-sm text-destructive">{t("Could not load delivery details.")}</p>
+            )}
+            {order && deliveryLoading && (
+              <p className="text-sm text-muted-foreground">{t("Loading delivery details…")}</p>
+            )}
+            <div className="min-w-0 space-y-1.5">
               <Label htmlFor="order-comment">{t("Operator comment (optional)")}</Label>
               <Textarea
                 id="order-comment"
@@ -280,14 +358,18 @@ export function OrderFormDialog({
                 type="button"
                 variant="outline"
                 disabled={saving}
+                className="w-full sm:w-auto"
                 onClick={() => onOpenChange(false)}
               >
                 {t("Cancel")}
               </Button>
               <Button
                 type="submit"
+                className="w-full sm:w-auto"
                 disabled={
                   saving ||
+                  deliveryLoading ||
+                  deliveryLoadError ||
                   (!isEditing &&
                     (contextQuery.isLoading || Boolean(contextQuery.isError) || !canCreateFromLead))
                 }

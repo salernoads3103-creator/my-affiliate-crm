@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Product, ProductWriteRequest } from "@/lib/products/types";
 import { formatMinorUnitsInput } from "@/lib/products/money";
+import { centimetersToMillimeters, millimetersToCentimetersInput } from "@/lib/shipping/dimensions";
 import { localizeError, t } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
 import { CreateProductSchema } from "@/lib/products/validation";
@@ -19,7 +20,15 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-type ProductFormValues = Omit<ProductWriteRequest, "costPrice"> & { costPrice: string };
+type ProductFormValues = Omit<
+  ProductWriteRequest,
+  "costPrice" | "lengthMm" | "widthMm" | "heightMm"
+> & {
+  costPrice: string;
+  lengthCm: string;
+  widthCm: string;
+  heightCm: string;
+};
 
 const emptyValues: ProductFormValues = {
   name: "",
@@ -28,6 +37,9 @@ const emptyValues: ProductFormValues = {
   costPrice: "",
   photoUrl: "",
   weightGrams: "",
+  lengthCm: "",
+  widthCm: "",
+  heightCm: "",
   supplierName: "",
   isActive: true,
 };
@@ -47,7 +59,7 @@ export function ProductModal({
   onOpenChange: (open: boolean) => void;
   onSave: (values: ProductWriteRequest) => Promise<void>;
 }) {
-  useLocale();
+  const { locale } = useLocale();
   const [values, setValues] = useState<ProductFormValues>(emptyValues);
 
   useEffect(() => {
@@ -59,6 +71,9 @@ export function ProductModal({
       costPrice: formatMinorUnitsInput(product?.cost_price_minor),
       photoUrl: product?.photo_url ?? "",
       weightGrams: product?.weight_grams == null ? "" : String(product.weight_grams),
+      lengthCm: millimetersToCentimetersInput(product?.length_mm),
+      widthCm: millimetersToCentimetersInput(product?.width_mm),
+      heightCm: millimetersToCentimetersInput(product?.height_mm),
       supplierName: product?.supplier_name ?? "",
       isActive: product?.is_active ?? true,
     });
@@ -70,12 +85,26 @@ export function ProductModal({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    let lengthMm: number | null;
+    let widthMm: number | null;
+    let heightMm: number | null;
+    try {
+      lengthMm = centimetersToMillimeters(values.lengthCm);
+      widthMm = centimetersToMillimeters(values.widthCm);
+      heightMm = centimetersToMillimeters(values.heightCm);
+    } catch (error) {
+      toast.error(localizeError(error, t("Failed to save product"), locale));
+      return;
+    }
     const request: ProductWriteRequest = {
       name: values.name,
       sku: values.sku,
       salePrice: values.salePrice,
       photoUrl: values.photoUrl,
       weightGrams: values.weightGrams,
+      lengthMm: lengthMm === null ? "" : String(lengthMm),
+      widthMm: widthMm === null ? "" : String(widthMm),
+      heightMm: heightMm === null ? "" : String(heightMm),
       supplierName: values.supplierName,
       isActive: values.isActive,
       ...(canReadCost ? { costPrice: values.costPrice } : {}),
@@ -94,13 +123,13 @@ export function ProductModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+      <DialogContent className="w-[calc(100vw-2rem)] min-w-0 max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{editing ? t("Edit product") : t("Add product")}</DialogTitle>
           <DialogDescription>{t("Product catalog")}</DialogDescription>
         </DialogHeader>
-        <form onSubmit={submit} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={submit} className="w-full min-w-0 space-y-4">
+          <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
             <Field label={t("Product name")} required>
               <Input
                 autoFocus
@@ -155,6 +184,33 @@ export function ProductModal({
                 onChange={(event) => setField("weightGrams", event.target.value)}
               />
             </Field>
+            <Field label={t("Length (cm)")}>
+              <Input
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={values.lengthCm}
+                onChange={(event) => setField("lengthCm", event.target.value)}
+              />
+            </Field>
+            <Field label={t("Width (cm)")}>
+              <Input
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={values.widthCm}
+                onChange={(event) => setField("widthCm", event.target.value)}
+              />
+            </Field>
+            <Field label={t("Height (cm)")}>
+              <Input
+                type="number"
+                min={0.1}
+                step={0.1}
+                value={values.heightCm}
+                onChange={(event) => setField("heightCm", event.target.value)}
+              />
+            </Field>
             <Field label={t("Supplier")}>
               <Input
                 maxLength={200}
@@ -203,7 +259,7 @@ function Field({
   children: React.ReactNode;
 }) {
   return (
-    <label className="block space-y-1.5">
+    <label className="block min-w-0 space-y-1.5">
       <span className="block text-sm font-medium leading-none">
         {label}
         {required && <span className="ml-1 text-destructive">*</span>}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import { t } from "../src/lib/i18n";
 import { canTransitionOrderStatus } from "../src/lib/orders/status";
+import { orderFormFromLeadContext, preserveManualOrderFormValues } from "../src/lib/orders/form";
+import type { OrderContext } from "../src/lib/orders/types";
 import {
   CreateOrderRequestSchema,
   CreateOrderSchema,
@@ -18,6 +20,31 @@ const validOrder = {
   buyerEmail: "",
   operatorComment: " Передзвонити після 18:00 ",
 };
+
+function orderContext(offerPrice: number | null, productPrice = 129000): OrderContext {
+  return {
+    lead_id: "11111111-1111-4111-8111-111111111111",
+    lead_name: "Олена Савчук",
+    buyer_phone: "+380671234567",
+    buyer_email: null,
+    offer_id: "22222222-2222-4222-8222-222222222222",
+    offer_name: "Акція",
+    offer_price_minor: offerPrice,
+    product_id: "33333333-3333-4333-8333-333333333333",
+    product_name: "Бритва",
+    product_sku: "BR-01",
+    product_sale_price_minor: productPrice,
+    product_weight_grams: null,
+    product_length_mm: null,
+    product_width_mm: null,
+    product_height_mm: null,
+    delivery_type: null,
+    city_ref: null,
+    city_name: null,
+    branch_ref: null,
+    branch_name: null,
+  };
+}
 
 describe("order input and lifecycle", () => {
   it("normalizes Ukrainian contacts and converts UAH to exact kopiykas", () => {
@@ -54,6 +81,45 @@ describe("order input and lifecycle", () => {
     expect(serverResult.unitPriceMinor).toBe(119000);
     expect(serverResult.buyerEmail).toBeNull();
     expect(serverResult.operatorComment).toBeNull();
+  });
+
+  it("prefills the current offer price and keeps operator-edited price and quantity", () => {
+    const firstContext = orderContext(119000);
+    const firstValues = orderFormFromLeadContext(firstContext);
+    expect(firstValues).toMatchObject({ unitPriceUah: "1190.00", quantity: "1" });
+
+    const operatorValues = { ...firstValues, unitPriceUah: "1150", quantity: "3" };
+    const refreshedContext = orderContext(109000);
+    expect(orderFormFromLeadContext(refreshedContext).unitPriceUah).toBe("1090.00");
+    expect(
+      preserveManualOrderFormValues(
+        operatorValues,
+        refreshedContext,
+        new Set(["unitPriceUah", "quantity"]),
+      ),
+    ).toEqual(operatorValues);
+    expect(
+      preserveManualOrderFormValues(
+        { ...firstValues, quantity: "3" },
+        refreshedContext,
+        new Set(["quantity"]),
+      ),
+    ).toMatchObject({ unitPriceUah: "1090.00", quantity: "3" });
+  });
+
+  it("uses product sale price only when the offer has no price and leaves missing contacts blank", () => {
+    const values = orderFormFromLeadContext({
+      ...orderContext(null),
+      buyer_phone: null,
+      buyer_email: null,
+    });
+
+    expect(values).toMatchObject({
+      unitPriceUah: "1290.00",
+      buyerName: "Олена Савчук",
+      buyerPhone: "",
+      buyerEmail: "",
+    });
   });
 
   it("normalizes optional email and comment when null, omitted, or blank", () => {

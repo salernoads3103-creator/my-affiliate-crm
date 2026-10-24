@@ -186,6 +186,8 @@ function OrdersPage() {
       <OrderDetailsDrawer
         order={selectedOrder}
         canManage={canManage || access.isSuperAdmin}
+        canManageShipping={access.isSuperAdmin || access.permissions["shipping.manage"] === true}
+        workspaceId={workspaceId ?? ""}
         transitioning={statusMutation.isPending}
         onClose={() => setSelectedOrderId(null)}
         onEdit={(order) => setEditingOrder(order)}
@@ -198,6 +200,7 @@ function OrdersPage() {
         onOpenChange={(open) => !open && setEditingOrder(null)}
         workspaceId={workspaceId}
         order={editingOrder}
+        canManageShipping={access.isSuperAdmin || access.permissions["shipping.manage"] === true}
         onSaved={() => setEditingOrder(null)}
       />
     </div>

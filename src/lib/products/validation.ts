@@ -36,6 +36,20 @@ const optionalCostPrice = z
   })
   .optional();
 
+const optionalPositiveInteger = (errorMessage: string) =>
+  z
+    .union([z.number(), z.string()])
+    .optional()
+    .transform((value, context) => {
+      if (value === undefined || value === "") return null;
+      const parsed = typeof value === "number" ? value : Number(value);
+      if (!Number.isSafeInteger(parsed) || parsed <= 0 || parsed > 2_147_483_647) {
+        context.addIssue({ code: "custom", message: errorMessage });
+        return z.NEVER;
+      }
+      return parsed;
+    });
+
 const photoUrl = z
   .string()
   .trim()
@@ -59,18 +73,10 @@ const ProductFieldsSchema = z.object({
   salePrice: price,
   costPrice: optionalCostPrice,
   photoUrl,
-  weightGrams: z
-    .union([z.number(), z.string()])
-    .optional()
-    .transform((value, context) => {
-      if (value === undefined || value === "") return null;
-      const parsed = typeof value === "number" ? value : Number(value);
-      if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-        context.addIssue({ code: "custom", message: "Enter a weight in whole grams" });
-        return z.NEVER;
-      }
-      return parsed;
-    }),
+  weightGrams: optionalPositiveInteger("Enter a weight in whole grams"),
+  lengthMm: optionalPositiveInteger("Enter a valid length in centimeters"),
+  widthMm: optionalPositiveInteger("Enter a valid width in centimeters"),
+  heightMm: optionalPositiveInteger("Enter a valid height in centimeters"),
   supplierName: optionalText(200),
   isActive: z.boolean().default(true),
 });

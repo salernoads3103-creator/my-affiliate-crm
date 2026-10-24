@@ -16,6 +16,9 @@ export type ProductWriteRequest = {
   costPrice?: string;
   photoUrl: string;
   weightGrams: string;
+  lengthMm: string;
+  widthMm: string;
+  heightMm: string;
   supplierName: string;
   isActive: boolean;
 };

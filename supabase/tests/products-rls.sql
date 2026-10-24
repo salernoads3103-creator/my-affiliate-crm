@@ -54,10 +54,52 @@ BEGIN
     SELECT 1 FROM pg_catalog.pg_proc p
     JOIN pg_catalog.pg_namespace n ON n.oid = p.pronamespace
     WHERE n.nspname = 'public'
-      AND p.proname IN ('create_product', 'update_product')
+      AND p.proname IN (
+        'create_product',
+        'update_product',
+        'create_product_with_shipping_dimensions',
+        'update_product_with_shipping_dimensions'
+      )
       AND p.prosecdef
   ) THEN
     RAISE EXCEPTION 'Product write functions must remain SECURITY INVOKER';
+  END IF;
+
+  IF has_function_privilege(
+       'anon',
+       'public.create_product_with_shipping_dimensions(uuid,text,text,bigint,text,integer,integer,integer,integer,text,boolean,bigint)',
+       'EXECUTE'
+     ) OR has_function_privilege(
+       'anon',
+       'public.update_product_with_shipping_dimensions(uuid,text,text,bigint,text,integer,integer,integer,integer,text,boolean,boolean,bigint)',
+       'EXECUTE'
+     ) OR NOT has_function_privilege(
+       'authenticated',
+       'public.create_product_with_shipping_dimensions(uuid,text,text,bigint,text,integer,integer,integer,integer,text,boolean,bigint)',
+       'EXECUTE'
+     ) OR NOT has_function_privilege(
+       'authenticated',
+       'public.update_product_with_shipping_dimensions(uuid,text,text,bigint,text,integer,integer,integer,integer,text,boolean,boolean,bigint)',
+       'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'Shipping dimension writes must use the authenticated product RLS policies';
+  END IF;
+
+  IF (
+    SELECT count(*)
+    FROM pg_catalog.pg_attribute
+    WHERE attrelid = 'public.products'::regclass
+      AND attname IN ('length_mm', 'width_mm', 'height_mm')
+      AND NOT attisdropped
+  ) <> 3 OR EXISTS (
+    SELECT 1
+    FROM pg_catalog.pg_attribute
+    WHERE attrelid = 'public.products'::regclass
+      AND attname IN ('length_mm', 'width_mm', 'height_mm')
+      AND NOT attisdropped
+      AND attnotnull
+  ) THEN
+    RAISE EXCEPTION 'Product shipping dimensions must remain optional for existing records';
   END IF;
 END;
 $$;

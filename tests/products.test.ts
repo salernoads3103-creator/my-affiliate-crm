@@ -32,6 +32,9 @@ describe("product input contracts", () => {
       sku: null,
       photoUrl: null,
       weightGrams: null,
+      lengthMm: null,
+      widthMm: null,
+      heightMm: null,
       supplierName: null,
       isActive: true,
     });
@@ -46,6 +49,9 @@ describe("product input contracts", () => {
         costPrice: "125.75",
         photoUrl: "https://cdn.example.test/bottle.jpg",
         weightGrams: "450",
+        lengthMm: "250",
+        widthMm: "150",
+        heightMm: "100",
         supplierName: "Local supplier",
         isActive: false,
       }),
@@ -53,6 +59,9 @@ describe("product input contracts", () => {
       salePrice: 31000,
       costPrice: 12575,
       weightGrams: 450,
+      lengthMm: 250,
+      widthMm: 150,
+      heightMm: 100,
       isActive: false,
     });
   });
@@ -65,6 +74,9 @@ describe("product input contracts", () => {
     ).toThrow();
     expect(() =>
       CreateProductSchema.parse({ name: "Item", salePrice: "12", weightGrams: "1.5" }),
+    ).toThrow();
+    expect(() =>
+      CreateProductSchema.parse({ name: "Item", salePrice: "12", lengthMm: "0" }),
     ).toThrow();
   });
 

@@ -76,13 +76,20 @@ export class OrderService {
   }
 
   async getLeadContext(workspaceId: string, leadId: string): Promise<OrderContext> {
-    const result = await this.client.rpc("get_workspace_order_context", {
-      p_workspace_id: workspaceId,
-      p_lead_id: leadId,
-    });
-    const data = throwOnError(result);
-    if (!data?.[0]) throw new ApiError(404, "Lead not found");
-    return data[0];
+    const [contextResult, deliveryResult] = await Promise.all([
+      this.client.rpc("get_workspace_order_context_v2", {
+        p_workspace_id: workspaceId,
+        p_lead_id: leadId,
+      }),
+      this.client.rpc("get_workspace_order_delivery_prefill", {
+        p_workspace_id: workspaceId,
+        p_lead_id: leadId,
+      }),
+    ]);
+    const contextData = throwOnError(contextResult);
+    const deliveryData = throwOnError(deliveryResult);
+    if (!contextData?.[0] || !deliveryData?.[0]) throw new ApiError(404, "Lead not found");
+    return { ...contextData[0], ...deliveryData[0] };
   }
 
   async create(workspaceId: string, input: CreateOrderInput): Promise<{ id: string }> {

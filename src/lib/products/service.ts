@@ -23,6 +23,9 @@ function rpcInput(input: ProductInput) {
     p_sale_price_minor: input.salePrice,
     p_photo_url: input.photoUrl,
     p_weight_grams: input.weightGrams,
+    p_length_mm: input.lengthMm,
+    p_width_mm: input.widthMm,
+    p_height_mm: input.heightMm,
     p_supplier_name: input.supplierName,
     p_is_active: input.isActive,
   };
@@ -80,7 +83,7 @@ export class ProductService {
   }
 
   async create(workspaceId: string, input: ProductInput): Promise<{ id: string }> {
-    const { data, error } = await this.client.rpc("create_product", {
+    const { data, error } = await this.client.rpc("create_product_with_shipping_dimensions", {
       p_workspace_id: workspaceId,
       ...rpcInput(input),
       p_cost_price_minor: input.costPrice ?? null,
@@ -94,7 +97,7 @@ export class ProductService {
     input: ProductInput,
     updateCost: boolean,
   ): Promise<{ id: string }> {
-    const { data, error } = await this.client.rpc("update_product", {
+    const { data, error } = await this.client.rpc("update_product_with_shipping_dimensions", {
       p_product_id: productId,
       ...rpcInput(input),
       p_update_cost: updateCost,

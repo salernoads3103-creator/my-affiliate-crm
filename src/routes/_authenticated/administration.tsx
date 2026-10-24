@@ -23,6 +23,7 @@ import { canAccessAdministration, useWorkspaceAccess } from "@/hooks/useWorkspac
 import type { WorkspacePermission, WorkspaceScope } from "@/lib/access/permissions";
 import { localizeError, t, translateLabel, type TranslationKey } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
+import { NovaPoshtaSettingsPanel } from "@/components/shipping/NovaPoshtaSettingsPanel";
 
 export const Route = createFileRoute("/_authenticated/administration")({
   component: AdministrationPage,
@@ -101,6 +102,11 @@ const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
     description: "Create, update drafts, and change order status in the granted lead scope",
   },
   {
+    key: "shipping.manage",
+    category: "Delivery",
+    description: "Manage workspace delivery settings and create waybills for authorized orders",
+  },
+  {
     key: "landing_pages.read",
     category: "Landing pages",
     description: "View workspace landing pages and their ZIP analysis",
@@ -111,7 +117,11 @@ const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
     description: "Create workspace landing drafts and upload source ZIPs",
   },
   { key: "products.read", category: "Products", description: "View workspace products" },
-  { key: "products.manage", category: "Products", description: "Create and update workspace products" },
+  {
+    key: "products.manage",
+    category: "Products",
+    description: "Create and update workspace products",
+  },
   { key: "products.cost.read", category: "Products", description: "View product cost prices" },
   {
     key: "permissions.read",
@@ -443,10 +453,13 @@ function AdministrationPage() {
     const action = allowed === null ? "inherit" : allowed ? "allow" : "deny";
     if (
       !window.confirm(
-        t("Set {permission} to {action} for this member at the selected scope? A Super Admin deny always takes precedence.", {
-          permission: definition.key,
-          action: translateLabel(action),
-        }),
+        t(
+          "Set {permission} to {action} for this member at the selected scope? A Super Admin deny always takes precedence.",
+          {
+            permission: definition.key,
+            action: translateLabel(action),
+          },
+        ),
       )
     )
       return;
@@ -482,7 +495,10 @@ function AdministrationPage() {
     return (
       <ErrorPanel
         title={t("Administration could not be loaded")}
-        message={localizeError(access.error, t("We couldn't load the access details. Please try again."))}
+        message={localizeError(
+          access.error,
+          t("We couldn't load the access details. Please try again."),
+        )}
         onRetry={access.refetch}
       />
     );
@@ -499,7 +515,13 @@ function AdministrationPage() {
   const renderLoadingOrError = (isLoading: boolean, error: Error | null, retry: () => unknown) => {
     if (isLoading) return <InlineLoading />;
     if (error)
-      return <ErrorPanel title={t("Could not load data")} message={localizeError(error, t("We couldn't load the data. Please try again."))} onRetry={retry} />;
+      return (
+        <ErrorPanel
+          title={t("Could not load data")}
+          message={localizeError(error, t("We couldn't load the data. Please try again."))}
+          onRetry={retry}
+        />
+      );
     return null;
   };
 
@@ -512,12 +534,18 @@ function AdministrationPage() {
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">{t("Administration")}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {t("Manage access for {workspace}.", { workspace: access.workspace?.name ?? t("this workspace") })}
+            {t("Manage access for {workspace}.", {
+              workspace: access.workspace?.name ?? t("this workspace"),
+            })}
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2 text-xs text-muted-foreground">
           <ShieldCheck className="h-4 w-4 text-primary" />
-          {t("Server checked · {role}", { role: isSuperAdmin ? t("Super Admin") : translateLabel(access.workspace?.role ?? "unknown") })}
+          {t("Server checked · {role}", {
+            role: isSuperAdmin
+              ? t("Super Admin")
+              : translateLabel(access.workspace?.role ?? "unknown"),
+          })}
         </div>
       </div>
 
@@ -548,7 +576,9 @@ function AdministrationPage() {
             <StatCard
               label={t("Workspace members")}
               value={hasMembersRead ? members.length : "—"}
-              detail={t(hasMembersRead ? "From the protected member list" : "Requires members.read")}
+              detail={t(
+                hasMembersRead ? "From the protected member list" : "Requires members.read",
+              )}
               loading={hasMembersRead && membersQuery.isLoading}
             />
             <StatCard
@@ -574,9 +604,14 @@ function AdministrationPage() {
           </div>
           {(membersQuery.error || invitationsQuery.error || teamsQuery.error) && (
             <p className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-              {t("Some overview counts could not be loaded.")} {localizeError(membersQuery.error ?? invitationsQuery.error ?? teamsQuery.error, t("We couldn't retrieve the summary."))}
+              {t("Some overview counts could not be loaded.")}{" "}
+              {localizeError(
+                membersQuery.error ?? invitationsQuery.error ?? teamsQuery.error,
+                t("We couldn't retrieve the summary."),
+              )}
             </p>
           )}
+          {can("shipping.manage") && <NovaPoshtaSettingsPanel workspaceId={workspaceId} />}
           <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
             <section className="rounded-2xl border border-border bg-card/60 p-5">
               <div className="flex items-center gap-2">
@@ -587,7 +622,9 @@ function AdministrationPage() {
                 auditQuery.isLoading ? (
                   <InlineLoading />
                 ) : auditQuery.error ? (
-                  <p className="mt-4 text-sm text-destructive">{localizeError(auditQuery.error, t("We couldn't load the activity log."))}</p>
+                  <p className="mt-4 text-sm text-destructive">
+                    {localizeError(auditQuery.error, t("We couldn't load the activity log."))}
+                  </p>
                 ) : (auditQuery.data ?? []).slice(0, 5).length ? (
                   <div className="mt-4 divide-y divide-border">
                     {(auditQuery.data ?? []).slice(0, 5).map((event) => (
@@ -686,7 +723,9 @@ function AdministrationPage() {
             </select>
           </div>
           <p className="-mt-2 text-xs text-muted-foreground">
-            {t("Team membership is not returned by the current workspace API, so the table does not infer it.")}
+            {t(
+              "Team membership is not returned by the current workspace API, so the table does not infer it.",
+            )}
           </p>
           {renderLoadingOrError(
             membersQuery.isLoading || invitationsQuery.isLoading,
@@ -735,7 +774,9 @@ function AdministrationPage() {
                         return (
                           <tr key={row.rowId} className="hover:bg-muted/20">
                             <td className="px-4 py-3">
-                              <div className="font-medium">{row.email ?? t("Email unavailable")}</div>
+                              <div className="font-medium">
+                                {row.email ?? t("Email unavailable")}
+                              </div>
                               {member && (
                                 <div className="mt-0.5 font-mono text-[10px] text-muted-foreground">
                                   {member.user_id}
@@ -747,7 +788,9 @@ function AdministrationPage() {
                                 {humanize(row.role)}
                               </span>
                             </td>
-                            <td className="px-4 py-3 text-muted-foreground">{t("Not available")}</td>
+                            <td className="px-4 py-3 text-muted-foreground">
+                              {t("Not available")}
+                            </td>
                             <td className="px-4 py-3">
                               <StatusPill value={status} />
                             </td>
@@ -791,7 +834,9 @@ function AdministrationPage() {
                                   can("members.manage_roles") && (
                                     <span
                                       className="self-center text-xs text-muted-foreground"
-                                      title={t("The member API does not identify protected Super Admin accounts")}
+                                      title={t(
+                                        "The member API does not identify protected Super Admin accounts",
+                                      )}
                                     >
                                       {t("Protected Admin account")}
                                     </span>
@@ -805,7 +850,9 @@ function AdministrationPage() {
                                       onClick={() => {
                                         if (
                                           window.confirm(
-                                            t("Revoke the invitation for {email}?", { email: invite.email }),
+                                            t("Revoke the invitation for {email}?", {
+                                              email: invite.email,
+                                            }),
                                           )
                                         )
                                           revokeMutation.mutate(invite.id);
@@ -844,7 +891,9 @@ function AdministrationPage() {
               </div>
             )}
           <div className="rounded-xl border border-border bg-background/40 p-3 text-xs text-muted-foreground">
-            {t("Suspension and team assignment are not available in the current server API. Super Admin membership protection is enforced by the role RPC; ordinary Admin users cannot edit Admin-level rows here.")}
+            {t(
+              "Suspension and team assignment are not available in the current server API. Super Admin membership protection is enforced by the role RPC; ordinary Admin users cannot edit Admin-level rows here.",
+            )}
           </div>
         </section>
       )}
@@ -900,7 +949,9 @@ function AdministrationPage() {
 
           {!hasPermissionView && !isSuperAdmin && (
             <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-warning">
-              {t("Your account can manage some permissions, but lacks permissions.read. The current API cannot show a member’s overrides safely, so editing is disabled until a Super Admin grants permissions.read.")}
+              {t(
+                "Your account can manage some permissions, but lacks permissions.read. The current API cannot show a member’s overrides safely, so editing is disabled until a Super Admin grants permissions.read.",
+              )}
             </div>
           )}
           {!members.length && !membersQuery.isLoading && (
@@ -928,10 +979,13 @@ function AdministrationPage() {
               <div className="space-y-4">
                 <div className="flex flex-col gap-2 rounded-xl border border-border bg-background/40 p-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
                   <span>
-                    {t("Rows show explicit overrides only. Inherit leaves the member’s workspace role defaults in effect; effective rights for another user are not exposed by the current API.")}
+                    {t(
+                      "Rows show explicit overrides only. Inherit leaves the member’s workspace role defaults in effect; effective rights for another user are not exposed by the current API.",
+                    )}
                   </span>
                   <span className="flex items-center gap-1">
-                    <ShieldCheck className="h-3.5 w-3.5 text-primary" /> {t("Super Admin denies take precedence.")}
+                    <ShieldCheck className="h-3.5 w-3.5 text-primary" />{" "}
+                    {t("Super Admin denies take precedence.")}
                   </span>
                 </div>
                 {Object.entries(permissionRows).map(([category, definitions]) => (
@@ -964,7 +1018,9 @@ function AdministrationPage() {
                               : protectedOverride
                                 ? t("This override was delegated by a Super Admin")
                                 : !isSuperAdmin && !actorCanDelegate(definition.key)
-                                  ? t("No matching delegable grant exists for this permission and scope")
+                                  ? t(
+                                      "No matching delegable grant exists for this permission and scope",
+                                    )
                                   : undefined;
                         return (
                           <div
@@ -1017,7 +1073,9 @@ function AdministrationPage() {
                                   type="checkbox"
                                   checked={current?.delegable ?? false}
                                   disabled={!current || permissionMutation.isPending}
-                                  title={t("Delegable overrides may be managed by eligible Admin users")}
+                                  title={t(
+                                    "Delegable overrides may be managed by eligible Admin users",
+                                  )}
                                   onChange={(event) =>
                                     savePermission(
                                       definition,
@@ -1041,7 +1099,12 @@ function AdministrationPage() {
                   </section>
                 ))}
                 <p className="rounded-xl border border-border bg-background/40 p-3 text-xs text-muted-foreground">
-                  {t("No analytics permission keys exist in the current permission catalog. Scope target options are still available.")} {t("Scope target identifiers are checked against the workspace by the server before changes are saved.")}
+                  {t(
+                    "No analytics permission keys exist in the current permission catalog. Scope target options are still available.",
+                  )}{" "}
+                  {t(
+                    "Scope target identifiers are checked against the workspace by the server before changes are saved.",
+                  )}
                 </p>
               </div>
             )}
@@ -1112,7 +1175,8 @@ function AdministrationPage() {
                         </div>
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {t("Created")} {formatDate(team.created_at, false, locale)} · {t("member assignments unavailable")}
+                        {t("Created")} {formatDate(team.created_at, false, locale)} ·{" "}
+                        {t("member assignments unavailable")}
                       </div>
                     </div>
                   ))}
@@ -1125,7 +1189,9 @@ function AdministrationPage() {
             </div>
           ) : null}
           <p className="rounded-xl border border-border bg-background/40 p-3 text-xs text-muted-foreground">
-            {t("Teams can be created and used as permission scopes. The current schema has no user-to-team assignment API, so participants are not inferred from lead records.")}
+            {t(
+              "Teams can be created and used as permission scopes. The current schema has no user-to-team assignment API, so participants are not inferred from lead records.",
+            )}
           </p>
         </section>
       )}
@@ -1179,7 +1245,9 @@ function AdministrationPage() {
               </button>
               {!can("members.assign_admin") && (
                 <p className="text-xs text-muted-foreground lg:col-span-3">
-                  {t("Assigning the Admin role requires members.assign_admin. Super Admin invitations are not available through workspace invitations.")}
+                  {t(
+                    "Assigning the Admin role requires members.assign_admin. Super Admin invitations are not available through workspace invitations.",
+                  )}
                 </p>
               )}
             </form>
@@ -1193,7 +1261,9 @@ function AdministrationPage() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {lastInvite.emailSent
                       ? t("An email was sent through Supabase Auth.")
-                      : t("Email delivery was unavailable; copy and share this secure one-time link.")}
+                      : t(
+                          "Email delivery was unavailable; copy and share this secure one-time link.",
+                        )}
                   </p>
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row">
                     <input
@@ -1261,7 +1331,13 @@ function AdministrationPage() {
                               type="button"
                               className={`${buttonClass} text-destructive hover:bg-destructive/10`}
                               onClick={() => {
-                                if (window.confirm(t("Revoke the invitation for {email}?", { email: invite.email })))
+                                if (
+                                  window.confirm(
+                                    t("Revoke the invitation for {email}?", {
+                                      email: invite.email,
+                                    }),
+                                  )
+                                )
                                   revokeMutation.mutate(invite.id);
                               }}
                               disabled={revokeMutation.isPending}
@@ -1409,7 +1485,9 @@ function AdministrationPage() {
             </div>
           )}
           <p className="text-xs text-muted-foreground">
-            {t("The audit API returns actor and subject IDs plus the recorded action details. Names are shown only when available in the protected member list.")}
+            {t(
+              "The audit API returns actor and subject IDs plus the recorded action details. Names are shown only when available in the protected member list.",
+            )}
           </p>
         </section>
       )}
@@ -1459,7 +1537,9 @@ function AdministrationPage() {
             </label>
             <p className="mt-3 flex gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
               <AlertTriangle className="h-4 w-4 shrink-0" />
-              {t("Role changes take effect immediately. A Super Admin cannot be modified by an Admin, and the server enforces this rule.")}
+              {t(
+                "Role changes take effect immediately. A Super Admin cannot be modified by an Admin, and the server enforces this rule.",
+              )}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" className={buttonClass} onClick={() => setEditingMember(null)}>
@@ -1471,7 +1551,8 @@ function AdministrationPage() {
                 disabled={roleMutation.isPending || roleDraft === editingMember.role}
                 onClick={saveRole}
               >
-                {roleMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}{t("Save role")}
+                {roleMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+                {t("Save role")}
               </button>
             </div>
           </section>
@@ -1522,7 +1603,9 @@ function ScopeTargetInput({
           value={scopeId}
           onChange={(event) => setScopeId(event.target.value)}
         >
-          <option value="">{t("Choose a {scope}", { scope: humanize(scopeType).toLowerCase() })}</option>
+          <option value="">
+            {t("Choose a {scope}", { scope: humanize(scopeType).toLowerCase() })}
+          </option>
           {options.map((option) => (
             <option key={option.id} value={option.id}>
               {option.name}
@@ -1604,9 +1687,7 @@ function Pagination({
   const end = Math.min(page * pageSize, total);
   return (
     <div className="flex flex-col gap-3 border-t border-border px-4 py-3 text-xs text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-      <span>
-        {t("Showing {start}–{end} of {total}", { start, end, total })}
-      </span>
+      <span>{t("Showing {start}–{end} of {total}", { start, end, total })}</span>
       <div className="flex items-center justify-between gap-3 sm:justify-end">
         <label className="flex items-center gap-2">
           {t("Rows")}
@@ -1622,9 +1703,7 @@ function Pagination({
             ))}
           </select>
         </label>
-        <span>
-          {t("Page {page} / {totalPages}", { page, totalPages })}
-        </span>
+        <span>{t("Page {page} / {totalPages}", { page, totalPages })}</span>
         <button
           type="button"
           className="rounded-md border border-border p-1.5 hover:bg-muted disabled:opacity-40"
