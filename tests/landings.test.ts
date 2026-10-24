@@ -23,6 +23,7 @@ import type {
   LandingRepository,
   LandingStatus,
 } from "../src/lib/landings/types";
+import { trackingFingerprint } from "../src/lib/tracking-profiles/logic";
 
 const encoder = new TextEncoder();
 const TEST_WORKSPACE_ID = "11111111-1111-4111-8111-111111111111";
@@ -310,6 +311,9 @@ function fakeDependencies() {
         tiktok_pixel_id: null,
         google_ads_conversion_id: null,
         google_ads_conversion_label: null,
+        google_ads_tracking_profile_id: null,
+        tiktok_tracking_profile_id: null,
+        adapted_tracking_fingerprint: null,
         intake_public_id: null,
         analysis: input.analysis,
       };
@@ -379,6 +383,15 @@ function fakeDependencies() {
         ...(input.googleAdsConversionLabel === undefined
           ? {}
           : { google_ads_conversion_label: input.googleAdsConversionLabel }),
+        ...(input.tiktokTrackingProfileId === undefined
+          ? {}
+          : { tiktok_tracking_profile_id: input.tiktokTrackingProfileId }),
+        ...(input.googleAdsTrackingProfileId === undefined
+          ? {}
+          : { google_ads_tracking_profile_id: input.googleAdsTrackingProfileId }),
+        ...(input.adaptedTrackingFingerprint === undefined
+          ? {}
+          : { adapted_tracking_fingerprint: input.adaptedTrackingFingerprint }),
         intake_public_id: input.publicFormId ?? null,
       };
       return { ...record };
@@ -1178,6 +1191,60 @@ describe("Landing Factory ZIP intake", () => {
         { workspaceId: TEST_WORKSPACE_ID, landingId: TEST_LANDING_ID },
       ),
     ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("stores the selected profile IDs and a tracking snapshot with the prepared ZIP", async () => {
+    const dependencies = fakeDependencies();
+    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const analysis = await analyzeLandingArchive(source);
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob([source]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+
+    const prepared = await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        allowedOriginConfigured: true,
+        intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+        tiktokPixelId: "TikTokProfilePixel1",
+        tiktokTrackingProfileId: "77777777-7777-4777-8777-777777777777",
+        googleAdsConversionId: "AW-123456789",
+        googleAdsConversionLabel: "conversion-label",
+        googleAdsTrackingProfileId: "88888888-8888-4888-8888-888888888888",
+        createArchiveVersion: () => "99999999-9999-4999-8999-999999999999",
+      },
+    );
+
+    expect(prepared.adapter_status).toBe("prepared");
+    expect(dependencies.record).toMatchObject({
+      tiktok_tracking_profile_id: "77777777-7777-4777-8777-777777777777",
+      google_ads_tracking_profile_id: "88888888-8888-4888-8888-888888888888",
+      tiktok_pixel_id: "TikTokProfilePixel1",
+      google_ads_conversion_id: "AW-123456789",
+    });
+    const storedFingerprint = dependencies.record!.adapted_tracking_fingerprint;
+    expect(storedFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(
+      await trackingFingerprint({
+        tiktokProfileId: dependencies.record!.tiktok_tracking_profile_id,
+        tiktokPixelId: dependencies.record!.tiktok_pixel_id,
+        googleAdsProfileId: dependencies.record!.google_ads_tracking_profile_id,
+        googleAdsConversionId: dependencies.record!.google_ads_conversion_id,
+        googleAdsConversionLabel: dependencies.record!.google_ads_conversion_label,
+      }),
+    ).toBe(storedFingerprint);
   });
 
   it("does not adapt a draft through another workspace route", async () => {

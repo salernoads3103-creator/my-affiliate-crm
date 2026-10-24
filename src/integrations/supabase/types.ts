@@ -501,6 +501,7 @@ export type Database = {
         Row: {
           adapted_archive_bytes: number | null;
           adapted_archive_path: string | null;
+          adapted_tracking_fingerprint: string | null;
           adapter_reason: string | null;
           adapter_status: string;
           analysis: Json;
@@ -511,6 +512,7 @@ export type Database = {
           google_ads_conversion_label: string | null;
           id: string;
           intake_public_id: string | null;
+          google_ads_tracking_profile_id: string | null;
           name: string;
           offer_id: string;
           published_url: string | null;
@@ -518,11 +520,13 @@ export type Database = {
           source_archive_bytes: number | null;
           status: "draft" | "ready" | "published" | "error";
           tiktok_pixel_id: string | null;
+          tiktok_tracking_profile_id: string | null;
           workspace_id: string;
         };
         Insert: {
           adapted_archive_bytes?: number | null;
           adapted_archive_path?: string | null;
+          adapted_tracking_fingerprint?: string | null;
           adapter_reason?: string | null;
           adapter_status?: string;
           analysis: Json;
@@ -533,6 +537,7 @@ export type Database = {
           google_ads_conversion_label?: string | null;
           id?: string;
           intake_public_id?: string | null;
+          google_ads_tracking_profile_id?: string | null;
           name: string;
           offer_id: string;
           published_url?: string | null;
@@ -540,11 +545,13 @@ export type Database = {
           source_archive_bytes?: number | null;
           status?: "draft" | "ready" | "published" | "error";
           tiktok_pixel_id?: string | null;
+          tiktok_tracking_profile_id?: string | null;
           workspace_id: string;
         };
         Update: {
           adapted_archive_bytes?: number | null;
           adapted_archive_path?: string | null;
+          adapted_tracking_fingerprint?: string | null;
           adapter_reason?: string | null;
           adapter_status?: string;
           analysis?: Json;
@@ -555,6 +562,7 @@ export type Database = {
           google_ads_conversion_label?: string | null;
           id?: string;
           intake_public_id?: string | null;
+          google_ads_tracking_profile_id?: string | null;
           name?: string;
           offer_id?: string;
           published_url?: string | null;
@@ -562,6 +570,52 @@ export type Database = {
           source_archive_bytes?: number | null;
           status?: "draft" | "ready" | "published" | "error";
           tiktok_pixel_id?: string | null;
+          tiktok_tracking_profile_id?: string | null;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      workspace_tracking_profiles: {
+        Row: {
+          created_at: string;
+          created_by_user_id: string | null;
+          google_ads_conversion_id: string | null;
+          google_ads_conversion_label: string | null;
+          id: string;
+          is_active: boolean;
+          name: string;
+          platform: "tiktok" | "google_ads";
+          tiktok_pixel_id: string | null;
+          updated_at: string;
+          updated_by_user_id: string | null;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          google_ads_conversion_id?: string | null;
+          google_ads_conversion_label?: string | null;
+          id?: string;
+          is_active?: boolean;
+          name: string;
+          platform: "tiktok" | "google_ads";
+          tiktok_pixel_id?: string | null;
+          updated_at?: string;
+          updated_by_user_id?: string | null;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          google_ads_conversion_id?: string | null;
+          google_ads_conversion_label?: string | null;
+          id?: string;
+          is_active?: boolean;
+          name?: string;
+          platform?: "tiktok" | "google_ads";
+          tiktok_pixel_id?: string | null;
+          updated_at?: string;
+          updated_by_user_id?: string | null;
           workspace_id?: string;
         };
         Relationships: [];

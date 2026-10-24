@@ -12,6 +12,7 @@ import { LandingOriginSchema } from "@/lib/intake/validation";
 import { getPublicLandingIntakeEndpoint } from "@/lib/landings/config.server";
 import { LandingService } from "@/lib/landings/service";
 import type { LandingAdapterResponse } from "@/lib/landings/types";
+import { TrackingProfileService } from "@/lib/tracking-profiles/service.server";
 import { parseLandingRouteId } from "@/lib/landings/http.server";
 
 const connectSchema = z
@@ -35,6 +36,8 @@ const connectSchema = z
       .regex(/^[A-Za-z0-9_-]{1,128}$/)
       .nullable()
       .optional(),
+    tiktokProfileId: z.string().uuid().nullable().optional(),
+    googleAdsProfileId: z.string().uuid().nullable().optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -46,6 +49,15 @@ const connectSchema = z
     }
     if (hasId && Boolean(value.googleAdsConversionId) !== Boolean(value.googleAdsConversionLabel)) {
       context.addIssue({ code: "custom", message: "Google Ads ID and label must be set together" });
+    }
+    if (value.tiktokProfileId !== undefined && value.tiktokPixelId !== undefined) {
+      context.addIssue({ code: "custom", message: "Choose either a TikTok profile or direct ID" });
+    }
+    if (value.googleAdsProfileId !== undefined && hasId) {
+      context.addIssue({
+        code: "custom",
+        message: "Choose either a Google Ads profile or direct IDs",
+      });
     }
   });
 const PENDING_ORIGIN = "https://pending.crmonia.invalid";
@@ -98,6 +110,18 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/landings/$lan
             return accessSuccessResponse(adapterResponse(page));
           }
 
+          const tracking = await new TrackingProfileService().resolveSelection(
+            workspaceId,
+            parsed.data,
+            {
+              tiktokProfileId: inspection.tiktokProfileId,
+              tiktokPixelId: inspection.tiktokPixelId,
+              googleAdsProfileId: inspection.googleAdsProfileId,
+              googleAdsConversionId: inspection.googleAdsConversionId,
+              googleAdsConversionLabel: inspection.googleAdsConversionLabel,
+            },
+          );
+
           const ensured = await context.client.rpc("ensure_landing_form_config_for_adapter", {
             p_workspace_id: workspaceId,
             p_landing_id: landingId,
@@ -139,18 +163,11 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/landings/$lan
             publicFormId: config.public_id,
             allowedOriginConfigured: config.is_active && config.allowed_origin !== PENDING_ORIGIN,
             intakeEndpoint,
-            tiktokPixelId:
-              parsed.data.tiktokPixelId === undefined
-                ? inspection.tiktokPixelId
-                : parsed.data.tiktokPixelId,
-            googleAdsConversionId:
-              parsed.data.googleAdsConversionId === undefined
-                ? inspection.googleAdsConversionId
-                : parsed.data.googleAdsConversionId,
-            googleAdsConversionLabel:
-              parsed.data.googleAdsConversionLabel === undefined
-                ? inspection.googleAdsConversionLabel
-                : parsed.data.googleAdsConversionLabel,
+            tiktokPixelId: tracking.tiktokPixelId,
+            googleAdsConversionId: tracking.googleAdsConversionId,
+            googleAdsConversionLabel: tracking.googleAdsConversionLabel,
+            tiktokTrackingProfileId: tracking.tiktokProfileId,
+            googleAdsTrackingProfileId: tracking.googleAdsProfileId,
           });
           return accessSuccessResponse(adapterResponse(page));
         } catch (error) {

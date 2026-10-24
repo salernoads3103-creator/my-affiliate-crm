@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 import { ApiError } from "@/lib/api-error";
+import { trackingFingerprint } from "@/lib/tracking-profiles/logic";
 import {
   buildAdaptedLandingArchive,
   checkLandingAdapterCompatibility,
@@ -70,11 +71,14 @@ type LandingDraftDbRow = Pick<
   | "deletion_started_at"
   | "adapted_archive_path"
   | "adapted_archive_bytes"
+  | "adapted_tracking_fingerprint"
   | "adapter_status"
   | "adapter_reason"
   | "tiktok_pixel_id"
   | "google_ads_conversion_id"
   | "google_ads_conversion_label"
+  | "google_ads_tracking_profile_id"
+  | "tiktok_tracking_profile_id"
   | "analysis"
 >;
 
@@ -93,12 +97,15 @@ function toLandingDraftRecord(data: LandingDraftDbRow): LandingDraftRecord {
     deletion_started_at: data.deletion_started_at,
     adapted_archive_path: data.adapted_archive_path,
     adapted_archive_bytes: data.adapted_archive_bytes,
+    adapted_tracking_fingerprint: data.adapted_tracking_fingerprint,
     adapter_status: LandingAdapterStatusSchema.parse(data.adapter_status),
     adapter_reason:
       data.adapter_reason === null ? null : LandingAdapterReasonSchema.parse(data.adapter_reason),
     tiktok_pixel_id: data.tiktok_pixel_id,
     google_ads_conversion_id: data.google_ads_conversion_id,
     google_ads_conversion_label: data.google_ads_conversion_label,
+    google_ads_tracking_profile_id: data.google_ads_tracking_profile_id,
+    tiktok_tracking_profile_id: data.tiktok_tracking_profile_id,
     analysis: LandingArchiveAnalysisSchema.parse(data.analysis),
   };
 }
@@ -177,6 +184,9 @@ export class SupabaseLandingRepository implements LandingRepository {
         tiktok_pixel_id: null,
         google_ads_conversion_id: null,
         google_ads_conversion_label: null,
+        google_ads_tracking_profile_id: null,
+        tiktok_tracking_profile_id: null,
+        adapted_tracking_fingerprint: null,
         intake_public_id: null,
         analysis: input.analysis,
       })
@@ -199,7 +209,7 @@ export class SupabaseLandingRepository implements LandingRepository {
     const { data, error } = await this.privilegedClient
       .from("workspace_landings")
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
       )
       .eq("workspace_id", workspaceId)
       .eq("id", landingId)
@@ -233,6 +243,7 @@ export class SupabaseLandingRepository implements LandingRepository {
         : {
             adapted_archive_path: null,
             adapted_archive_bytes: null,
+            adapted_tracking_fingerprint: null,
             adapter_status: "not_connected",
             adapter_reason: null,
             intake_public_id: null,
@@ -246,7 +257,7 @@ export class SupabaseLandingRepository implements LandingRepository {
       .eq("status", "draft")
       .is("deletion_started_at", null)
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
       )
       .maybeSingle();
     if (error) throw databaseError(error);
@@ -265,6 +276,9 @@ export class SupabaseLandingRepository implements LandingRepository {
     tiktokPixelId?: string | null;
     googleAdsConversionId?: string | null;
     googleAdsConversionLabel?: string | null;
+    tiktokTrackingProfileId?: string | null;
+    googleAdsTrackingProfileId?: string | null;
+    adaptedTrackingFingerprint?: string | null;
     expectedSourceArchivePath?: string;
     expectedOfferId?: string;
   }): Promise<LandingDraftRecord> {
@@ -282,6 +296,15 @@ export class SupabaseLandingRepository implements LandingRepository {
         ...(input.googleAdsConversionLabel === undefined
           ? {}
           : { google_ads_conversion_label: input.googleAdsConversionLabel }),
+        ...(input.tiktokTrackingProfileId === undefined
+          ? {}
+          : { tiktok_tracking_profile_id: input.tiktokTrackingProfileId }),
+        ...(input.googleAdsTrackingProfileId === undefined
+          ? {}
+          : { google_ads_tracking_profile_id: input.googleAdsTrackingProfileId }),
+        ...(input.adaptedTrackingFingerprint === undefined
+          ? {}
+          : { adapted_tracking_fingerprint: input.adaptedTrackingFingerprint }),
         intake_public_id: input.publicFormId ?? null,
       })
       .eq("workspace_id", input.workspaceId)
@@ -294,7 +317,7 @@ export class SupabaseLandingRepository implements LandingRepository {
     const { data, error } = await query
       .is("deletion_started_at", null)
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
       )
       .maybeSingle();
     if (error) throw databaseError(error);
@@ -554,6 +577,8 @@ export async function connectLandingDraft(
     tiktokPixelId?: string | null;
     googleAdsConversionId?: string | null;
     googleAdsConversionLabel?: string | null;
+    tiktokTrackingProfileId?: string | null;
+    googleAdsTrackingProfileId?: string | null;
     createArchiveVersion?: () => string;
   },
 ): Promise<LandingPage> {
@@ -577,6 +602,14 @@ export async function connectLandingDraft(
     input.googleAdsConversionLabel === undefined
       ? current.google_ads_conversion_label
       : input.googleAdsConversionLabel;
+  const tiktokTrackingProfileId =
+    input.tiktokTrackingProfileId === undefined
+      ? current.tiktok_tracking_profile_id
+      : input.tiktokTrackingProfileId;
+  const googleAdsTrackingProfileId =
+    input.googleAdsTrackingProfileId === undefined
+      ? current.google_ads_tracking_profile_id
+      : input.googleAdsTrackingProfileId;
   if (Boolean(googleAdsConversionId) !== Boolean(googleAdsConversionLabel)) {
     throw new ApiError(
       400,
@@ -607,6 +640,9 @@ export async function connectLandingDraft(
       tiktokPixelId,
       googleAdsConversionId,
       googleAdsConversionLabel,
+      tiktokTrackingProfileId,
+      googleAdsTrackingProfileId,
+      adaptedTrackingFingerprint: null,
       expectedSourceArchivePath: current.source_archive_path,
       expectedOfferId: current.offer_id,
     });
@@ -648,6 +684,15 @@ export async function connectLandingDraft(
       tiktokPixelId,
       googleAdsConversionId,
       googleAdsConversionLabel,
+      tiktokTrackingProfileId,
+      googleAdsTrackingProfileId,
+      adaptedTrackingFingerprint: await trackingFingerprint({
+        tiktokProfileId: tiktokTrackingProfileId,
+        tiktokPixelId,
+        googleAdsProfileId: googleAdsTrackingProfileId,
+        googleAdsConversionId,
+        googleAdsConversionLabel,
+      }),
       expectedSourceArchivePath: current.source_archive_path,
       expectedOfferId: current.offer_id,
     });
@@ -732,6 +777,8 @@ export class LandingService {
     tiktokPixelId: string | null;
     googleAdsConversionId: string | null;
     googleAdsConversionLabel: string | null;
+    tiktokProfileId: string | null;
+    googleAdsProfileId: string | null;
   }> {
     const draft = await this.repository.getDraft(workspaceId, landingId);
     if (!draft) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
@@ -745,6 +792,8 @@ export class LandingService {
       tiktokPixelId: draft.tiktok_pixel_id,
       googleAdsConversionId: draft.google_ads_conversion_id,
       googleAdsConversionLabel: draft.google_ads_conversion_label,
+      tiktokProfileId: draft.tiktok_tracking_profile_id,
+      googleAdsProfileId: draft.google_ads_tracking_profile_id,
     };
   }
 
@@ -764,6 +813,7 @@ export class LandingService {
       adaptedArchivePath: null,
       adaptedArchiveBytes: null,
       publicFormId: null,
+      adaptedTrackingFingerprint: null,
       expectedSourceArchivePath,
       expectedOfferId: draft.offer_id,
     });

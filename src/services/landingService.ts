@@ -3,6 +3,7 @@ import type {
   LandingListResponse,
   LandingPage,
 } from "@/lib/landings/types";
+import type { LandingTrackingConfiguration, TrackingProfile } from "@/lib/tracking-profiles/types";
 import { accessApi } from "@/services/accessApi";
 
 function basePath(workspaceId: string) {
@@ -43,9 +44,11 @@ export const landingService = {
     landingId: string,
     input: {
       allowedOrigin?: string;
-      tiktokPixelId: string | null;
-      googleAdsConversionId: string | null;
-      googleAdsConversionLabel: string | null;
+      tiktokPixelId?: string | null;
+      googleAdsConversionId?: string | null;
+      googleAdsConversionLabel?: string | null;
+      tiktokProfileId?: string | null;
+      googleAdsProfileId?: string | null;
     },
   ) =>
     accessApi.post<LandingAdapterResponse>(adapterPath(workspaceId, landingId), {
@@ -53,4 +56,14 @@ export const landingService = {
     }),
   downloadAdaptedArchive: (workspaceId: string, landingId: string) =>
     accessApi.getBlob(adapterPath(workspaceId, landingId)),
+  trackingConfiguration: (workspaceId: string, landingId: string) =>
+    accessApi.get<LandingTrackingConfiguration>(
+      `/api/workspaces/${workspaceId}/landings/${landingId}/tracking-config`,
+    ),
+  trackingProfiles: async (workspaceId: string) => {
+    const response = await accessApi.get<{ profiles: TrackingProfile[] }>(
+      `/api/workspaces/${workspaceId}/tracking-profiles`,
+    );
+    return response.profiles;
+  },
 };

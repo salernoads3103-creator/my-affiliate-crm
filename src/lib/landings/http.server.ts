@@ -10,7 +10,10 @@ import type { LandingArchiveAnalysis } from "./types";
 
 const uuidSchema = z.string().uuid();
 
-export function parseLandingRouteId(value: string, label: "workspace" | "landing"): string {
+export function parseLandingRouteId(
+  value: string,
+  label: "workspace" | "landing" | "tracking profile",
+): string {
   const parsed = uuidSchema.safeParse(value);
   if (!parsed.success) {
     throw new ApiError(400, `Invalid ${label} ID`, "VALIDATION_ERROR");

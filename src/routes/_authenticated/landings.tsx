@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -37,6 +37,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Table,
   TableBody,
   TableCell,
@@ -49,10 +56,14 @@ import type { LandingAnalysisWarning, LandingPage, LandingStatus } from "@/lib/l
 import type { LandingAdapterReason, LandingAdapterStatus } from "@/lib/landings/types";
 import { localizeError, t, type TranslationKey } from "@/lib/i18n";
 import { landingService } from "@/services/landingService";
+import type { TrackingProfile } from "@/lib/tracking-profiles/types";
 
 export const Route = createFileRoute("/_authenticated/landings")({ component: LandingsPage });
 
 const LANDINGS_QUERY_KEY = ["workspace-landings"] as const;
+const TRACKING_PROFILES_QUERY_KEY = ["tracking-profiles"] as const;
+const LEGACY_TRACKING_OPTION = "__legacy__";
+const NO_TRACKING_OPTION = "__none__";
 
 const STATUS_LABEL: Record<LandingStatus, TranslationKey> = {
   draft: "Draft",
@@ -301,15 +312,42 @@ function LandingsPage() {
   const [editingLanding, setEditingLanding] = useState<LandingPage | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LandingPage | null>(null);
   const [adapterOrigin, setAdapterOrigin] = useState("");
-  const [tiktokPixelId, setTiktokPixelId] = useState("");
-  const [googleAdsConversionId, setGoogleAdsConversionId] = useState("");
-  const [googleAdsConversionLabel, setGoogleAdsConversionLabel] = useState("");
+  const [selectedTikTokProfile, setSelectedTikTokProfile] = useState<string | undefined>();
+  const [selectedGoogleAdsProfile, setSelectedGoogleAdsProfile] = useState<string | undefined>();
 
   const landingsQuery = useQuery({
     queryKey: [...LANDINGS_QUERY_KEY, workspaceId, search.trim()],
     queryFn: () => landingService.list(workspaceId!, search.trim()),
     enabled: Boolean(workspaceId && canReadLandings),
   });
+  const trackingProfilesQuery = useQuery({
+    queryKey: [...TRACKING_PROFILES_QUERY_KEY, workspaceId],
+    queryFn: () => landingService.trackingProfiles(workspaceId!),
+    enabled: Boolean(workspaceId && analysisLanding && canCreateLandings),
+  });
+  const trackingConfigurationQuery = useQuery({
+    queryKey: ["landing-tracking-config", workspaceId, analysisLanding?.id],
+    queryFn: () => landingService.trackingConfiguration(workspaceId!, analysisLanding!.id),
+    enabled: Boolean(workspaceId && analysisLanding && canCreateLandings),
+  });
+  useEffect(() => {
+    const configuration = trackingConfigurationQuery.data;
+    if (
+      !configuration ||
+      selectedTikTokProfile !== undefined ||
+      selectedGoogleAdsProfile !== undefined
+    ) {
+      return;
+    }
+    setSelectedTikTokProfile(
+      configuration.tiktokProfileId ??
+        (configuration.legacyTikTokConfigured ? LEGACY_TRACKING_OPTION : NO_TRACKING_OPTION),
+    );
+    setSelectedGoogleAdsProfile(
+      configuration.googleAdsProfileId ??
+        (configuration.legacyGoogleAdsConfigured ? LEGACY_TRACKING_OPTION : NO_TRACKING_OPTION),
+    );
+  }, [trackingConfigurationQuery.data, selectedTikTokProfile, selectedGoogleAdsProfile]);
   const createMutation = useMutation({
     mutationFn: (input: { name: string; offerId: string; archive: File }) => {
       if (!workspaceId) throw new Error("Workspace is unavailable");
@@ -358,9 +396,8 @@ function LandingsPage() {
     mutationFn: (input: {
       landingId: string;
       allowedOrigin?: string;
-      tiktokPixelId: string | null;
-      googleAdsConversionId: string | null;
-      googleAdsConversionLabel: string | null;
+      tiktokProfileId?: string | null;
+      googleAdsProfileId?: string | null;
     }) => {
       if (!workspaceId) throw new Error("Workspace is unavailable");
       const { landingId, ...config } = input;
@@ -371,6 +408,7 @@ function LandingsPage() {
         current?.id === input.landingId ? { ...current, ...result } : current,
       );
       await queryClient.invalidateQueries({ queryKey: LANDINGS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ["landing-tracking-config"] });
       if (result.adapter_status === "needs_adaptation" && result.adapter_reason) {
         toast.error(t(ADAPTER_REASON_LABEL[result.adapter_reason]));
       } else if (result.adapter_status === "configuration_required") {
@@ -394,6 +432,45 @@ function LandingsPage() {
     onError: (error) =>
       toast.error(localizeError(error, t("Could not download the adapted ZIP."), locale)),
   });
+
+  const trackingConfiguration = trackingConfigurationQuery.data;
+  const savedTikTokSelection =
+    trackingConfiguration?.tiktokProfileId ??
+    (trackingConfiguration?.legacyTikTokConfigured ? LEGACY_TRACKING_OPTION : NO_TRACKING_OPTION);
+  const savedGoogleAdsSelection =
+    trackingConfiguration?.googleAdsProfileId ??
+    (trackingConfiguration?.legacyGoogleAdsConfigured
+      ? LEGACY_TRACKING_OPTION
+      : NO_TRACKING_OPTION);
+  const effectiveTikTokSelection = selectedTikTokProfile ?? savedTikTokSelection;
+  const effectiveGoogleAdsSelection = selectedGoogleAdsProfile ?? savedGoogleAdsSelection;
+  const trackingSelectionChanged = Boolean(
+    trackingConfiguration &&
+    (effectiveTikTokSelection !== savedTikTokSelection ||
+      effectiveGoogleAdsSelection !== savedGoogleAdsSelection),
+  );
+  const tiktokProfiles = (trackingProfilesQuery.data ?? []).filter(
+    (profile) =>
+      profile.platform === "tiktok" &&
+      (profile.is_active || profile.id === trackingConfiguration?.tiktokProfileId),
+  );
+  const googleAdsProfiles = (trackingProfilesQuery.data ?? []).filter(
+    (profile) =>
+      profile.platform === "google_ads" &&
+      (profile.is_active || profile.id === trackingConfiguration?.googleAdsProfileId),
+  );
+  const selectedTikTokIsDisabled = Boolean(
+    effectiveTikTokSelection &&
+    effectiveTikTokSelection !== LEGACY_TRACKING_OPTION &&
+    effectiveTikTokSelection !== NO_TRACKING_OPTION &&
+    !tiktokProfiles.find((profile) => profile.id === effectiveTikTokSelection)?.is_active,
+  );
+  const selectedGoogleAdsIsDisabled = Boolean(
+    effectiveGoogleAdsSelection &&
+    effectiveGoogleAdsSelection !== LEGACY_TRACKING_OPTION &&
+    effectiveGoogleAdsSelection !== NO_TRACKING_OPTION &&
+    !googleAdsProfiles.find((profile) => profile.id === effectiveGoogleAdsSelection)?.is_active,
+  );
 
   if (accessLoading) {
     return (
@@ -540,11 +617,8 @@ function LandingsPage() {
                             title={t("View analysis")}
                             onClick={() => {
                               setAdapterOrigin("");
-                              setTiktokPixelId(landing.tiktok_pixel_id ?? "");
-                              setGoogleAdsConversionId(landing.google_ads_conversion_id ?? "");
-                              setGoogleAdsConversionLabel(
-                                landing.google_ads_conversion_label ?? "",
-                              );
+                              setSelectedTikTokProfile(undefined);
+                              setSelectedGoogleAdsProfile(undefined);
                               setAnalysisLanding(landing);
                             }}
                           >
@@ -672,18 +746,40 @@ function LandingsPage() {
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="landing-tiktok-pixel-id">{t("TikTok Pixel ID (optional)")}</Label>
-                  <Input
-                    id="landing-tiktok-pixel-id"
-                    autoComplete="off"
-                    maxLength={64}
-                    value={tiktokPixelId}
-                    onChange={(event) => setTiktokPixelId(event.target.value)}
-                    placeholder="CXXXXXXXXXXXXXXX"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t("The Pixel ID is public and is stored with this landing.")}
-                  </p>
+                  <Label htmlFor="landing-tiktok-profile">
+                    {t("TikTok Ads profile (optional)")}
+                  </Label>
+                  <Select
+                    value={effectiveTikTokSelection}
+                    onValueChange={setSelectedTikTokProfile}
+                    disabled={
+                      trackingProfilesQuery.isLoading || trackingConfigurationQuery.isLoading
+                    }
+                  >
+                    <SelectTrigger id="landing-tiktok-profile">
+                      <SelectValue placeholder={t("Choose a saved TikTok profile")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_TRACKING_OPTION}>{t("No tracking profile")}</SelectItem>
+                      {trackingConfiguration?.legacyTikTokConfigured && (
+                        <SelectItem value={LEGACY_TRACKING_OPTION}>
+                          {t("Keep existing ID")}
+                        </SelectItem>
+                      )}
+                      {tiktokProfiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.name}
+                          {profile.is_active ? "" : ` · ${t("Disabled")}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {effectiveTikTokSelection === LEGACY_TRACKING_OPTION &&
+                    trackingConfiguration?.legacyTikTokPixelId && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("Current ID: {id}", { id: trackingConfiguration.legacyTikTokPixelId })}
+                      </p>
+                    )}
                   {(analysisLanding.analysis.detectedPixels.includes("tiktok") ||
                     analysisLanding.analysis.detectedPixels.includes("google_tag_manager")) && (
                     <p className="flex gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-800 dark:text-amber-200">
@@ -697,33 +793,42 @@ function LandingsPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="landing-google-ads-conversion-id">
-                    {t("Google Ads Conversion ID (optional)")}
+                  <Label htmlFor="landing-google-ads-profile">
+                    {t("Google Ads profile (optional)")}
                   </Label>
-                  <Input
-                    id="landing-google-ads-conversion-id"
-                    autoComplete="off"
-                    maxLength={23}
-                    value={googleAdsConversionId}
-                    onChange={(event) => setGoogleAdsConversionId(event.target.value)}
-                    placeholder="AW-123456789"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="landing-google-ads-conversion-label">
-                    {t("Google Ads Conversion Label (optional)")}
-                  </Label>
-                  <Input
-                    id="landing-google-ads-conversion-label"
-                    autoComplete="off"
-                    maxLength={128}
-                    value={googleAdsConversionLabel}
-                    onChange={(event) => setGoogleAdsConversionLabel(event.target.value)}
-                    placeholder="AbC-D_efG-h12_34-567"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {t("Use the ID and label from the Google Ads conversion tag.")}
-                  </p>
+                  <Select
+                    value={effectiveGoogleAdsSelection}
+                    onValueChange={setSelectedGoogleAdsProfile}
+                    disabled={
+                      trackingProfilesQuery.isLoading || trackingConfigurationQuery.isLoading
+                    }
+                  >
+                    <SelectTrigger id="landing-google-ads-profile">
+                      <SelectValue placeholder={t("Choose a saved Google Ads profile")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_TRACKING_OPTION}>{t("No tracking profile")}</SelectItem>
+                      {trackingConfiguration?.legacyGoogleAdsConfigured && (
+                        <SelectItem value={LEGACY_TRACKING_OPTION}>
+                          {t("Keep existing ID")}
+                        </SelectItem>
+                      )}
+                      {googleAdsProfiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          {profile.name}
+                          {profile.is_active ? "" : ` · ${t("Disabled")}`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {effectiveGoogleAdsSelection === LEGACY_TRACKING_OPTION &&
+                    trackingConfiguration?.legacyGoogleAdsConversionId && (
+                      <p className="text-xs text-muted-foreground">
+                        {t("Current ID: {id}", {
+                          id: `${trackingConfiguration.legacyGoogleAdsConversionId} · ${trackingConfiguration.legacyGoogleAdsConversionLabel ?? ""}`,
+                        })}
+                      </p>
+                    )}
                   {(analysisLanding.analysis.detectedPixels.includes("google_analytics") ||
                     analysisLanding.analysis.detectedPixels.includes("google_tag") ||
                     analysisLanding.analysis.detectedPixels.includes("google_ads") ||
@@ -738,18 +843,72 @@ function LandingsPage() {
                     </p>
                   )}
                 </div>
+                {(trackingConfiguration?.needsRepublish || trackingSelectionChanged) && (
+                  <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-800 dark:text-amber-200">
+                    {trackingSelectionChanged
+                      ? t(
+                          "Profile selection changed. Prepare a new ZIP and republish the landing to apply it.",
+                        )
+                      : t(
+                          "Tracking settings changed. Prepare a new ZIP and republish the landing to apply them.",
+                        )}
+                  </p>
+                )}
+                {(trackingProfilesQuery.isError || trackingConfigurationQuery.isError) && (
+                  <p className="text-sm text-destructive">
+                    {t("Could not load tracking profiles.")}
+                  </p>
+                )}
+                {(selectedTikTokIsDisabled || selectedGoogleAdsIsDisabled) && (
+                  <div className="space-y-1 text-sm text-amber-800 dark:text-amber-200">
+                    <p>
+                      {t(
+                        "This profile is disabled. Choose an active profile or no profile before preparing a new ZIP.",
+                      )}
+                    </p>
+                    {analysisLanding.has_adapted_archive && (
+                      <p>
+                        {t(
+                          "Disabling a profile does not change an already prepared ZIP. Choose another profile or no profile, then prepare and republish to change the published tracking.",
+                        )}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={() =>
                       connectFormMutation.mutate({
                         landingId: analysisLanding.id,
                         ...(adapterOrigin.trim() ? { allowedOrigin: adapterOrigin.trim() } : {}),
-                        tiktokPixelId: tiktokPixelId.trim() || null,
-                        googleAdsConversionId: googleAdsConversionId.trim() || null,
-                        googleAdsConversionLabel: googleAdsConversionLabel.trim() || null,
+                        ...(effectiveTikTokSelection === LEGACY_TRACKING_OPTION
+                          ? {}
+                          : {
+                              tiktokProfileId:
+                                effectiveTikTokSelection === NO_TRACKING_OPTION
+                                  ? null
+                                  : effectiveTikTokSelection,
+                            }),
+                        ...(effectiveGoogleAdsSelection === LEGACY_TRACKING_OPTION
+                          ? {}
+                          : {
+                              googleAdsProfileId:
+                                effectiveGoogleAdsSelection === NO_TRACKING_OPTION
+                                  ? null
+                                  : effectiveGoogleAdsSelection,
+                            }),
                       })
                     }
-                    disabled={connectFormMutation.isPending || downloadAdapterMutation.isPending}
+                    disabled={
+                      connectFormMutation.isPending ||
+                      downloadAdapterMutation.isPending ||
+                      trackingProfilesQuery.isLoading ||
+                      trackingProfilesQuery.isError ||
+                      trackingConfigurationQuery.isLoading ||
+                      trackingConfigurationQuery.isError ||
+                      selectedTikTokIsDisabled ||
+                      selectedGoogleAdsIsDisabled
+                    }
                   >
                     {connectFormMutation.isPending ? (
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />

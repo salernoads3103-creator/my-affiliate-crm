@@ -124,6 +124,9 @@ export type LandingUpdateInput = LandingCreateInput;
 
 export type LandingDraftRecord = Omit<LandingPage, "offer_name" | "has_adapted_archive"> & {
   adapted_archive_path: string | null;
+  adapted_tracking_fingerprint: string | null;
+  tiktok_tracking_profile_id: string | null;
+  google_ads_tracking_profile_id: string | null;
 };
 
 export interface LandingArchiveStorage {
@@ -171,6 +174,9 @@ export interface LandingRepository {
     tiktokPixelId?: string | null;
     googleAdsConversionId?: string | null;
     googleAdsConversionLabel?: string | null;
+    tiktokTrackingProfileId?: string | null;
+    googleAdsTrackingProfileId?: string | null;
+    adaptedTrackingFingerprint?: string | null;
     expectedSourceArchivePath?: string;
     expectedOfferId?: string;
   }): Promise<LandingDraftRecord>;

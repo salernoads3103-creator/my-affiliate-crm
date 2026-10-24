@@ -13,6 +13,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedProductsRouteImport } from './routes/_authenticated/products'
+import { Route as AuthenticatedPixelsRouteImport } from './routes/_authenticated/pixels'
 import { Route as AuthenticatedOrdersRouteImport } from './routes/_authenticated/orders'
 import { Route as AuthenticatedOffersRouteImport } from './routes/_authenticated/offers'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
@@ -26,6 +27,7 @@ import { Route as ApiLeadsSearchRouteImport } from './routes/api/leads/search'
 import { Route as ApiLeadsIdRouteImport } from './routes/api/leads/$id'
 import { Route as ApiInvitationsValidateRouteImport } from './routes/api/invitations/validate'
 import { Route as ApiInvitationsAcceptRouteImport } from './routes/api/invitations/accept'
+import { Route as ApiWorkspacesWorkspaceIdTrackingProfilesRouteImport } from './routes/api/workspaces/$workspaceId/tracking-profiles'
 import { Route as ApiWorkspacesWorkspaceIdTeamsRouteImport } from './routes/api/workspaces/$workspaceId/teams'
 import { Route as ApiWorkspacesWorkspaceIdProductsRouteImport } from './routes/api/workspaces/$workspaceId/products'
 import { Route as ApiWorkspacesWorkspaceIdPermissionsRouteImport } from './routes/api/workspaces/$workspaceId/permissions'
@@ -37,6 +39,7 @@ import { Route as ApiWorkspacesWorkspaceIdInvitationsRouteImport } from './route
 import { Route as ApiWorkspacesWorkspaceIdAuditRouteImport } from './routes/api/workspaces/$workspaceId/audit'
 import { Route as ApiWorkspacesWorkspaceIdAccessRouteImport } from './routes/api/workspaces/$workspaceId/access'
 import { Route as ApiV1IntakeLeadsRouteImport } from './routes/api/v1/intake/leads'
+import { Route as ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRouteImport } from './routes/api/workspaces/$workspaceId/tracking-profiles/$profileId'
 import { Route as ApiWorkspacesWorkspaceIdProductsProductIdRouteImport } from './routes/api/workspaces/$workspaceId/products/$productId'
 import { Route as ApiWorkspacesWorkspaceIdOrdersContextRouteImport } from './routes/api/workspaces/$workspaceId/orders/context'
 import { Route as ApiWorkspacesWorkspaceIdOrdersOrderIdRouteImport } from './routes/api/workspaces/$workspaceId/orders/$orderId'
@@ -51,6 +54,7 @@ import { Route as ApiWorkspacesWorkspaceIdOrdersOrderIdWaybillRouteImport } from
 import { Route as ApiWorkspacesWorkspaceIdOrdersOrderIdStatusRouteImport } from './routes/api/workspaces/$workspaceId/orders/$orderId/status'
 import { Route as ApiWorkspacesWorkspaceIdOrdersOrderIdDeliveryRouteImport } from './routes/api/workspaces/$workspaceId/orders/$orderId/delivery'
 import { Route as ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRouteImport } from './routes/api/workspaces/$workspaceId/offers/$offerId/intake-form'
+import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
 import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId/adapter'
 
 const AuthRoute = AuthRouteImport.update({
@@ -70,6 +74,11 @@ const IndexRoute = IndexRouteImport.update({
 const AuthenticatedProductsRoute = AuthenticatedProductsRouteImport.update({
   id: '/products',
   path: '/products',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedPixelsRoute = AuthenticatedPixelsRouteImport.update({
+  id: '/pixels',
+  path: '/pixels',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedOrdersRoute = AuthenticatedOrdersRouteImport.update({
@@ -138,6 +147,12 @@ const ApiInvitationsAcceptRoute = ApiInvitationsAcceptRouteImport.update({
   path: '/api/invitations/accept',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkspacesWorkspaceIdTrackingProfilesRoute =
+  ApiWorkspacesWorkspaceIdTrackingProfilesRouteImport.update({
+    id: '/api/workspaces/$workspaceId/tracking-profiles',
+    path: '/api/workspaces/$workspaceId/tracking-profiles',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWorkspacesWorkspaceIdTeamsRoute =
   ApiWorkspacesWorkspaceIdTeamsRouteImport.update({
     id: '/api/workspaces/$workspaceId/teams',
@@ -203,6 +218,12 @@ const ApiV1IntakeLeadsRoute = ApiV1IntakeLeadsRouteImport.update({
   path: '/api/v1/intake/leads',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRoute =
+  ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRouteImport.update({
+    id: '/$profileId',
+    path: '/$profileId',
+    getParentRoute: () => ApiWorkspacesWorkspaceIdTrackingProfilesRoute,
+  } as any)
 const ApiWorkspacesWorkspaceIdProductsProductIdRoute =
   ApiWorkspacesWorkspaceIdProductsProductIdRouteImport.update({
     id: '/$productId',
@@ -287,6 +308,12 @@ const ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute =
     path: '/intake-form',
     getParentRoute: () => ApiWorkspacesWorkspaceIdOffersOfferIdRoute,
   } as any)
+const ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute =
+  ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRouteImport.update({
+    id: '/tracking-config',
+    path: '/tracking-config',
+    getParentRoute: () => ApiWorkspacesWorkspaceIdLandingsLandingIdRoute,
+  } as any)
 const ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute =
   ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRouteImport.update({
     id: '/adapter',
@@ -303,6 +330,7 @@ export interface FileRoutesByFullPath {
   '/leads': typeof AuthenticatedLeadsRoute
   '/offers': typeof AuthenticatedOffersRoute
   '/orders': typeof AuthenticatedOrdersRoute
+  '/pixels': typeof AuthenticatedPixelsRoute
   '/products': typeof AuthenticatedProductsRoute
   '/api/invitations/accept': typeof ApiInvitationsAcceptRoute
   '/api/invitations/validate': typeof ApiInvitationsValidateRoute
@@ -322,6 +350,7 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
+  '/api/workspaces/$workspaceId/tracking-profiles': typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/landings/$landingId': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
@@ -332,7 +361,9 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/orders/$orderId': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdRouteWithChildren
   '/api/workspaces/$workspaceId/orders/context': typeof ApiWorkspacesWorkspaceIdOrdersContextRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/tracking-profiles/$profileId': typeof ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRoute
   '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/tracking-config': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
   '/api/workspaces/$workspaceId/orders/$orderId/delivery': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdDeliveryRoute
   '/api/workspaces/$workspaceId/orders/$orderId/status': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdStatusRoute
@@ -347,6 +378,7 @@ export interface FileRoutesByTo {
   '/leads': typeof AuthenticatedLeadsRoute
   '/offers': typeof AuthenticatedOffersRoute
   '/orders': typeof AuthenticatedOrdersRoute
+  '/pixels': typeof AuthenticatedPixelsRoute
   '/products': typeof AuthenticatedProductsRoute
   '/api/invitations/accept': typeof ApiInvitationsAcceptRoute
   '/api/invitations/validate': typeof ApiInvitationsValidateRoute
@@ -366,6 +398,7 @@ export interface FileRoutesByTo {
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
+  '/api/workspaces/$workspaceId/tracking-profiles': typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/landings/$landingId': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
@@ -376,7 +409,9 @@ export interface FileRoutesByTo {
   '/api/workspaces/$workspaceId/orders/$orderId': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdRouteWithChildren
   '/api/workspaces/$workspaceId/orders/context': typeof ApiWorkspacesWorkspaceIdOrdersContextRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/tracking-profiles/$profileId': typeof ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRoute
   '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/tracking-config': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
   '/api/workspaces/$workspaceId/orders/$orderId/delivery': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdDeliveryRoute
   '/api/workspaces/$workspaceId/orders/$orderId/status': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdStatusRoute
@@ -393,6 +428,7 @@ export interface FileRoutesById {
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/offers': typeof AuthenticatedOffersRoute
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
+  '/_authenticated/pixels': typeof AuthenticatedPixelsRoute
   '/_authenticated/products': typeof AuthenticatedProductsRoute
   '/api/invitations/accept': typeof ApiInvitationsAcceptRoute
   '/api/invitations/validate': typeof ApiInvitationsValidateRoute
@@ -412,6 +448,7 @@ export interface FileRoutesById {
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
+  '/api/workspaces/$workspaceId/tracking-profiles': typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren
   '/api/workspaces/$workspaceId/invitations/$invitationId': typeof ApiWorkspacesWorkspaceIdInvitationsInvitationIdRoute
   '/api/workspaces/$workspaceId/landings/$landingId': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
@@ -422,7 +459,9 @@ export interface FileRoutesById {
   '/api/workspaces/$workspaceId/orders/$orderId': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdRouteWithChildren
   '/api/workspaces/$workspaceId/orders/context': typeof ApiWorkspacesWorkspaceIdOrdersContextRoute
   '/api/workspaces/$workspaceId/products/$productId': typeof ApiWorkspacesWorkspaceIdProductsProductIdRoute
+  '/api/workspaces/$workspaceId/tracking-profiles/$profileId': typeof ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRoute
   '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/tracking-config': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
   '/api/workspaces/$workspaceId/orders/$orderId/delivery': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdDeliveryRoute
   '/api/workspaces/$workspaceId/orders/$orderId/status': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdStatusRoute
@@ -439,6 +478,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/offers'
     | '/orders'
+    | '/pixels'
     | '/products'
     | '/api/invitations/accept'
     | '/api/invitations/validate'
@@ -458,6 +498,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/permissions'
     | '/api/workspaces/$workspaceId/products'
     | '/api/workspaces/$workspaceId/teams'
+    | '/api/workspaces/$workspaceId/tracking-profiles'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/landings/$landingId'
     | '/api/workspaces/$workspaceId/members/$userId'
@@ -468,7 +509,9 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/orders/$orderId'
     | '/api/workspaces/$workspaceId/orders/context'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/tracking-profiles/$profileId'
     | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
+    | '/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
     | '/api/workspaces/$workspaceId/orders/$orderId/delivery'
     | '/api/workspaces/$workspaceId/orders/$orderId/status'
@@ -483,6 +526,7 @@ export interface FileRouteTypes {
     | '/leads'
     | '/offers'
     | '/orders'
+    | '/pixels'
     | '/products'
     | '/api/invitations/accept'
     | '/api/invitations/validate'
@@ -502,6 +546,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/permissions'
     | '/api/workspaces/$workspaceId/products'
     | '/api/workspaces/$workspaceId/teams'
+    | '/api/workspaces/$workspaceId/tracking-profiles'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/landings/$landingId'
     | '/api/workspaces/$workspaceId/members/$userId'
@@ -512,7 +557,9 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/orders/$orderId'
     | '/api/workspaces/$workspaceId/orders/context'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/tracking-profiles/$profileId'
     | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
+    | '/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
     | '/api/workspaces/$workspaceId/orders/$orderId/delivery'
     | '/api/workspaces/$workspaceId/orders/$orderId/status'
@@ -528,6 +575,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads'
     | '/_authenticated/offers'
     | '/_authenticated/orders'
+    | '/_authenticated/pixels'
     | '/_authenticated/products'
     | '/api/invitations/accept'
     | '/api/invitations/validate'
@@ -547,6 +595,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/permissions'
     | '/api/workspaces/$workspaceId/products'
     | '/api/workspaces/$workspaceId/teams'
+    | '/api/workspaces/$workspaceId/tracking-profiles'
     | '/api/workspaces/$workspaceId/invitations/$invitationId'
     | '/api/workspaces/$workspaceId/landings/$landingId'
     | '/api/workspaces/$workspaceId/members/$userId'
@@ -557,7 +606,9 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/orders/$orderId'
     | '/api/workspaces/$workspaceId/orders/context'
     | '/api/workspaces/$workspaceId/products/$productId'
+    | '/api/workspaces/$workspaceId/tracking-profiles/$profileId'
     | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
+    | '/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
     | '/api/workspaces/$workspaceId/orders/$orderId/delivery'
     | '/api/workspaces/$workspaceId/orders/$orderId/status'
@@ -586,6 +637,7 @@ export interface RootRouteChildren {
   ApiWorkspacesWorkspaceIdPermissionsRoute: typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   ApiWorkspacesWorkspaceIdProductsRoute: typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
   ApiWorkspacesWorkspaceIdTeamsRoute: typeof ApiWorkspacesWorkspaceIdTeamsRoute
+  ApiWorkspacesWorkspaceIdTrackingProfilesRoute: typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren
   ApiWorkspacesWorkspaceIdNovaPoshtaDirectoriesRoute: typeof ApiWorkspacesWorkspaceIdNovaPoshtaDirectoriesRoute
   ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRoute: typeof ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRoute
 }
@@ -618,6 +670,13 @@ declare module '@tanstack/react-router' {
       path: '/products'
       fullPath: '/products'
       preLoaderRoute: typeof AuthenticatedProductsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/pixels': {
+      id: '/_authenticated/pixels'
+      path: '/pixels'
+      fullPath: '/pixels'
+      preLoaderRoute: typeof AuthenticatedPixelsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/orders': {
@@ -711,6 +770,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiInvitationsAcceptRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspaces/$workspaceId/tracking-profiles': {
+      id: '/api/workspaces/$workspaceId/tracking-profiles'
+      path: '/api/workspaces/$workspaceId/tracking-profiles'
+      fullPath: '/api/workspaces/$workspaceId/tracking-profiles'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/workspaces/$workspaceId/teams': {
       id: '/api/workspaces/$workspaceId/teams'
       path: '/api/workspaces/$workspaceId/teams'
@@ -787,6 +853,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/v1/intake/leads'
       preLoaderRoute: typeof ApiV1IntakeLeadsRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/tracking-profiles/$profileId': {
+      id: '/api/workspaces/$workspaceId/tracking-profiles/$profileId'
+      path: '/$profileId'
+      fullPath: '/api/workspaces/$workspaceId/tracking-profiles/$profileId'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRouteImport
+      parentRoute: typeof ApiWorkspacesWorkspaceIdTrackingProfilesRoute
     }
     '/api/workspaces/$workspaceId/products/$productId': {
       id: '/api/workspaces/$workspaceId/products/$productId'
@@ -886,6 +959,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRouteImport
       parentRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdRoute
     }
+    '/api/workspaces/$workspaceId/landings/$landingId/tracking-config': {
+      id: '/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
+      path: '/tracking-config'
+      fullPath: '/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRouteImport
+      parentRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRoute
+    }
     '/api/workspaces/$workspaceId/landings/$landingId/adapter': {
       id: '/api/workspaces/$workspaceId/landings/$landingId/adapter'
       path: '/adapter'
@@ -903,6 +983,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedOffersRoute: typeof AuthenticatedOffersRoute
   AuthenticatedOrdersRoute: typeof AuthenticatedOrdersRoute
+  AuthenticatedPixelsRoute: typeof AuthenticatedPixelsRoute
   AuthenticatedProductsRoute: typeof AuthenticatedProductsRoute
 }
 
@@ -913,6 +994,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedOffersRoute: AuthenticatedOffersRoute,
   AuthenticatedOrdersRoute: AuthenticatedOrdersRoute,
+  AuthenticatedPixelsRoute: AuthenticatedPixelsRoute,
   AuthenticatedProductsRoute: AuthenticatedProductsRoute,
 }
 
@@ -936,12 +1018,15 @@ const ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren =
 
 interface ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren {
   ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+  ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute
 }
 
 const ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren: ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren =
   {
     ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute:
       ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute,
+    ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute:
+      ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute,
   }
 
 const ApiWorkspacesWorkspaceIdLandingsLandingIdRouteWithChildren =
@@ -1066,6 +1151,21 @@ const ApiWorkspacesWorkspaceIdProductsRouteWithChildren =
     ApiWorkspacesWorkspaceIdProductsRouteChildren,
   )
 
+interface ApiWorkspacesWorkspaceIdTrackingProfilesRouteChildren {
+  ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRoute: typeof ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRoute
+}
+
+const ApiWorkspacesWorkspaceIdTrackingProfilesRouteChildren: ApiWorkspacesWorkspaceIdTrackingProfilesRouteChildren =
+  {
+    ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRoute:
+      ApiWorkspacesWorkspaceIdTrackingProfilesProfileIdRoute,
+  }
+
+const ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren =
+  ApiWorkspacesWorkspaceIdTrackingProfilesRoute._addFileChildren(
+    ApiWorkspacesWorkspaceIdTrackingProfilesRouteChildren,
+  )
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
@@ -1095,6 +1195,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiWorkspacesWorkspaceIdProductsRoute:
     ApiWorkspacesWorkspaceIdProductsRouteWithChildren,
   ApiWorkspacesWorkspaceIdTeamsRoute: ApiWorkspacesWorkspaceIdTeamsRoute,
+  ApiWorkspacesWorkspaceIdTrackingProfilesRoute:
+    ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren,
   ApiWorkspacesWorkspaceIdNovaPoshtaDirectoriesRoute:
     ApiWorkspacesWorkspaceIdNovaPoshtaDirectoriesRoute,
   ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRoute:
