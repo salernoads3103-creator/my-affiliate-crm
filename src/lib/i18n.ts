@@ -235,8 +235,56 @@ const uk = {
   "This landing draft is no longer available for deletion":
     "Цю чернетку лендингу вже не можна видалити",
   "Landing name": "Назва лендингу",
+  "Prepare launch": "Підготувати запуск",
+  "Choose an offer and ZIP. You can add a domain later without uploading again.":
+    "Оберіть офер і ZIP-архів. Домен можна додати пізніше без повторного завантаження.",
   "Choose an active offer": "Оберіть активний офер",
   "Upload source ZIP": "Завантажте ZIP-архів",
+  "Published landing origin (optional)": "Адреса домену (необов'язково)",
+  "Leave blank if you do not have a domain yet. Add its exact HTTPS origin later.":
+    "Якщо домену ще немає, залиште поле порожнім. Його точну HTTPS-адресу можна додати пізніше.",
+  "Tracking profiles (optional)": "Профілі відстеження (необов'язково)",
+  "Loading tracking profiles…": "Завантажуємо профілі відстеження…",
+  "Choose saved profiles. You can prepare the ZIP without pixels.":
+    "Оберіть збережені профілі. ZIP можна підготувати й без пікселів.",
+  "TikTok Ads": "TikTok Ads",
+  "Google Ads": "Google Ads",
+  "ZIP and form": "ZIP і форма",
+  "Ready to download": "Готовий до завантаження",
+  "Not ready yet": "Ще не готовий",
+  "Prepare ZIP": "Підготувати ZIP",
+  Configured: "Налаштовано",
+  "Not configured": "Не налаштовано",
+  "Configuration invalid": "Помилка конфігурації",
+  "URL configured": "URL налаштовано",
+  "URL missing": "URL не вказано",
+  "URL invalid": "Некоректний URL",
+  "Origin allowed": "Origin дозволено",
+  "Origin changed": "Origin змінено — підготуйте ZIP",
+  "Origin missing": "Origin не налаштовано",
+  Origin: "Домен",
+  "Tracking pixels": "Пікселі",
+  "TikTok selected": "TikTok підключено",
+  "Google Ads selected": "Google Ads підключено",
+  "TikTok profile disabled": "Профіль TikTok вимкнено",
+  "Google Ads profile disabled": "Профіль Google Ads вимкнено",
+  "Intake API": "API приймання заявок",
+  "No pixels selected": "Пікселі не вибрано",
+  "A build input changed. Prepare a new ZIP before downloading it.":
+    "Налаштування збірки змінилися. Підготуйте ZIP повторно перед завантаженням.",
+  "A current ZIP is required before download.":
+    "Перед завантаженням потрібно підготувати актуальний ZIP.",
+  "ZIP readiness does not verify DNS, HTTPS, or publication.":
+    "Готовність ZIP не підтверджує DNS, HTTPS чи публікацію сайту.",
+  "This checks configuration only; DNS, HTTPS reachability, and publication are not verified.":
+    "Перевіряються лише налаштування; DNS, доступність через HTTPS і публікація не перевіряються.",
+  "ZIP needs preparation": "ZIP потрібно підготувати повторно",
+  "Draft saved. Add an origin or configure the API to finish preparation.":
+    "Чернетку збережено. Перевірте в картці, що потрібно налаштувати для підготовки ZIP.",
+  "Landing ZIP prepared. It is not published yet.":
+    "ZIP лендингу підготовлено, але сайт ще не опубліковано.",
+  "Could not prepare the ZIP. Reopen the draft to continue.":
+    "Не вдалося підготувати ZIP. Відкрийте чернетку та повторіть дію.",
   "ZIP archives up to 25 MB. Files are kept private.":
     "ZIP-архів до 25 МБ. Файл зберігатиметься приватно.",
   "Create a draft from an existing static landing page ZIP.":
@@ -1154,8 +1202,55 @@ const en: Partial<Record<TranslationKey, string>> = {
   "This landing draft is no longer available for deletion":
     "This landing draft is no longer available for deletion",
   "Landing name": "Landing name",
+  "Prepare launch": "Prepare launch",
+  "Choose an offer and ZIP. You can add a domain later without uploading again.":
+    "Choose an offer and ZIP. You can add a domain later without uploading again.",
   "Choose an active offer": "Choose an active offer",
   "Upload source ZIP": "Upload source ZIP",
+  "Published landing origin (optional)": "Published landing origin (optional)",
+  "Leave blank if you do not have a domain yet. Add its exact HTTPS origin later.":
+    "Leave blank if you do not have a domain yet. Add its exact HTTPS origin later.",
+  "Tracking profiles (optional)": "Tracking profiles (optional)",
+  "Loading tracking profiles…": "Loading tracking profiles…",
+  "Choose saved profiles. You can prepare the ZIP without pixels.":
+    "Choose saved profiles. You can prepare the ZIP without pixels.",
+  "TikTok Ads": "TikTok Ads",
+  "Google Ads": "Google Ads",
+  "ZIP and form": "ZIP and form",
+  "Ready to download": "Ready to download",
+  "Not ready yet": "Not ready yet",
+  "Prepare ZIP": "Prepare ZIP",
+  Configured: "Configured",
+  "Not configured": "Not configured",
+  "Configuration invalid": "Configuration invalid",
+  "URL configured": "URL configured",
+  "URL missing": "URL missing",
+  "URL invalid": "Invalid URL",
+  "Origin allowed": "Origin allowed",
+  "Origin changed": "Origin changed — prepare the ZIP",
+  "Origin missing": "Origin not configured",
+  Origin: "Origin",
+  "Tracking pixels": "Tracking pixels",
+  "TikTok selected": "TikTok selected",
+  "Google Ads selected": "Google Ads selected",
+  "TikTok profile disabled": "TikTok profile is disabled",
+  "Google Ads profile disabled": "Google Ads profile is disabled",
+  "Intake API": "Intake API",
+  "No pixels selected": "No pixels selected",
+  "A build input changed. Prepare a new ZIP before downloading it.":
+    "A build input changed. Prepare a new ZIP before downloading it.",
+  "A current ZIP is required before download.": "A current ZIP is required before download.",
+  "ZIP readiness does not verify DNS, HTTPS, or publication.":
+    "ZIP readiness does not verify DNS, HTTPS, or publication.",
+  "This checks configuration only; DNS, HTTPS reachability, and publication are not verified.":
+    "This checks configuration only; DNS, HTTPS reachability, and publication are not verified.",
+  "ZIP needs preparation": "ZIP needs preparation",
+  "Draft saved. Add an origin or configure the API to finish preparation.":
+    "Draft saved. Add an origin or configure the API to finish preparation.",
+  "Landing ZIP prepared. It is not published yet.":
+    "Landing ZIP prepared. It is not published yet.",
+  "Could not prepare the ZIP. Reopen the draft to continue.":
+    "Could not prepare the ZIP. Reopen the draft to continue.",
   "ZIP archives up to 25 MB. Files are kept private.":
     "ZIP archives up to 25 MB. Files are stored privately.",
   "Create a draft from an existing static landing page ZIP.":

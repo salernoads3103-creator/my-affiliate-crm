@@ -8,11 +8,7 @@ import {
   type ResolvedTrackingConfig,
 } from "./logic";
 import { TrackingProfileListSchema, TrackingProfileSchema } from "./validation";
-import type {
-  LandingTrackingConfiguration,
-  TrackingProfile,
-  TrackingProfileWriteInput,
-} from "./types";
+import type { LandingTrackingSelection, TrackingProfile, TrackingProfileWriteInput } from "./types";
 
 function mapDatabaseError(error: { code?: string }): ApiError {
   if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
@@ -158,7 +154,7 @@ export class TrackingProfileService {
   async landingConfiguration(
     workspaceId: string,
     landingId: string,
-  ): Promise<LandingTrackingConfiguration> {
+  ): Promise<LandingTrackingSelection> {
     const { data, error } = await supabaseAdmin
       .from("workspace_landings")
       .select(
@@ -197,6 +193,12 @@ export class TrackingProfileService {
     return {
       tiktokProfileId: data.tiktok_tracking_profile_id,
       googleAdsProfileId: data.google_ads_tracking_profile_id,
+      tiktokPixelId: liveConfig.tiktokPixelId,
+      googleAdsConversionId: liveConfig.googleAdsConversionId,
+      googleAdsConversionLabel: liveConfig.googleAdsConversionLabel,
+      tiktokProfileActive: !data.tiktok_tracking_profile_id || tiktokProfile?.is_active === true,
+      googleAdsProfileActive:
+        !data.google_ads_tracking_profile_id || googleProfile?.is_active === true,
       legacyTikTokPixelId: data.tiktok_tracking_profile_id ? null : data.tiktok_pixel_id,
       legacyGoogleAdsConversionId: data.google_ads_tracking_profile_id
         ? null
@@ -219,6 +221,22 @@ export class TrackingProfileService {
   ): Promise<{ profileId: string | null; pixelId: string | null }> {
     if (selectedProfileId === undefined) {
       if (directPixelId === undefined) {
+        if (current.tiktokProfileId) {
+          const profile = await this.get(workspaceId, current.tiktokProfileId);
+          try {
+            const resolved = resolveProfile(profile, workspaceId, "tiktok");
+            return { profileId: resolved.tiktokProfileId, pixelId: resolved.tiktokPixelId };
+          } catch (error) {
+            if (error instanceof Error && error.message.includes("inactive")) {
+              throw new ApiError(409, "The selected tracking profile is disabled", "CONFLICT");
+            }
+            throw new ApiError(
+              400,
+              "The selected tracking profile has the wrong platform",
+              "VALIDATION_ERROR",
+            );
+          }
+        }
         return { profileId: current.tiktokProfileId, pixelId: current.tiktokPixelId };
       }
       return {
@@ -262,6 +280,26 @@ export class TrackingProfileService {
   }> {
     if (selectedProfileId === undefined) {
       if (directConversionId === undefined && directConversionLabel === undefined) {
+        if (current.googleAdsProfileId) {
+          const profile = await this.get(workspaceId, current.googleAdsProfileId);
+          try {
+            const resolved = resolveProfile(profile, workspaceId, "google_ads");
+            return {
+              profileId: resolved.googleAdsProfileId,
+              conversionId: resolved.googleAdsConversionId,
+              conversionLabel: resolved.googleAdsConversionLabel,
+            };
+          } catch (error) {
+            if (error instanceof Error && error.message.includes("inactive")) {
+              throw new ApiError(409, "The selected tracking profile is disabled", "CONFLICT");
+            }
+            throw new ApiError(
+              400,
+              "The selected tracking profile has the wrong platform",
+              "VALIDATION_ERROR",
+            );
+          }
+        }
         return {
           profileId: current.googleAdsProfileId,
           conversionId: current.googleAdsConversionId,

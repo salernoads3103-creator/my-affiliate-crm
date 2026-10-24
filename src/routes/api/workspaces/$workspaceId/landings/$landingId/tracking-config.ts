@@ -6,6 +6,7 @@ import {
   requireWorkspacePermission,
 } from "@/lib/access/access.server";
 import { TrackingProfileService } from "@/lib/tracking-profiles/service.server";
+import { LandingService } from "@/lib/landings/service";
 import { parseLandingRouteId } from "@/lib/landings/http.server";
 
 export const Route = createFileRoute(
@@ -19,9 +20,14 @@ export const Route = createFileRoute(
           const landingId = parseLandingRouteId(params.landingId, "landing");
           const context = await requireAccessContext(request);
           await requireWorkspacePermission(context, workspaceId, "landing_pages.manage");
-          const configuration = await new TrackingProfileService().landingConfiguration(
+          const selection = await new TrackingProfileService().landingConfiguration(
             workspaceId,
             landingId,
+          );
+          const configuration = await new LandingService(context.client).preparationReadiness(
+            workspaceId,
+            landingId,
+            selection,
           );
           return accessSuccessResponse(configuration);
         } catch (error) {

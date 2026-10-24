@@ -1,5 +1,5 @@
 -- Run only against a disposable local Supabase database after the Landing
--- Factory, Adapter, and tracking configuration migrations. Fixture writes
+-- Factory, Adapter, tracking configuration, and build fingerprint migrations. Fixture writes
 -- are rolled back at the end.
 BEGIN;
 
@@ -18,7 +18,11 @@ DECLARE
   v_storage_policy TEXT;
   v_pixel_constraint TEXT;
   v_google_ads_constraint TEXT;
+  v_build_fingerprint_constraint TEXT;
   v_cross_workspace_rejected BOOLEAN := FALSE;
+  v_build_fingerprint_rejected BOOLEAN := FALSE;
+  v_build_test_offer_id UUID := gen_random_uuid();
+  v_build_test_landing_id UUID := gen_random_uuid();
 BEGIN
   IF v_workspace_id IS NULL THEN
     RAISE EXCEPTION 'A main workspace is required for the workspace isolation check';
@@ -71,6 +75,33 @@ BEGIN
       AND column_name = 'google_ads_conversion_label'
   ) THEN
     RAISE EXCEPTION 'Landing adapter metadata is missing';
+  END IF;
+
+  SELECT pg_catalog.pg_get_constraintdef(c.oid)
+  INTO v_build_fingerprint_constraint
+  FROM pg_catalog.pg_constraint AS c
+  WHERE c.conrelid = 'public.workspace_landings'::regclass
+    AND c.conname = 'workspace_landings_adapted_build_fingerprint_check'
+    AND c.contype = 'c'
+    AND c.convalidated;
+  IF v_build_fingerprint_constraint IS NULL
+     OR v_build_fingerprint_constraint NOT LIKE '%adapted_build_fingerprint%'
+     OR v_build_fingerprint_constraint NOT LIKE '%{64}%'
+     OR NOT EXISTS (
+       SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = 'workspace_landings'
+         AND column_name = 'adapted_build_fingerprint'
+     ) THEN
+    RAISE EXCEPTION 'Landing build fingerprint must be stored and constrained';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger
+    WHERE tgrelid = 'public.workspace_landings'::regclass
+      AND tgname = 'prevent_landing_build_fingerprint_change'
+      AND NOT tgisinternal
+  ) THEN
+    RAISE EXCEPTION 'A prepared build fingerprint must be immutable outside editable drafts';
   END IF;
 
   SELECT pg_catalog.pg_get_constraintdef(c.oid)
@@ -290,6 +321,29 @@ BEGIN
 
   IF NOT v_cross_workspace_rejected THEN
     RAISE EXCEPTION 'A landing must not reference an offer from another workspace';
+  END IF;
+
+  INSERT INTO public.workspace_offers (id, workspace_id, name)
+  VALUES (v_build_test_offer_id, v_workspace_id, 'Landing fingerprint fixture');
+  INSERT INTO public.workspace_landings (
+    id, workspace_id, name, offer_id, status, published_url, created_by_user_id,
+    source_archive_path, analysis
+  ) VALUES (
+    v_build_test_landing_id, v_workspace_id, 'Published fingerprint fixture',
+    v_build_test_offer_id, 'published', 'https://fixture.example.com', NULL,
+    v_workspace_id::TEXT || '/' || v_build_test_landing_id::TEXT || '/source.zip', '{}'::JSONB
+  );
+
+  BEGIN
+    UPDATE public.workspace_landings
+    SET adapted_build_fingerprint = repeat('a', 64)
+    WHERE id = v_build_test_landing_id;
+  EXCEPTION WHEN insufficient_privilege THEN
+    v_build_fingerprint_rejected := TRUE;
+  END;
+
+  IF NOT v_build_fingerprint_rejected THEN
+    RAISE EXCEPTION 'A published landing build fingerprint must not be changed';
   END IF;
 END;
 $$;

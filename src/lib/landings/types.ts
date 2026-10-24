@@ -122,8 +122,18 @@ export type LandingCreateInput = {
 
 export type LandingUpdateInput = LandingCreateInput;
 
+export type LandingOfferSnapshot = {
+  id: string;
+  name: string;
+  priceMinor: number | null;
+  productId: string | null;
+  isActive: boolean;
+  landingUrl: string | null;
+};
+
 export type LandingDraftRecord = Omit<LandingPage, "offer_name" | "has_adapted_archive"> & {
   adapted_archive_path: string | null;
+  adapted_build_fingerprint: string | null;
   adapted_tracking_fingerprint: string | null;
   tiktok_tracking_profile_id: string | null;
   google_ads_tracking_profile_id: string | null;
@@ -137,7 +147,16 @@ export interface LandingArchiveStorage {
 
 export interface LandingRepository {
   list(workspaceId: string, search: string): Promise<LandingPage[]>;
-  ensureOffer(workspaceId: string, offerId: string, activeOnly: boolean): Promise<{ name: string }>;
+  ensureOffer(
+    workspaceId: string,
+    offerId: string,
+    activeOnly: boolean,
+  ): Promise<LandingOfferSnapshot>;
+  getOfferSnapshot(workspaceId: string, offerId: string): Promise<LandingOfferSnapshot | null>;
+  getFormIntegration(
+    workspaceId: string,
+    offerId: string,
+  ): Promise<{ publicId: string; allowedOrigin: string; isActive: boolean } | null>;
   insertDraft(input: {
     id: string;
     workspaceId: string;
@@ -177,6 +196,7 @@ export interface LandingRepository {
     tiktokTrackingProfileId?: string | null;
     googleAdsTrackingProfileId?: string | null;
     adaptedTrackingFingerprint?: string | null;
+    adaptedBuildFingerprint?: string | null;
     expectedSourceArchivePath?: string;
     expectedOfferId?: string;
   }): Promise<LandingDraftRecord>;

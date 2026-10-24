@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  CheckCircle2,
   Download,
   Eye,
   Files,
@@ -15,7 +16,10 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
-import { LandingDraftDialog } from "@/components/landings/LandingCreateDialog";
+import {
+  LandingDraftDialog,
+  type LandingDraftSubmitInput,
+} from "@/components/landings/LandingCreateDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -312,6 +316,7 @@ function LandingsPage() {
   const [editingLanding, setEditingLanding] = useState<LandingPage | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<LandingPage | null>(null);
   const [adapterOrigin, setAdapterOrigin] = useState("");
+  const [adapterOriginTouched, setAdapterOriginTouched] = useState(false);
   const [selectedTikTokProfile, setSelectedTikTokProfile] = useState<string | undefined>();
   const [selectedGoogleAdsProfile, setSelectedGoogleAdsProfile] = useState<string | undefined>();
 
@@ -348,15 +353,69 @@ function LandingsPage() {
         (configuration.legacyGoogleAdsConfigured ? LEGACY_TRACKING_OPTION : NO_TRACKING_OPTION),
     );
   }, [trackingConfigurationQuery.data, selectedTikTokProfile, selectedGoogleAdsProfile]);
+  useEffect(() => {
+    if (!adapterOriginTouched && trackingConfigurationQuery.data?.allowedOrigin) {
+      setAdapterOrigin(trackingConfigurationQuery.data.allowedOrigin);
+    }
+  }, [adapterOriginTouched, trackingConfigurationQuery.data?.allowedOrigin]);
   const createMutation = useMutation({
-    mutationFn: (input: { name: string; offerId: string; archive: File }) => {
+    mutationFn: async (input: LandingDraftSubmitInput & { archive: File }) => {
       if (!workspaceId) throw new Error("Workspace is unavailable");
-      return landingService.createDraft(workspaceId, input);
+      const { allowedOrigin, tiktokProfileId, googleAdsProfileId, ...draftInput } = input;
+      const landing = await landingService.createDraft(workspaceId, draftInput);
+      try {
+        const adapter = await landingService.connectForm(workspaceId, landing.id, {
+          ...(allowedOrigin ? { allowedOrigin } : {}),
+          tiktokProfileId: tiktokProfileId ?? null,
+          googleAdsProfileId: googleAdsProfileId ?? null,
+        });
+        return {
+          landing: { ...landing, ...adapter },
+          adapterError: null as unknown,
+          allowedOrigin: allowedOrigin ?? "",
+          tiktokProfileId: tiktokProfileId ?? NO_TRACKING_OPTION,
+          googleAdsProfileId: googleAdsProfileId ?? NO_TRACKING_OPTION,
+        };
+      } catch (adapterError) {
+        // Keep the successfully uploaded draft; it can be configured again from its details.
+        return {
+          landing,
+          adapterError,
+          allowedOrigin: allowedOrigin ?? "",
+          tiktokProfileId: tiktokProfileId ?? NO_TRACKING_OPTION,
+          googleAdsProfileId: googleAdsProfileId ?? NO_TRACKING_OPTION,
+        };
+      }
     },
-    onSuccess: async () => {
+    onSuccess: async (result) => {
       await queryClient.invalidateQueries({ queryKey: LANDINGS_QUERY_KEY });
-      toast.success(t("Landing draft created"));
       setDialogOpen(false);
+      setAnalysisLanding(result.landing);
+      setAdapterOrigin(result.allowedOrigin);
+      setAdapterOriginTouched(Boolean(result.allowedOrigin));
+      setSelectedTikTokProfile(result.tiktokProfileId);
+      setSelectedGoogleAdsProfile(result.googleAdsProfileId);
+      await queryClient.invalidateQueries({
+        queryKey: ["landing-tracking-config", workspaceId, result.landing.id],
+      });
+      if (result.adapterError) {
+        toast.error(
+          `${t("Landing draft created")}. ${localizeError(
+            result.adapterError,
+            t("Could not prepare the ZIP. Reopen the draft to continue."),
+            locale,
+          )}`,
+        );
+      } else if (
+        result.landing.adapter_status === "needs_adaptation" &&
+        result.landing.adapter_reason
+      ) {
+        toast.error(t(ADAPTER_REASON_LABEL[result.landing.adapter_reason]));
+      } else if (result.landing.adapter_status === "configuration_required") {
+        toast.success(t("Draft saved. Add an origin or configure the API to finish preparation."));
+      } else {
+        toast.success(t("Landing ZIP prepared. It is not published yet."));
+      }
     },
     onError: (error) =>
       toast.error(localizeError(error, t("Could not create landing draft"), locale)),
@@ -449,6 +508,15 @@ function LandingsPage() {
     (effectiveTikTokSelection !== savedTikTokSelection ||
       effectiveGoogleAdsSelection !== savedGoogleAdsSelection),
   );
+  const originSelectionChanged = Boolean(
+    trackingConfiguration &&
+    adapterOriginTouched &&
+    adapterOrigin.trim() !== (trackingConfiguration.allowedOrigin ?? ""),
+  );
+  const adapterInputsChanged = trackingSelectionChanged || originSelectionChanged;
+  const zipReadyForCurrentSelection = Boolean(
+    trackingConfiguration?.readiness.zipReady && !adapterInputsChanged,
+  );
   const tiktokProfiles = (trackingProfilesQuery.data ?? []).filter(
     (profile) =>
       profile.platform === "tiktok" &&
@@ -510,7 +578,7 @@ function LandingsPage() {
         {canCreateLandings && (
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            {t("New landing page")}
+            {t("Prepare launch")}
           </Button>
         )}
       </header>
@@ -551,7 +619,7 @@ function LandingsPage() {
             {!search.trim() && canCreateLandings && (
               <Button className="mt-4" onClick={() => setDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                {t("New landing page")}
+                {t("Prepare launch")}
               </Button>
             )}
           </div>
@@ -617,6 +685,7 @@ function LandingsPage() {
                             title={t("View analysis")}
                             onClick={() => {
                               setAdapterOrigin("");
+                              setAdapterOriginTouched(false);
                               setSelectedTikTokProfile(undefined);
                               setSelectedGoogleAdsProfile(undefined);
                               setAnalysisLanding(landing);
@@ -720,7 +789,9 @@ function LandingsPage() {
                           : "secondary"
                     }
                   >
-                    {t(ADAPTER_STATUS_LABEL[analysisLanding.adapter_status])}
+                    {trackingConfiguration?.needsRepublish || adapterInputsChanged
+                      ? t("ZIP needs preparation")
+                      : t(ADAPTER_STATUS_LABEL[analysisLanding.adapter_status])}
                   </Badge>
                 </div>
                 {analysisLanding.adapter_reason && (
@@ -736,7 +807,10 @@ function LandingsPage() {
                     inputMode="url"
                     placeholder="https://shop.example.com"
                     value={adapterOrigin}
-                    onChange={(event) => setAdapterOrigin(event.target.value)}
+                    onChange={(event) => {
+                      setAdapterOrigin(event.target.value);
+                      setAdapterOriginTouched(true);
+                    }}
                     maxLength={255}
                   />
                   <p className="text-xs text-muted-foreground">
@@ -843,16 +917,97 @@ function LandingsPage() {
                     </p>
                   )}
                 </div>
-                {(trackingConfiguration?.needsRepublish || trackingSelectionChanged) && (
+                {(trackingConfiguration?.needsRepublish || adapterInputsChanged) && (
                   <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-800 dark:text-amber-200">
                     {trackingSelectionChanged
                       ? t(
                           "Profile selection changed. Prepare a new ZIP and republish the landing to apply it.",
                         )
-                      : t(
-                          "Tracking settings changed. Prepare a new ZIP and republish the landing to apply them.",
-                        )}
+                      : t("A build input changed. Prepare a new ZIP before downloading it.")}
                   </p>
+                )}
+                {trackingConfiguration && (
+                  <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3 text-xs">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{t("ZIP and form")}</span>
+                        <span className="flex items-center gap-1 font-medium">
+                          {trackingConfiguration.readiness.zipReady ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                          ) : (
+                            <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
+                          )}
+                          {t(
+                            zipReadyForCurrentSelection
+                              ? "Ready to download"
+                              : analysisLanding.adapter_status === "needs_adaptation"
+                                ? "Needs adaptation"
+                                : trackingConfiguration.readiness.zipCurrent
+                                  ? "Not ready yet"
+                                  : "Prepare ZIP",
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{t("Intake API")}</span>
+                        <span className="font-medium">
+                          {t(
+                            trackingConfiguration.readiness.api === "ready"
+                              ? "URL configured"
+                              : trackingConfiguration.readiness.api === "invalid"
+                                ? "URL invalid"
+                                : "URL missing",
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{t("Origin")}</span>
+                        <span className="font-medium">
+                          {t(
+                            originSelectionChanged
+                              ? "Origin changed"
+                              : trackingConfiguration.readiness.originConfigured
+                                ? "Origin allowed"
+                                : "Origin missing",
+                          )}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-muted-foreground">{t("Tracking pixels")}</span>
+                        <span className="font-medium">
+                          {[
+                            effectiveTikTokSelection !== NO_TRACKING_OPTION
+                              ? t(
+                                  selectedTikTokIsDisabled
+                                    ? "TikTok profile disabled"
+                                    : "TikTok selected",
+                                )
+                              : null,
+                            effectiveGoogleAdsSelection !== NO_TRACKING_OPTION
+                              ? t(
+                                  selectedGoogleAdsIsDisabled
+                                    ? "Google Ads profile disabled"
+                                    : "Google Ads selected",
+                                )
+                              : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ") || t("No pixels selected")}
+                        </span>
+                      </div>
+                    </div>
+                    {(trackingConfiguration.needsRepublish || !zipReadyForCurrentSelection) &&
+                      analysisLanding.adapter_status === "prepared" && (
+                        <p className="text-amber-800 dark:text-amber-200">
+                          {t("A current ZIP is required before download.")}
+                        </p>
+                      )}
+                    <p className="text-muted-foreground">
+                      {t(
+                        "This checks configuration only; DNS, HTTPS reachability, and publication are not verified.",
+                      )}
+                    </p>
+                  </div>
                 )}
                 {(trackingProfilesQuery.isError || trackingConfigurationQuery.isError) && (
                   <p className="text-sm text-destructive">
@@ -915,10 +1070,11 @@ function LandingsPage() {
                     ) : (
                       <Link2 className="mr-2 h-4 w-4" />
                     )}
-                    {t("Connect form")}
+                    {t("Prepare ZIP")}
                   </Button>
                   {analysisLanding.has_adapted_archive &&
-                    analysisLanding.adapter_status === "prepared" && (
+                    analysisLanding.adapter_status === "prepared" &&
+                    zipReadyForCurrentSelection && (
                       <Button
                         variant="outline"
                         onClick={() => downloadAdapterMutation.mutate(analysisLanding.id)}

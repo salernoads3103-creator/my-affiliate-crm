@@ -24,6 +24,11 @@ import type {
   LandingStatus,
 } from "../src/lib/landings/types";
 import { trackingFingerprint } from "../src/lib/tracking-profiles/logic";
+import {
+  landingBuildFingerprint,
+  needsLandingReprepare,
+  sha256Hex,
+} from "../src/lib/landings/fingerprint";
 
 const encoder = new TextEncoder();
 const TEST_WORKSPACE_ID = "11111111-1111-4111-8111-111111111111";
@@ -287,7 +292,35 @@ function fakeDependencies() {
         throw new Error("The selected offer is not available");
       }
       return {
+        id: offerId,
         name: offerId === "offer-b" || offerId === TEST_OFFER_B_ID ? "Offer B" : "Offer A",
+        priceMinor: 119000,
+        productId: "product-a",
+        isActive: offerId !== "offer-inactive",
+        landingUrl: null,
+      };
+    },
+    async getFormIntegration() {
+      return {
+        publicId: "66666666-6666-4666-8666-666666666666",
+        allowedOrigin: "https://shop.example.com",
+        isActive: true,
+      };
+    },
+    async getOfferSnapshot(workspaceId, offerId) {
+      if (
+        !["workspace-a", TEST_WORKSPACE_ID].includes(workspaceId) ||
+        !["offer-a", "offer-b", TEST_OFFER_A_ID, TEST_OFFER_B_ID].includes(offerId)
+      ) {
+        return null;
+      }
+      return {
+        id: offerId,
+        name: offerId === "offer-b" || offerId === TEST_OFFER_B_ID ? "Offer B" : "Offer A",
+        priceMinor: 119000,
+        productId: "product-a",
+        isActive: true,
+        landingUrl: null,
       };
     },
     async insertDraft(input) {
@@ -306,6 +339,7 @@ function fakeDependencies() {
         deletion_started_at: null,
         adapted_archive_path: null,
         adapted_archive_bytes: null,
+        adapted_build_fingerprint: null,
         adapter_status: "not_connected",
         adapter_reason: null,
         tiktok_pixel_id: null,
@@ -353,6 +387,8 @@ function fakeDependencies() {
           : {
               adapted_archive_path: null,
               adapted_archive_bytes: null,
+              adapted_build_fingerprint: null,
+              adapted_tracking_fingerprint: null,
               adapter_status: "not_connected",
               adapter_reason: null,
               intake_public_id: null,
@@ -392,6 +428,9 @@ function fakeDependencies() {
         ...(input.adaptedTrackingFingerprint === undefined
           ? {}
           : { adapted_tracking_fingerprint: input.adaptedTrackingFingerprint }),
+        ...(input.adaptedBuildFingerprint === undefined
+          ? {}
+          : { adapted_build_fingerprint: input.adaptedBuildFingerprint }),
         intake_public_id: input.publicFormId ?? null,
       };
       return { ...record };
@@ -1151,6 +1190,65 @@ describe("Landing Factory ZIP intake", () => {
     });
   });
 
+  it("finishes a pending draft without reuploading its source ZIP", async () => {
+    const dependencies = fakeDependencies();
+    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const analysis = await analyzeLandingArchive(source);
+    await createLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        name: "Landing A",
+        offerId: TEST_OFFER_A_ID,
+        workspaceId: TEST_WORKSPACE_ID,
+        createdByUserId: TEST_USER_ID,
+        archive: new Blob([source]),
+        analysis,
+        createId: () => TEST_LANDING_ID,
+      },
+    );
+
+    const pending = await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        allowedOriginConfigured: false,
+        allowedOrigin: "https://pending.crmonia.invalid",
+        formActive: false,
+        intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+        createArchiveVersion: () => "77777777-7777-4777-8777-777777777777",
+      },
+    );
+
+    expect(pending.adapter_status).toBe("configuration_required");
+    expect(pending.adapter_reason).toBe("landing_origin_not_configured");
+    const sourcePath = dependencies.record!.source_archive_path;
+    const pendingArchivePath = dependencies.record!.adapted_archive_path;
+
+    const ready = await connectLandingDraft(
+      { repository: dependencies.repository, storage: dependencies.storage },
+      {
+        workspaceId: TEST_WORKSPACE_ID,
+        landingId: TEST_LANDING_ID,
+        publicFormId: "66666666-6666-4666-8666-666666666666",
+        allowedOriginConfigured: true,
+        allowedOrigin: "https://shop.example.com",
+        formActive: true,
+        intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+        createArchiveVersion: () => "88888888-8888-4888-8888-888888888888",
+      },
+    );
+
+    expect(ready.adapter_status).toBe("prepared");
+    expect(dependencies.record?.source_archive_path).toBe(sourcePath);
+    await expect(dependencies.storage.download(sourcePath)).resolves.toBeInstanceOf(Blob);
+    expect(dependencies.removedPaths).toContain(pendingArchivePath);
+    expect(dependencies.uploadedPaths.filter((path) => path.endsWith("/source.zip"))).toEqual([
+      sourcePath,
+    ]);
+  });
+
   it("persists the Pixel ID and refuses to download a configuration-required ZIP", async () => {
     const dependencies = fakeDependencies();
     const source = makeZip([{ name: "index.html", content: validHtml }]);
@@ -1189,6 +1287,7 @@ describe("Landing Factory ZIP intake", () => {
       getDownloadableAdaptedArchive(
         { repository: dependencies.repository, storage: dependencies.storage },
         { workspaceId: TEST_WORKSPACE_ID, landingId: TEST_LANDING_ID },
+        "unavailable-build",
       ),
     ).rejects.toMatchObject({ status: 409 });
   });
@@ -1245,6 +1344,124 @@ describe("Landing Factory ZIP intake", () => {
         googleAdsConversionLabel: dependencies.record!.google_ads_conversion_label,
       }),
     ).toBe(storedFingerprint);
+    const sourceBytes = new Uint8Array(
+      await dependencies.storage
+        .download(`${TEST_WORKSPACE_ID}/${TEST_LANDING_ID}/source.zip`)
+        .then((blob) => blob.arrayBuffer()),
+    );
+    const buildFingerprint = await landingBuildFingerprint({
+      sourceArchiveSha256: await sha256Hex(sourceBytes),
+      workspaceId: TEST_WORKSPACE_ID,
+      offer: {
+        id: TEST_OFFER_A_ID,
+        name: "Offer A",
+        priceMinor: 119000,
+        productId: "product-a",
+        isActive: true,
+        landingUrl: null,
+      },
+      formId: "66666666-6666-4666-8666-666666666666",
+      allowedOrigin: "https://shop.example.com",
+      formActive: true,
+      intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+      tracking: {
+        tiktokProfileId: "77777777-7777-4777-8777-777777777777",
+        tiktokPixelId: "TikTokProfilePixel1",
+        tiktokProfileActive: true,
+        googleAdsProfileId: "88888888-8888-4888-8888-888888888888",
+        googleAdsConversionId: "AW-123456789",
+        googleAdsConversionLabel: "conversion-label",
+        googleAdsProfileActive: true,
+      },
+    });
+    expect(dependencies.record?.adapted_build_fingerprint).toBe(buildFingerprint);
+    await expect(
+      getDownloadableAdaptedArchive(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        { workspaceId: TEST_WORKSPACE_ID, landingId: TEST_LANDING_ID },
+        buildFingerprint,
+      ),
+    ).resolves.toBeInstanceOf(Blob);
+    await expect(
+      getDownloadableAdaptedArchive(
+        { repository: dependencies.repository, storage: dependencies.storage },
+        { workspaceId: TEST_WORKSPACE_ID, landingId: TEST_LANDING_ID },
+        "changed-build-fingerprint",
+      ),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("changes the build fingerprint when any publication input changes", async () => {
+    const base = {
+      sourceArchiveSha256: "source-hash",
+      workspaceId: TEST_WORKSPACE_ID,
+      offer: {
+        id: TEST_OFFER_A_ID,
+        name: "Offer A",
+        priceMinor: 119000,
+        productId: "product-a",
+        isActive: true,
+        landingUrl: null,
+      },
+      formId: "66666666-6666-4666-8666-666666666666",
+      allowedOrigin: "https://shop.example.com",
+      formActive: true,
+      intakeEndpoint: "https://crm.example.com/api/v1/intake/leads",
+      tracking: {
+        tiktokProfileId: "77777777-7777-4777-8777-777777777777",
+        tiktokPixelId: "TikTokProfilePixel1",
+        tiktokProfileActive: true,
+        googleAdsProfileId: "88888888-8888-4888-8888-888888888888",
+        googleAdsConversionId: "AW-123456789",
+        googleAdsConversionLabel: "conversion-label",
+        googleAdsProfileActive: true,
+      },
+    } as const;
+    const fingerprint = await landingBuildFingerprint(base);
+    expect(await landingBuildFingerprint({ ...base })).toBe(fingerprint);
+    expect(
+      await landingBuildFingerprint({ ...base, sourceArchiveSha256: "different-source" }),
+    ).not.toBe(fingerprint);
+    expect(
+      await landingBuildFingerprint({ ...base, offer: { ...base.offer, id: TEST_OFFER_B_ID } }),
+    ).not.toBe(fingerprint);
+    expect(
+      await landingBuildFingerprint({ ...base, offer: { ...base.offer, priceMinor: 129000 } }),
+    ).not.toBe(fingerprint);
+    expect(await landingBuildFingerprint({ ...base, formId: "different-form" })).not.toBe(
+      fingerprint,
+    );
+    expect(
+      await landingBuildFingerprint({ ...base, allowedOrigin: "https://other.example.com" }),
+    ).not.toBe(fingerprint);
+    expect(
+      await landingBuildFingerprint({
+        ...base,
+        intakeEndpoint: "https://other-crm.example/api/v1/intake/leads",
+      }),
+    ).not.toBe(fingerprint);
+    expect(
+      await landingBuildFingerprint({
+        ...base,
+        tracking: { ...base.tracking, tiktokPixelId: "another-pixel" },
+      }),
+    ).not.toBe(fingerprint);
+    expect(
+      await landingBuildFingerprint({
+        ...base,
+        tracking: { ...base.tracking, googleAdsProfileId: "another-profile" },
+      }),
+    ).not.toBe(fingerprint);
+    expect(
+      await landingBuildFingerprint({
+        ...base,
+        tracking: { ...base.tracking, googleAdsConversionLabel: "another-label" },
+      }),
+    ).not.toBe(fingerprint);
+    expect(needsLandingReprepare(true, null, fingerprint)).toBe(true);
+    expect(needsLandingReprepare(true, "old-build", fingerprint)).toBe(true);
+    expect(needsLandingReprepare(true, fingerprint, fingerprint)).toBe(false);
+    expect(needsLandingReprepare(false, null, fingerprint)).toBe(false);
   });
 
   it("does not adapt a draft through another workspace route", async () => {

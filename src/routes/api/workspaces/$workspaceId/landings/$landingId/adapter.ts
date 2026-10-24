@@ -162,12 +162,16 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/landings/$lan
             landingId,
             publicFormId: config.public_id,
             allowedOriginConfigured: config.is_active && config.allowed_origin !== PENDING_ORIGIN,
+            allowedOrigin: config.allowed_origin,
+            formActive: config.is_active,
             intakeEndpoint,
             tiktokPixelId: tracking.tiktokPixelId,
             googleAdsConversionId: tracking.googleAdsConversionId,
             googleAdsConversionLabel: tracking.googleAdsConversionLabel,
             tiktokTrackingProfileId: tracking.tiktokProfileId,
             googleAdsTrackingProfileId: tracking.googleAdsProfileId,
+            tiktokProfileActive: true,
+            googleAdsProfileActive: true,
           });
           return accessSuccessResponse(adapterResponse(page));
         } catch (error) {

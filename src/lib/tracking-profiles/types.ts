@@ -30,13 +30,32 @@ export type TrackingProfileWriteInput =
       isActive: boolean;
     };
 
-export type LandingTrackingConfiguration = {
+export type LandingTrackingSelection = {
   tiktokProfileId: string | null;
   googleAdsProfileId: string | null;
+  tiktokPixelId: string | null;
+  googleAdsConversionId: string | null;
+  googleAdsConversionLabel: string | null;
+  tiktokProfileActive: boolean;
+  googleAdsProfileActive: boolean;
   legacyTikTokPixelId: string | null;
   legacyGoogleAdsConversionId: string | null;
   legacyGoogleAdsConversionLabel: string | null;
   legacyTikTokConfigured: boolean;
   legacyGoogleAdsConfigured: boolean;
   needsRepublish: boolean;
+};
+
+export type LandingTrackingConfiguration = LandingTrackingSelection & {
+  allowedOrigin: string | null;
+  formActive: boolean;
+  readiness: {
+    api: "ready" | "missing" | "invalid";
+    originConfigured: boolean;
+    offerActive: boolean;
+    tiktokProfileActive: boolean;
+    googleAdsProfileActive: boolean;
+    zipCurrent: boolean;
+    zipReady: boolean;
+  };
 };

@@ -2,7 +2,14 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 import { ApiError } from "@/lib/api-error";
+import { getPublicLandingIntakeEndpoint } from "@/lib/landings/config.server";
+import {
+  landingBuildFingerprint,
+  needsLandingReprepare,
+  sha256Hex,
+} from "@/lib/landings/fingerprint";
 import { trackingFingerprint } from "@/lib/tracking-profiles/logic";
+import { TrackingProfileService } from "@/lib/tracking-profiles/service.server";
 import {
   buildAdaptedLandingArchive,
   checkLandingAdapterCompatibility,
@@ -22,10 +29,15 @@ import type {
   LandingCreateInput,
   LandingDraftRecord,
   LandingListResponse,
+  LandingOfferSnapshot,
   LandingPage,
   LandingRepository,
   LandingUpdateInput,
 } from "./types";
+import type {
+  LandingTrackingConfiguration,
+  LandingTrackingSelection,
+} from "@/lib/tracking-profiles/types";
 
 const LANDING_ARCHIVE_BUCKET = "crmonia-landing-archives";
 const PENDING_LANDING_ORIGIN = "https://pending.crmonia.invalid";
@@ -71,6 +83,7 @@ type LandingDraftDbRow = Pick<
   | "deletion_started_at"
   | "adapted_archive_path"
   | "adapted_archive_bytes"
+  | "adapted_build_fingerprint"
   | "adapted_tracking_fingerprint"
   | "adapter_status"
   | "adapter_reason"
@@ -97,6 +110,7 @@ function toLandingDraftRecord(data: LandingDraftDbRow): LandingDraftRecord {
     deletion_started_at: data.deletion_started_at,
     adapted_archive_path: data.adapted_archive_path,
     adapted_archive_bytes: data.adapted_archive_bytes,
+    adapted_build_fingerprint: data.adapted_build_fingerprint,
     adapted_tracking_fingerprint: data.adapted_tracking_fingerprint,
     adapter_status: LandingAdapterStatusSchema.parse(data.adapter_status),
     adapter_reason:
@@ -142,17 +156,65 @@ export class SupabaseLandingRepository implements LandingRepository {
     workspaceId: string,
     offerId: string,
     activeOnly: boolean,
-  ): Promise<{ name: string }> {
+  ): Promise<LandingOfferSnapshot> {
     let query = this.client
       .from("workspace_offers")
-      .select("id, name")
+      .select("id, name, offer_price_minor, product_id, is_active, landing_url")
       .eq("workspace_id", workspaceId)
       .eq("id", offerId);
     if (activeOnly) query = query.eq("is_active", true);
     const { data, error } = await query.maybeSingle();
     if (error) throw databaseError(error);
     if (!data) throw new ApiError(404, "The selected offer is not available");
-    return { name: data.name };
+    return {
+      id: data.id,
+      name: data.name,
+      priceMinor: data.offer_price_minor,
+      productId: data.product_id,
+      isActive: data.is_active,
+      landingUrl: data.landing_url,
+    };
+  }
+
+  async getOfferSnapshot(
+    workspaceId: string,
+    offerId: string,
+  ): Promise<LandingOfferSnapshot | null> {
+    const { data, error } = await this.privilegedClient
+      .from("workspace_offers")
+      .select("id, name, offer_price_minor, product_id, is_active, landing_url")
+      .eq("workspace_id", workspaceId)
+      .eq("id", offerId)
+      .maybeSingle();
+    if (error) throw databaseError(error);
+    if (!data) return null;
+    return {
+      id: data.id,
+      name: data.name,
+      priceMinor: data.offer_price_minor,
+      productId: data.product_id,
+      isActive: data.is_active,
+      landingUrl: data.landing_url,
+    };
+  }
+
+  async getFormIntegration(
+    workspaceId: string,
+    offerId: string,
+  ): Promise<{ publicId: string; allowedOrigin: string; isActive: boolean } | null> {
+    const { data, error } = await this.privilegedClient
+      .from("landing_form_integrations")
+      .select("public_id, allowed_origin, is_active")
+      .eq("workspace_id", workspaceId)
+      .eq("offer_id", offerId)
+      .maybeSingle();
+    if (error) throw databaseError(error);
+    if (!data) return null;
+    return {
+      publicId: data.public_id,
+      allowedOrigin: data.allowed_origin,
+      isActive: data.is_active,
+    };
   }
 
   async insertDraft(input: {
@@ -179,6 +241,7 @@ export class SupabaseLandingRepository implements LandingRepository {
         source_archive_bytes: input.sourceArchiveBytes,
         adapted_archive_path: null,
         adapted_archive_bytes: null,
+        adapted_build_fingerprint: null,
         adapter_status: "not_connected",
         adapter_reason: null,
         tiktok_pixel_id: null,
@@ -209,7 +272,7 @@ export class SupabaseLandingRepository implements LandingRepository {
     const { data, error } = await this.privilegedClient
       .from("workspace_landings")
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_build_fingerprint, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
       )
       .eq("workspace_id", workspaceId)
       .eq("id", landingId)
@@ -243,6 +306,7 @@ export class SupabaseLandingRepository implements LandingRepository {
         : {
             adapted_archive_path: null,
             adapted_archive_bytes: null,
+            adapted_build_fingerprint: null,
             adapted_tracking_fingerprint: null,
             adapter_status: "not_connected",
             adapter_reason: null,
@@ -257,7 +321,7 @@ export class SupabaseLandingRepository implements LandingRepository {
       .eq("status", "draft")
       .is("deletion_started_at", null)
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_build_fingerprint, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
       )
       .maybeSingle();
     if (error) throw databaseError(error);
@@ -279,6 +343,7 @@ export class SupabaseLandingRepository implements LandingRepository {
     tiktokTrackingProfileId?: string | null;
     googleAdsTrackingProfileId?: string | null;
     adaptedTrackingFingerprint?: string | null;
+    adaptedBuildFingerprint?: string | null;
     expectedSourceArchivePath?: string;
     expectedOfferId?: string;
   }): Promise<LandingDraftRecord> {
@@ -305,6 +370,9 @@ export class SupabaseLandingRepository implements LandingRepository {
         ...(input.adaptedTrackingFingerprint === undefined
           ? {}
           : { adapted_tracking_fingerprint: input.adaptedTrackingFingerprint }),
+        ...(input.adaptedBuildFingerprint === undefined
+          ? {}
+          : { adapted_build_fingerprint: input.adaptedBuildFingerprint }),
         intake_public_id: input.publicFormId ?? null,
       })
       .eq("workspace_id", input.workspaceId)
@@ -317,7 +385,7 @@ export class SupabaseLandingRepository implements LandingRepository {
     const { data, error } = await query
       .is("deletion_started_at", null)
       .select(
-        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
+        "id, workspace_id, name, offer_id, status, published_url, created_at, created_by_user_id, source_archive_path, source_archive_bytes, deletion_started_at, adapted_archive_path, adapted_archive_bytes, adapted_build_fingerprint, adapted_tracking_fingerprint, adapter_status, adapter_reason, tiktok_pixel_id, google_ads_conversion_id, google_ads_conversion_label, tiktok_tracking_profile_id, google_ads_tracking_profile_id, intake_public_id, analysis",
       )
       .maybeSingle();
     if (error) throw databaseError(error);
@@ -573,12 +641,16 @@ export async function connectLandingDraft(
     landingId: string;
     publicFormId: string;
     allowedOriginConfigured: boolean;
+    allowedOrigin?: string | null;
+    formActive?: boolean;
     intakeEndpoint: string | null;
     tiktokPixelId?: string | null;
     googleAdsConversionId?: string | null;
     googleAdsConversionLabel?: string | null;
     tiktokTrackingProfileId?: string | null;
     googleAdsTrackingProfileId?: string | null;
+    tiktokProfileActive?: boolean;
+    googleAdsProfileActive?: boolean;
     createArchiveVersion?: () => string;
   },
 ): Promise<LandingPage> {
@@ -591,6 +663,10 @@ export async function connectLandingDraft(
     input.workspaceId,
     current.offer_id,
     true,
+  );
+  const formConfig = await dependencies.repository.getFormIntegration(
+    input.workspaceId,
+    current.offer_id,
   );
   const tiktokPixelId =
     input.tiktokPixelId === undefined ? current.tiktok_pixel_id : input.tiktokPixelId;
@@ -618,9 +694,10 @@ export async function connectLandingDraft(
     );
   }
   const source = await dependencies.storage.download(current.source_archive_path);
+  const sourceBytes = new Uint8Array(await source.arrayBuffer());
   let adaptedArchive: Uint8Array;
   try {
-    adaptedArchive = await buildAdaptedLandingArchive(new Uint8Array(await source.arrayBuffer()), {
+    adaptedArchive = await buildAdaptedLandingArchive(sourceBytes, {
       publicFormId: input.publicFormId,
       intakeEndpoint: input.intakeEndpoint,
       tiktokPixelId,
@@ -643,6 +720,7 @@ export async function connectLandingDraft(
       tiktokTrackingProfileId,
       googleAdsTrackingProfileId,
       adaptedTrackingFingerprint: null,
+      adaptedBuildFingerprint: null,
       expectedSourceArchivePath: current.source_archive_path,
       expectedOfferId: current.offer_id,
     });
@@ -662,6 +740,31 @@ export async function connectLandingDraft(
       ? "landing_origin_not_configured"
       : null;
   const status = reason ? "configuration_required" : "prepared";
+  const buildFingerprint = await landingBuildFingerprint({
+    sourceArchiveSha256: await sha256Hex(sourceBytes),
+    workspaceId: input.workspaceId,
+    offer: {
+      id: offer.id,
+      name: offer.name,
+      priceMinor: offer.priceMinor,
+      productId: offer.productId,
+      isActive: offer.isActive,
+      landingUrl: offer.landingUrl,
+    },
+    formId: input.publicFormId,
+    allowedOrigin: input.allowedOrigin ?? formConfig?.allowedOrigin ?? null,
+    formActive: input.formActive ?? formConfig?.isActive ?? input.allowedOriginConfigured,
+    intakeEndpoint: input.intakeEndpoint,
+    tracking: {
+      tiktokProfileId: tiktokTrackingProfileId,
+      tiktokPixelId,
+      tiktokProfileActive: input.tiktokProfileActive ?? true,
+      googleAdsProfileId: googleAdsTrackingProfileId,
+      googleAdsConversionId,
+      googleAdsConversionLabel,
+      googleAdsProfileActive: input.googleAdsProfileActive ?? true,
+    },
+  });
   const version = input.createArchiveVersion?.() ?? crypto.randomUUID();
   const archivePath = `${input.workspaceId}/${input.landingId}/adapted-${version}.zip`;
   const adaptedBuffer = new ArrayBuffer(adaptedArchive.byteLength);
@@ -693,6 +796,7 @@ export async function connectLandingDraft(
         googleAdsConversionId,
         googleAdsConversionLabel,
       }),
+      adaptedBuildFingerprint: buildFingerprint,
       expectedSourceArchivePath: current.source_archive_path,
       expectedOfferId: current.offer_id,
     });
@@ -737,6 +841,7 @@ export async function deleteLandingDraft(
 export async function getDownloadableAdaptedArchive(
   dependencies: { repository: LandingRepository; storage: LandingArchiveStorage },
   input: { workspaceId: string; landingId: string },
+  currentBuildFingerprint: string,
 ): Promise<Blob> {
   const landing = await dependencies.repository.getDraft(input.workspaceId, input.landingId);
   if (!landing) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
@@ -745,6 +850,9 @@ export async function getDownloadableAdaptedArchive(
   }
   if (landing.adapter_status !== "prepared") {
     throw new ApiError(409, "The adapted ZIP is not ready to publish", "CONFLICT");
+  }
+  if (needsLandingReprepare(true, landing.adapted_build_fingerprint, currentBuildFingerprint)) {
+    throw new ApiError(409, "Prepare the landing ZIP again before downloading", "CONFLICT");
   }
   if (!landing.adapted_archive_path) {
     throw new ApiError(404, "No adapted ZIP is available", "NOT_FOUND");
@@ -814,6 +922,7 @@ export class LandingService {
       adaptedArchiveBytes: null,
       publicFormId: null,
       adaptedTrackingFingerprint: null,
+      adaptedBuildFingerprint: null,
       expectedSourceArchivePath,
       expectedOfferId: draft.offer_id,
     });
@@ -858,10 +967,112 @@ export class LandingService {
     return connectLandingDraft({ repository: this.repository, storage: this.storage }, input);
   }
 
+  async preparationReadiness(
+    workspaceId: string,
+    landingId: string,
+    selection: LandingTrackingSelection,
+  ): Promise<LandingTrackingConfiguration> {
+    const result = await this.calculatePreparationReadiness(workspaceId, landingId, selection);
+    return result.configuration;
+  }
+
   async downloadAdaptedArchive(workspaceId: string, landingId: string): Promise<Blob> {
+    const selection = await new TrackingProfileService().landingConfiguration(
+      workspaceId,
+      landingId,
+    );
+    const readiness = await this.calculatePreparationReadiness(workspaceId, landingId, selection);
     return getDownloadableAdaptedArchive(
       { repository: this.repository, storage: this.storage },
       { workspaceId, landingId },
+      readiness.currentFingerprint,
     );
+  }
+
+  private async calculatePreparationReadiness(
+    workspaceId: string,
+    landingId: string,
+    selection: LandingTrackingSelection,
+  ): Promise<{
+    currentFingerprint: string;
+    configuration: LandingTrackingConfiguration;
+  }> {
+    const landing = await this.repository.getDraft(workspaceId, landingId);
+    if (!landing) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+    if (landing.status !== "draft" || landing.deletion_started_at) {
+      throw new ApiError(409, "This landing draft is no longer editable", "CONFLICT");
+    }
+
+    const [offer, form, source] = await Promise.all([
+      this.repository.getOfferSnapshot(workspaceId, landing.offer_id),
+      this.repository.getFormIntegration(workspaceId, landing.offer_id),
+      this.storage.download(landing.source_archive_path),
+    ]);
+    if (!offer) throw new ApiError(404, "The selected offer is not available", "NOT_FOUND");
+
+    let intakeEndpoint: string | null = null;
+    let api: "ready" | "missing" | "invalid" = "missing";
+    try {
+      intakeEndpoint = getPublicLandingIntakeEndpoint();
+      if (intakeEndpoint) api = "ready";
+    } catch {
+      api = "invalid";
+    }
+
+    const currentFingerprint = await landingBuildFingerprint({
+      sourceArchiveSha256: await sha256Hex(new Uint8Array(await source.arrayBuffer())),
+      workspaceId,
+      offer,
+      formId: form?.publicId ?? null,
+      allowedOrigin: form?.allowedOrigin ?? null,
+      formActive: form?.isActive ?? false,
+      intakeEndpoint,
+      tracking: {
+        tiktokProfileId: selection.tiktokProfileId,
+        tiktokPixelId: selection.tiktokPixelId,
+        tiktokProfileActive: selection.tiktokProfileActive,
+        googleAdsProfileId: selection.googleAdsProfileId,
+        googleAdsConversionId: selection.googleAdsConversionId,
+        googleAdsConversionLabel: selection.googleAdsConversionLabel,
+        googleAdsProfileActive: selection.googleAdsProfileActive,
+      },
+    });
+    const hasAdaptedArchive = Boolean(landing.adapted_archive_path);
+    const needsRepublish = needsLandingReprepare(
+      hasAdaptedArchive,
+      landing.adapted_build_fingerprint,
+      currentFingerprint,
+    );
+    const originConfigured = Boolean(
+      form?.isActive && form.allowedOrigin !== PENDING_LANDING_ORIGIN,
+    );
+    const zipReady = Boolean(
+      landing.adapter_status === "prepared" &&
+      api === "ready" &&
+      originConfigured &&
+      offer.isActive &&
+      selection.tiktokProfileActive &&
+      selection.googleAdsProfileActive &&
+      !needsRepublish,
+    );
+
+    return {
+      currentFingerprint,
+      configuration: {
+        ...selection,
+        allowedOrigin: form?.allowedOrigin ?? null,
+        formActive: form?.isActive ?? false,
+        needsRepublish,
+        readiness: {
+          api,
+          originConfigured,
+          offerActive: offer.isActive,
+          tiktokProfileActive: selection.tiktokProfileActive,
+          googleAdsProfileActive: selection.googleAdsProfileActive,
+          zipCurrent: hasAdaptedArchive && !needsRepublish,
+          zipReady,
+        },
+      },
+    };
   }
 }

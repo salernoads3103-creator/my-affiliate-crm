@@ -497,10 +497,47 @@ export type Database = {
         };
         Relationships: [];
       };
+      landing_form_integrations: {
+        Row: {
+          allowed_origin: string;
+          created_at: string;
+          created_by_user_id: string | null;
+          id: string;
+          is_active: boolean;
+          offer_id: string;
+          public_id: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          allowed_origin: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          is_active?: boolean;
+          offer_id: string;
+          public_id?: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          allowed_origin?: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          id?: string;
+          is_active?: boolean;
+          offer_id?: string;
+          public_id?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       workspace_landings: {
         Row: {
           adapted_archive_bytes: number | null;
           adapted_archive_path: string | null;
+          adapted_build_fingerprint: string | null;
           adapted_tracking_fingerprint: string | null;
           adapter_reason: string | null;
           adapter_status: string;
@@ -526,6 +563,7 @@ export type Database = {
         Insert: {
           adapted_archive_bytes?: number | null;
           adapted_archive_path?: string | null;
+          adapted_build_fingerprint?: string | null;
           adapted_tracking_fingerprint?: string | null;
           adapter_reason?: string | null;
           adapter_status?: string;
@@ -551,6 +589,7 @@ export type Database = {
         Update: {
           adapted_archive_bytes?: number | null;
           adapted_archive_path?: string | null;
+          adapted_build_fingerprint?: string | null;
           adapted_tracking_fingerprint?: string | null;
           adapter_reason?: string | null;
           adapter_status?: string;
