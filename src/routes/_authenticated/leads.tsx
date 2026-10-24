@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Plus, Search, Download, Pencil, Trash2, Filter, ChevronDown, Inbox } from "lucide-react";
 import { LeadModal } from "@/components/leads/LeadModal";
 import { DeleteModal } from "@/components/leads/DeleteModal";
+import { LeadDetailsDrawer } from "@/components/leads/LeadDetailsDrawer";
 import { StatusBadge } from "@/components/leads/StatusBadge";
 import { useLeads, useSearchLeads, useUpdateLead } from "@/hooks/useLeadsApi";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -27,6 +28,7 @@ function LeadsPage() {
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<Lead | null>(null);
   const [deleting, setDeleting] = useState<Lead | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => { if (openNew) setModalOpen(true); }, [openNew]);
@@ -127,22 +129,38 @@ function LeadsPage() {
                       key={l.id}
                       layout
                       initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                      className="border-t border-border hover:bg-muted/30 transition group"
+                      onClick={() => setSelectedLead(l)}
+                      className="border-t border-border hover:bg-muted/30 transition group cursor-pointer"
                     >
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-3">
                           <div className="h-8 w-8 rounded-lg gradient-brand text-white flex items-center justify-center text-xs font-semibold">
                             {l.name.charAt(0).toUpperCase()}
                           </div>
-                          <span className="font-medium">{l.name}</span>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedLead(l);
+                            }}
+                            className="text-left font-medium focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            aria-label={t("View details for {name}", { name: l.name })}
+                          >
+                            {l.name}
+                          </button>
                         </div>
                       </td>
                       <td className="px-5 py-3 text-muted-foreground">{l.company_name ?? "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{l.email ?? "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{l.phone ?? "—"}</td>
-                      <td className="px-5 py-3"><StatusSelector lead={l} /></td>
+                      <td className="px-5 py-3" onClick={(event) => event.stopPropagation()}>
+                        <StatusSelector lead={l} />
+                      </td>
                       <td className="px-5 py-3">
-                        <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition">
+                        <div
+                          className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition"
+                          onClick={(event) => event.stopPropagation()}
+                        >
                           <button onClick={() => openEdit(l)} className="p-2 rounded-lg hover:bg-primary/10 hover:text-primary transition" aria-label={t("Edit")}><Pencil className="h-4 w-4" /></button>
                           <button onClick={() => setDeleting(l)} className="p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition" aria-label={t("Delete")}><Trash2 className="h-4 w-4" /></button>
                         </div>
@@ -157,17 +175,32 @@ function LeadsPage() {
           {/* Mobile cards */}
           <div className="md:hidden space-y-3">
             {current.map((l) => (
-              <motion.div key={l.id} layout className="glass rounded-2xl p-4">
+              <motion.div
+                key={l.id}
+                layout
+                onClick={() => setSelectedLead(l)}
+                className="glass rounded-2xl p-4 cursor-pointer"
+              >
                 <div className="flex items-center gap-3">
                   <div className="h-10 w-10 rounded-xl gradient-brand text-white flex items-center justify-center font-semibold">{l.name.charAt(0).toUpperCase()}</div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">{l.name}</div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedLead(l);
+                      }}
+                      className="block max-w-full truncate text-left font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      aria-label={t("View details for {name}", { name: l.name })}
+                    >
+                      {l.name}
+                    </button>
                     <div className="text-xs text-muted-foreground truncate">{l.email ?? "—"}</div>
                   </div>
                   <StatusBadge status={l.lead_status} />
                 </div>
                 <div className="mt-3 text-sm text-muted-foreground">{l.company_name ?? "—"} · {l.phone ?? "—"}</div>
-                <div className="mt-3 flex justify-end gap-2">
+                <div className="mt-3 flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
                   <button onClick={() => openEdit(l)} className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-primary/10 hover:text-primary">{t("Edit")}</button>
                   <button onClick={() => setDeleting(l)} className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-destructive/10 hover:text-destructive">{t("Delete")}</button>
                 </div>
@@ -189,6 +222,7 @@ function LeadsPage() {
 
       <LeadModal open={modalOpen} onClose={close} lead={editing} />
       <DeleteModal lead={deleting} onClose={() => setDeleting(null)} />
+      <LeadDetailsDrawer lead={selectedLead} onClose={() => setSelectedLead(null)} locale={locale} />
     </motion.div>
   );
 }
