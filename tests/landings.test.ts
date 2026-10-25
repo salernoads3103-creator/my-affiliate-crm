@@ -979,6 +979,45 @@ describe("Landing Factory ZIP intake", () => {
     ).toBe(1);
   });
 
+  it("re-adapts an intact Landing Factory ZIP for an offer launch with the selected TikTok Pixel", async () => {
+    const source = makeZip([{ name: "index.html", content: validHtml }]);
+    const priorArchive = await buildAdaptedLandingArchive(source, {
+      publicFormId: "66666666-6666-4666-8666-666666666666",
+      intakeEndpoint: "https://old-crm.example/api/v1/intake/leads",
+      tiktokPixelId: "TT-OLD-PIXEL",
+    });
+
+    // The launch wizard accepts a previously prepared Landing Factory download.
+    // It must replace that generated integration with the launch's own form ID/config.
+    expect(await checkLandingAdapterCompatibility(priorArchive)).toBeNull();
+    const adapted = await buildAdaptedLandingArchive(priorArchive, {
+      publicFormId: "77777777-7777-4777-8777-777777777777",
+      intakeEndpoint: "https://crmonia.example/api/v1/intake/leads",
+      tiktokPixelId: "TT-LAUNCH-PIXEL",
+    });
+    const analysis = await analyzeLandingArchive(adapted);
+    const html = readStoredZipEntry(adapted, "index.html");
+    const adapter = readStoredZipEntry(adapted, "crmonia-intake-adapter.js");
+
+    expect(analysis.hasIndexHtml).toBe(true);
+    expect(analysis.forms).toHaveLength(1);
+    expect(html).toContain('data-crmonia-form-id="77777777-7777-4777-8777-777777777777"');
+    expect(html).not.toContain("66666666-6666-4666-8666-666666666666");
+    expect(html).toContain('ttq.load("TT-LAUNCH-PIXEL")');
+    expect(html).not.toContain("TT-OLD-PIXEL");
+    expect(html?.match(/data-crmonia-intake="1"/g) ?? []).toHaveLength(1);
+    expect(html?.match(/data-crmonia-honeypot/g) ?? []).toHaveLength(1);
+    expect(adapter).toContain("https://crmonia.example/api/v1/intake/leads");
+    expect(adapter).not.toContain("https://old-crm.example/api/v1/intake/leads");
+    expect(await checkLandingAdapterCompatibility(adapted)).toBeNull();
+
+    const editedAdapter = makeZip([
+      { name: "index.html", content: html! },
+      { name: "crmonia-intake-adapter.js", content: `${adapter}\n// user edit` },
+    ]);
+    expect(await checkLandingAdapterCompatibility(editedAdapter)).toBe("custom_submit_handler");
+  });
+
   it("reports a specific error for malformed ZIP input", async () => {
     expect(await checkLandingAdapterCompatibility(encoder.encode("not zip"))).toBe(
       "invalid_archive",
