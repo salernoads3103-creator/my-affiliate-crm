@@ -1031,7 +1031,17 @@ const uk = {
   "DNS and HTTPS confirmed": "DNS і HTTPS підтверджено",
   "Check R2 connection": "Перевірити з'єднання з R2",
   "Checking R2…": "Перевіряємо R2…",
-  "R2 connection confirmed": "З'єднання з R2 працює",
+  "R2 bucket and test object are accessible": "Бакет і тестовий об'єкт R2 доступні",
+  "R2 object read works; bucket check returned HTTP {status}":
+    "Читання об'єкта R2 працює; перевірка бакета повернула HTTP {status}",
+  "R2 bucket check failed; test object read works":
+    "Перевірка бакета R2 не пройшла, але тестовий об'єкт читається",
+  "R2 signature mismatch; check credentials and SigV4 signing":
+    "Підпис R2 не збігається: перевірте ключі та формування підпису SigV4",
+  "R2 rejected the Access Key ID": "R2 відхилив Access Key ID",
+  "R2 denied test object access (HTTP {status})":
+    "R2 заборонив доступ до тестового об'єкта (HTTP {status})",
+  "R2 diagnostic object was not found": "Тестовий об'єкт R2 не знайдено",
   "R2 configuration is invalid": "Неправильно налаштовано R2",
   "R2 rejected the request (HTTP {status})": "R2 відхилив запит (HTTP {status})",
   "R2 is unreachable": "Не вдалося з'єднатися з R2",
@@ -1624,7 +1634,16 @@ const en: Partial<Record<TranslationKey, string>> = {
   "DNS and HTTPS confirmed": "DNS and HTTPS confirmed",
   "Check R2 connection": "Check R2 connection",
   "Checking R2…": "Checking R2…",
-  "R2 connection confirmed": "R2 connection confirmed",
+  "R2 bucket and test object are accessible": "R2 bucket and test object are accessible",
+  "R2 object read works; bucket check returned HTTP {status}":
+    "R2 object read works; bucket check returned HTTP {status}",
+  "R2 bucket check failed; test object read works":
+    "R2 bucket check failed; test object read works",
+  "R2 signature mismatch; check credentials and SigV4 signing":
+    "R2 signature mismatch; check credentials and SigV4 signing",
+  "R2 rejected the Access Key ID": "R2 rejected the Access Key ID",
+  "R2 denied test object access (HTTP {status})": "R2 denied test object access (HTTP {status})",
+  "R2 diagnostic object was not found": "R2 diagnostic object was not found",
   "R2 configuration is invalid": "R2 configuration is invalid",
   "R2 rejected the request (HTTP {status})": "R2 rejected the request (HTTP {status})",
   "R2 is unreachable": "R2 is unreachable",

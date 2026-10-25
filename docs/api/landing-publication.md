@@ -96,25 +96,38 @@ and validates the version prefix. The server writes manifests and static files;
 the public Worker has no R2 write binding or methods. Never put the S3 access key
 or secret in a landing ZIP, browser bundle, API response, or log.
 
-The server adapter uses the portable R2 S3 endpoint and Web Crypto SigV4 so it
-works from Render or a future VPS without Cloudflare-specific server bindings.
-The conventional alternative is an AWS S3 SDK client, which carries more
-dependency weight but delegates signing and transport edge cases to a maintained
-library. The repository has no S3 SDK dependency, so this stage keeps one narrow
-adapter and pins its signature format with a deterministic test. Scope the R2
-credential to this bucket with object read/write access; the server does not
-need bucket listing or deletion, and the Worker only has its private read binding.
+The server adapter uses `@aws-sdk/client-s3` against the account's R2 S3 endpoint,
+with region `auto` and path-style bucket addressing. Credentials are passed only
+to the server-side client. The SDK owns SigV4 signing and HTTP transport; the
+small CRMONIA adapter still validates object keys, bounds manifest reads,
+sanitizes provider errors, and uses one SDK attempt so publication recovery stays
+under the existing idempotent workflow. Compared with retaining the smaller
+handwritten signer, this adds SDK dependencies and server bundle size while
+removing our responsibility for canonical request construction and SigV4
+edge cases. The publication path needs object
+`HeadObject`, `GetObject`, and `PutObject`; it does not require `HeadBucket`,
+bucket listing, or deletion. The DEV diagnostic keeps `HeadBucket` separate
+from `HeadObject`, since a bucket-level 403 does not establish that object
+access is failing. Keep the credential scoped to this bucket with the required
+object access, and leave the Worker's private read binding unchanged.
 
 ### Read-only DEV connection check
 
 `GET /api/workspaces/{workspaceId}/r2-health` performs a signed S3 `HeadBucket`
-request. It does not read or write objects, create publication records, or return
-credentials. It is available only when all of these conditions match: Render is
+request and a body-free `HeadObject` request for the known PoC file
+`sites/landing-1/version-1/index.html`. The two outcomes are returned separately,
+so a bucket-level denial is not treated as proof that object access is broken.
+It does not return object content, write objects, create publication records, or
+return credentials. It is available only when all of these conditions match: Render is
 running service `crmonia-intake-api-test` from branch `develop`, and
 `CRMONIA_R2_DIAGNOSTICS_ENABLED=true`. The authenticated caller also needs
 `landing_pages.manage` in the requested workspace. The endpoint returns only a
-status (`connected`, `configuration_error`, `provider_rejected`, `unreachable`,
-or `unavailable`) and, for a provider rejection, its HTTP status and request ID.
+status per probe (`connected`, `not_found`, `configuration_error`,
+`provider_rejected`, `unreachable`, or `unavailable`). For provider rejections,
+it may include the HTTP status, a sanitized S3 error code, and request ID.
+`SignatureDoesNotMatch` can mean an incorrect secret or a SigV4
+canonical-request mismatch; compare with a trusted S3 client before concluding
+which one. `InvalidAccessKeyId` identifies an unrecognized access key.
 Keep the opt-in variable unset outside the DEV service.
 
 ## Isolated workers.dev test

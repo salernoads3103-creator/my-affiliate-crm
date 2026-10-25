@@ -1,4 +1,6 @@
 import { describe, expect, it } from "bun:test";
+import { Readable } from "node:stream";
+import { S3Client, type S3ClientConfig } from "@aws-sdk/client-s3";
 import { ApiError } from "../src/lib/api-error";
 import {
   isR2DiagnosticEndpointEnabled,
@@ -13,107 +15,173 @@ const config = {
   bucketName: "crmonia-publication-test",
 };
 
-describe("Cloudflare R2 S3 client", () => {
-  it("signs a read-only HeadBucket request without reading objects", async () => {
-    let capturedUrl: URL | null = null;
-    let capturedMethod: string | undefined;
-    let capturedHeaders: Headers | null = null;
-    const store = new CloudflareR2Store(
-      config,
-      async (input, init) => {
-        capturedUrl = new URL(input.toString());
-        capturedMethod = init?.method;
-        capturedHeaders = new Headers(init?.headers);
-        return new Response(null, { status: 200 });
-      },
-      () => new Date("2026-10-25T12:00:00.000Z"),
-    );
+type MockS3Request = {
+  method: string;
+  hostname: string;
+  path: string;
+  protocol: string;
+  headers: Record<string, string>;
+  body?: unknown;
+};
+
+type MockS3Response = {
+  statusCode: number;
+  headers: Record<string, string>;
+  body?: unknown;
+};
+
+function mockRequestHandler(
+  respond: (request: MockS3Request) => MockS3Response | Promise<MockS3Response>,
+): NonNullable<S3ClientConfig["requestHandler"]> {
+  return {
+    handle: async (request: MockS3Request) => ({ response: await respond(request) }),
+    destroy: () => undefined,
+    updateHttpClientConfig: () => undefined,
+    httpHandlerConfigs: () => ({}),
+  } satisfies NonNullable<S3ClientConfig["requestHandler"]>;
+}
+
+function createStore(
+  respond: (request: MockS3Request) => MockS3Response | Promise<MockS3Response>,
+): CloudflareR2Store {
+  return new CloudflareR2Store(config, mockRequestHandler(respond));
+}
+
+function successResponse(request: MockS3Request): MockS3Response {
+  if (request.method === "HEAD" && request.path.endsWith("/index.html")) {
+    return {
+      statusCode: 200,
+      headers: { "content-length": "5", "x-amz-meta-sha256": "abc123" },
+    };
+  }
+  return { statusCode: 200, headers: {} };
+}
+
+describe("Cloudflare R2 S3 SDK adapter", () => {
+  it("uses signed path-style requests for bucket and object HEAD checks", async () => {
+    const requests: MockS3Request[] = [];
+    const store = createStore((request) => {
+      requests.push(request);
+      return successResponse(request);
+    });
 
     await store.checkBucket();
+    expect(await store.head("sites/landing-1/version-1/index.html")).toEqual({
+      size: 5,
+      sha256: "abc123",
+    });
 
-    expect(capturedMethod).toBe("HEAD");
-    expect(capturedUrl?.pathname).toBe("/crmonia-publication-test");
-    expect(capturedHeaders?.get("x-amz-content-sha256")).toBe(
-      "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    );
-    expect(capturedHeaders?.get("authorization")).toMatch(
-      /^AWS4-HMAC-SHA256 Credential=test-access-key\/20261025\/auto\/s3\/aws4_request, SignedHeaders=host;x-amz-content-sha256;x-amz-date, Signature=[a-f0-9]{64}$/,
-    );
+    expect(requests).toHaveLength(2);
+    expect(requests[0]).toMatchObject({
+      method: "HEAD",
+      hostname: "00000000000000000000000000000000.r2.cloudflarestorage.com",
+      path: "/crmonia-publication-test/",
+      protocol: "https:",
+    });
+    expect(requests[1]).toMatchObject({
+      method: "HEAD",
+      path: "/crmonia-publication-test/sites/landing-1/version-1/index.html",
+    });
+    for (const request of requests) {
+      expect(request.headers.authorization).toMatch(
+        /^AWS4-HMAC-SHA256 Credential=test-access-key\/\d{8}\/auto\/s3\/aws4_request, SignedHeaders=[a-z0-9-;]+, Signature=[a-f0-9]{64}$/,
+      );
+    }
   });
 
-  it("signs PUT requests with the canonical AWS request format", async () => {
-    let capturedUrl: URL | null = null;
-    let capturedInit: RequestInit | null = null;
-    const store = new CloudflareR2Store(
-      config,
-      async (input, init) => {
-        capturedUrl = new URL(input.toString());
-        capturedInit = init ?? null;
-        return new Response(null, { status: 200 });
-      },
-      () => new Date("2026-10-25T12:00:00.000Z"),
-    );
+  it("uploads immutable object bytes and SHA-256 metadata through PutObject", async () => {
+    let captured: MockS3Request | null = null;
+    const store = createStore((request) => {
+      captured = request;
+      return { statusCode: 200, headers: { etag: '"etag"' } };
+    });
 
+    const bytes = new TextEncoder().encode("hello");
     await store.put(
-      "sites/one/index.html",
-      new TextEncoder().encode("hello"),
+      "crmonia/landing-sites/ws/host/version/index.html",
+      bytes,
       "text/html",
-      "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824",
+      "a".repeat(64),
     );
 
-    expect(capturedUrl?.hostname).toBe("00000000000000000000000000000000.r2.cloudflarestorage.com");
-    expect(capturedUrl?.pathname).toBe("/crmonia-publication-test/sites/one/index.html");
-    const capturedHeaders = new Headers(capturedInit?.headers);
-    expect(capturedHeaders.get("authorization")).toBe(
-      "AWS4-HMAC-SHA256 Credential=test-access-key/20261025/auto/s3/aws4_request, " +
-        "SignedHeaders=content-type;host;x-amz-content-sha256;x-amz-date;x-amz-meta-sha256, " +
-        "Signature=a90785e8ac818be7739295db69f52c445c30571ab3fc817f57db88e7e0fe784a",
-    );
-    expect(new TextDecoder().decode(capturedInit?.body as ArrayBuffer)).toBe("hello");
+    expect(captured).toMatchObject({
+      method: "PUT",
+      path: "/crmonia-publication-test/crmonia/landing-sites/ws/host/version/index.html",
+    });
+    expect(captured?.headers["content-type"]).toBe("text/html");
+    expect(captured?.headers["x-amz-meta-sha256"]).toBe("a".repeat(64));
+    expect(captured?.body).toBeInstanceOf(Uint8Array);
+    expect(new TextDecoder().decode(captured?.body as Uint8Array)).toBe("hello");
   });
 
-  it("does not expose credential values in provider errors", async () => {
-    const store = new CloudflareR2Store(
-      config,
-      async () => new Response(config.secretAccessKey, { status: 403 }),
-    );
+  it("reads a bounded manifest body and returns only decoded text", async () => {
+    const manifest = '{"sitePrefix":"crmonia/landing-sites/ws/host/version/"}';
+    const body = new TextEncoder().encode(manifest);
+    const store = createStore(() => ({
+      statusCode: 200,
+      headers: { "content-length": String(body.byteLength) },
+      body: Readable.from([body]),
+    }));
+
+    expect(await store.readText("host-manifests/shop.example.test.json", 4096)).toBe(manifest);
+    await expect(store.readText("host-manifests/shop.example.test.json", 4)).rejects.toMatchObject({
+      status: 502,
+      code: "INTERNAL_ERROR",
+    });
+  });
+
+  it("maps safe S3 error codes without exposing provider bodies or credentials", async () => {
+    const store = createStore(() => ({
+      statusCode: 403,
+      headers: { "x-amz-request-id": "safe-request-id" },
+      body: Readable.from([
+        `<Error><Code>SignatureDoesNotMatch</Code><Message>${config.secretAccessKey}</Message></Error>`,
+      ]),
+    }));
 
     const result = await store
-      .put("sites/one/index.html", new TextEncoder().encode("hello"), "text/html", "0".repeat(64))
+      .head("sites/landing-1/version-1/index.html")
       .catch((error: unknown) => error);
 
     expect(result).toBeInstanceOf(ApiError);
-    expect((result as Error).message).not.toContain(config.secretAccessKey);
     expect((result as ApiError).cause).toMatchObject({
       subsystem: "cloudflare_r2",
       outcome: "http_error",
-      method: "PUT",
-      objectKind: "other",
-      status: 403,
-    });
-    expect(JSON.stringify((result as ApiError).cause)).not.toContain(config.secretAccessKey);
-  });
-
-  it("classifies network failures without preserving raw exception text", async () => {
-    const store = new CloudflareR2Store(config, async () => {
-      throw new Error(`network failed with ${config.secretAccessKey}`);
-    });
-
-    const result = await store
-      .head("crmonia/landing-sites/one/index.html")
-      .catch((error: unknown) => error);
-
-    expect(result).toBeInstanceOf(ApiError);
-    expect((result as ApiError).cause).toMatchObject({
-      subsystem: "cloudflare_r2",
-      outcome: "network_error",
       method: "HEAD",
-      objectKind: "published_site_file",
-      errorName: "Error",
+      status: 403,
+      providerCode: "SignatureDoesNotMatch",
+      providerRequestId: "safe-request-id",
     });
+    expect((result as Error).message).not.toContain(config.secretAccessKey);
     expect(JSON.stringify((result as ApiError).cause)).not.toContain(config.secretAccessKey);
   });
 
+  it("does not add retries beyond the publication workflow's explicit recovery", async () => {
+    let attempts = 0;
+    const store = createStore(() => {
+      attempts += 1;
+      return { statusCode: 503, headers: {}, body: "temporary provider error" };
+    });
+
+    await expect(store.checkBucket()).rejects.toBeInstanceOf(ApiError);
+    expect(attempts).toBe(1);
+  });
+
+  it("rejects unsafe object keys before sending a request", async () => {
+    let attempts = 0;
+    const store = createStore(() => {
+      attempts += 1;
+      return { statusCode: 200, headers: {} };
+    });
+
+    await expect(store.head("sites/../private.txt")).rejects.toMatchObject({
+      code: "VALIDATION_ERROR",
+    });
+    expect(attempts).toBe(0);
+  });
+});
+
+describe("R2 diagnostic health checks", () => {
   it("fails closed unless the exact DEV Render service and explicit opt-in match", () => {
     const developmentEnvironment = {
       RENDER: "true",
@@ -140,40 +208,66 @@ describe("Cloudflare R2 S3 client", () => {
     ).toBe(false);
   });
 
-  it("returns safe R2 diagnostic categories without exposing credentials or object content", async () => {
-    expect(await runR2ReadOnlyHealthcheck(async () => undefined)).toEqual({ status: "connected" });
+  it("distinguishes bucket-level denial from successful object read", async () => {
     expect(
-      await runR2ReadOnlyHealthcheck(async () => {
-        throw new ApiError(502, "R2 request failed", "INTERNAL_ERROR", {
-          subsystem: "cloudflare_r2",
-          outcome: "http_error",
-          method: "HEAD",
-          objectKind: "bucket",
-          status: 403,
-          providerRequestId: "cf-ray-safe-id",
-          credential: config.secretAccessKey,
-        });
-      }),
+      await runR2ReadOnlyHealthcheck(
+        async () => {
+          throw new ApiError(502, "R2 request failed", "INTERNAL_ERROR", {
+            subsystem: "cloudflare_r2",
+            outcome: "http_error",
+            method: "HEAD",
+            objectKind: "bucket",
+            status: 403,
+            providerCode: "AccessDenied",
+            providerRequestId: "cf-ray-safe-id",
+            credential: config.secretAccessKey,
+          });
+        },
+        async () => ({ size: 5, sha256: null }),
+      ),
     ).toEqual({
-      status: "provider_rejected",
-      providerStatus: 403,
-      requestId: "cf-ray-safe-id",
+      bucket: {
+        status: "provider_rejected",
+        providerStatus: 403,
+        providerCode: "AccessDenied",
+        requestId: "cf-ray-safe-id",
+      },
+      testObject: { status: "connected" },
     });
+  });
+
+  it("reports signature rejection separately from insufficient permissions", async () => {
+    const signatureError = async () => {
+      throw new ApiError(502, "R2 request failed", "INTERNAL_ERROR", {
+        subsystem: "cloudflare_r2",
+        outcome: "http_error",
+        method: "HEAD",
+        objectKind: "other",
+        status: 403,
+        providerCode: "SignatureDoesNotMatch",
+      });
+    };
+
+    expect(await runR2ReadOnlyHealthcheck(signatureError, signatureError)).toEqual({
+      bucket: {
+        status: "provider_rejected",
+        providerStatus: 403,
+        providerCode: "SignatureDoesNotMatch",
+      },
+      testObject: {
+        status: "provider_rejected",
+        providerStatus: 403,
+        providerCode: "SignatureDoesNotMatch",
+      },
+    });
+  });
+
+  it("reports missing diagnostic objects without exposing file data", async () => {
     expect(
-      await runR2ReadOnlyHealthcheck(async () => {
-        throw new ApiError(500, "R2 config invalid", "INTERNAL_ERROR", {
-          subsystem: "cloudflare_r2",
-          outcome: "configuration_error",
-        });
-      }),
-    ).toEqual({ status: "configuration_error" });
-    expect(
-      await runR2ReadOnlyHealthcheck(async () => {
-        throw new ApiError(502, "R2 unavailable", "INTERNAL_ERROR", {
-          subsystem: "cloudflare_r2",
-          outcome: "timeout",
-        });
-      }),
-    ).toEqual({ status: "unreachable" });
+      await runR2ReadOnlyHealthcheck(
+        async () => undefined,
+        async () => null,
+      ),
+    ).toEqual({ bucket: { status: "connected" }, testObject: { status: "not_found" } });
   });
 });

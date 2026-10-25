@@ -213,24 +213,57 @@ function DomainsPage() {
       return domainService.checkR2Health(workspaceId);
     },
     onSuccess: (result) => {
-      switch (result.status) {
-        case "connected":
-          toast.success(t("R2 connection confirmed", {}, locale));
-          break;
-        case "configuration_error":
-          toast.error(t("R2 configuration is invalid", {}, locale));
-          break;
-        case "provider_rejected":
-          toast.error(
-            t("R2 rejected the request (HTTP {status})", { status: result.providerStatus }, locale),
+      const { bucket, testObject } = result;
+      if (testObject.status === "connected") {
+        if (bucket.status === "connected") {
+          toast.success(t("R2 bucket and test object are accessible", {}, locale));
+        } else if (bucket.status === "provider_rejected") {
+          toast.success(
+            t(
+              "R2 object read works; bucket check returned HTTP {status}",
+              { status: bucket.providerStatus },
+              locale,
+            ),
           );
-          break;
-        case "unreachable":
-          toast.error(t("R2 is unreachable", {}, locale));
-          break;
-        case "unavailable":
-          toast.error(t("R2 healthcheck unavailable", {}, locale));
-          break;
+        } else {
+          toast.error(t("R2 bucket check failed; test object read works", {}, locale));
+        }
+        return;
+      }
+
+      if (testObject.status === "provider_rejected") {
+        if (testObject.providerCode === "SignatureDoesNotMatch") {
+          toast.error(t("R2 signature mismatch; check credentials and SigV4 signing", {}, locale));
+        } else if (testObject.providerCode === "InvalidAccessKeyId") {
+          toast.error(t("R2 rejected the Access Key ID", {}, locale));
+        } else if (testObject.providerCode === "AccessDenied") {
+          toast.error(
+            t(
+              "R2 denied test object access (HTTP {status})",
+              { status: testObject.providerStatus },
+              locale,
+            ),
+          );
+        } else {
+          toast.error(
+            t(
+              "R2 rejected the request (HTTP {status})",
+              { status: testObject.providerStatus },
+              locale,
+            ),
+          );
+        }
+        return;
+      }
+
+      if (testObject.status === "not_found") {
+        toast.error(t("R2 diagnostic object was not found", {}, locale));
+      } else if (testObject.status === "configuration_error") {
+        toast.error(t("R2 configuration is invalid", {}, locale));
+      } else if (testObject.status === "unreachable") {
+        toast.error(t("R2 is unreachable", {}, locale));
+      } else if (testObject.status === "unavailable") {
+        toast.error(t("R2 healthcheck unavailable", {}, locale));
       }
     },
     onError: (error) =>

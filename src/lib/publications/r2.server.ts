@@ -1,3 +1,11 @@
+import {
+  GetObjectCommand,
+  HeadBucketCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+  type S3ClientConfig,
+} from "@aws-sdk/client-s3";
 import { ApiError } from "@/lib/api-error";
 import { sha256Hex } from "@/lib/landings/fingerprint";
 
@@ -16,16 +24,7 @@ export type R2S3Config = {
   bucketName: string;
 };
 
-type SignedRequest = {
-  method: "GET" | "HEAD" | "PUT";
-  key: string;
-  bucketOnly?: boolean;
-  bytes?: Uint8Array;
-  contentType?: string;
-  sha256?: string;
-};
-
-const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+const REQUEST_TIMEOUT_MS = 120_000;
 const AWS_REGION = "auto";
 const AWS_SERVICE = "s3";
 
@@ -52,13 +51,6 @@ function envConfig(): R2S3Config {
   return config;
 }
 
-function awsEncode(value: string): string {
-  return encodeURIComponent(value).replace(
-    /[!'()*]/g,
-    (character) => `%${character.charCodeAt(0).toString(16).toUpperCase()}`,
-  );
-}
-
 function assertObjectKey(key: string): void {
   if (
     !key ||
@@ -77,190 +69,188 @@ function objectKind(key: string): "bucket" | "host_manifest" | "published_site_f
   return "other";
 }
 
-function safeErrorName(error: unknown): string {
-  const name = error instanceof Error ? error.name : "UnknownError";
-  return /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(name) ? name : "UnknownError";
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | null {
+  return typeof value === "object" && value !== null ? (value as UnknownRecord) : null;
 }
 
-function toHex(bytes: ArrayBuffer): string {
-  return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
+function getProviderCode(error: unknown): string | undefined {
+  const record = asRecord(error);
+  const genericNames = new Set([
+    "Error",
+    "TypeError",
+    "AbortError",
+    "TimeoutError",
+    "S3ServiceException",
+  ]);
+  for (const candidate of [record?.Code, record?.code, record?.name]) {
+    if (
+      typeof candidate === "string" &&
+      /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(candidate) &&
+      !genericNames.has(candidate)
+    ) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
-async function hmac(key: Uint8Array, value: string): Promise<Uint8Array> {
-  const cryptoKey = await globalThis.crypto.subtle.importKey(
-    "raw",
-    key.slice().buffer,
-    { name: "HMAC", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  return new Uint8Array(
-    await globalThis.crypto.subtle.sign("HMAC", cryptoKey, new TextEncoder().encode(value)),
-  );
+function getProviderStatus(error: unknown): number | undefined {
+  const metadata = asRecord(asRecord(error)?.$metadata);
+  const status = metadata?.httpStatusCode;
+  return typeof status === "number" && Number.isInteger(status) ? status : undefined;
 }
 
-function amzDate(date: Date): { timestamp: string; shortDate: string } {
-  const iso = date.toISOString().replace(/[:-]|\.\d{3}/g, "");
-  return { timestamp: iso, shortDate: iso.slice(0, 8) };
+function getProviderRequestId(error: unknown): string | undefined {
+  const metadata = asRecord(asRecord(error)?.$metadata);
+  const requestId = metadata?.requestId;
+  return typeof requestId === "string" && /^[A-Za-z0-9._:-]{1,128}$/.test(requestId)
+    ? requestId
+    : undefined;
+}
+
+function isMissingObject(error: unknown): boolean {
+  const code = getProviderCode(error);
+  if (code === "NoSuchBucket") return false;
+  return getProviderStatus(error) === 404 || code === "NoSuchKey" || code === "NotFound";
 }
 
 export class CloudflareR2Store implements LandingR2Store {
   private readonly config: R2S3Config;
+  private readonly client: S3Client;
 
-  constructor(
-    config: R2S3Config = envConfig(),
-    private readonly fetcher: typeof fetch = fetch,
-    private readonly clock: () => Date = () => new Date(),
-  ) {
+  constructor(config: R2S3Config = envConfig(), requestHandler?: S3ClientConfig["requestHandler"]) {
     this.config = config;
+    this.client = new S3Client({
+      region: AWS_REGION,
+      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      forcePathStyle: true,
+      credentials: {
+        accessKeyId: config.accessKeyId,
+        secretAccessKey: config.secretAccessKey,
+      },
+      maxAttempts: 1,
+      requestChecksumCalculation: "WHEN_REQUIRED",
+      ...(requestHandler ? { requestHandler } : {}),
+    });
   }
 
   async put(key: string, bytes: Uint8Array, contentType: string, digest: string): Promise<void> {
-    const input = { method: "PUT" as const, key, bytes, contentType, sha256: digest };
-    this.assertSuccess(await this.request(input), input);
+    assertObjectKey(key);
+    try {
+      await this.client.send(
+        new PutObjectCommand({
+          Bucket: this.config.bucketName,
+          Key: key,
+          Body: bytes.slice(),
+          ContentLength: bytes.byteLength,
+          ContentType: contentType,
+          Metadata: { sha256: digest },
+        }),
+        { abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+      );
+    } catch (error) {
+      throw this.toApiError(error, "PUT", key);
+    }
   }
 
   async head(key: string): Promise<R2ObjectHead | null> {
-    const response = await this.request({ method: "HEAD", key });
-    if (response.status === 404) return null;
-    this.assertSuccess(response, { method: "HEAD", key });
-    const rawSize = response.headers.get("content-length");
-    const size = rawSize === null ? Number.NaN : Number(rawSize);
-    if (!Number.isSafeInteger(size) || size < 0) {
+    assertObjectKey(key);
+    let result;
+    try {
+      result = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.config.bucketName, Key: key }),
+        { abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+      );
+    } catch (error) {
+      if (isMissingObject(error)) return null;
+      throw this.toApiError(error, "HEAD", key);
+    }
+
+    const size = result.ContentLength;
+    if (typeof size !== "number" || !Number.isSafeInteger(size) || size < 0) {
       throw new ApiError(
         502,
         "Could not verify a landing file in object storage",
         "INTERNAL_ERROR",
       );
     }
-    return { size, sha256: response.headers.get("x-amz-meta-sha256") };
+    return { size, sha256: result.Metadata?.sha256 ?? null };
   }
 
   async checkBucket(): Promise<void> {
-    const input: SignedRequest = { method: "HEAD", key: "", bucketOnly: true };
-    this.assertSuccess(await this.request(input), input);
+    try {
+      await this.client.send(new HeadBucketCommand({ Bucket: this.config.bucketName }), {
+        abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (error) {
+      throw this.toApiError(error, "HEAD", "");
+    }
   }
 
   async readText(key: string, maxBytes: number): Promise<string | null> {
-    const response = await this.request({ method: "GET", key });
-    if (response.status === 404) return null;
-    this.assertSuccess(response, { method: "GET", key });
-    const declaredLength = Number(response.headers.get("content-length"));
-    if (!Number.isSafeInteger(declaredLength) || declaredLength < 0 || declaredLength > maxBytes) {
+    assertObjectKey(key);
+    let result;
+    try {
+      result = await this.client.send(
+        new GetObjectCommand({ Bucket: this.config.bucketName, Key: key }),
+        { abortSignal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) },
+      );
+    } catch (error) {
+      if (isMissingObject(error)) return null;
+      throw this.toApiError(error, "GET", key);
+    }
+
+    const declaredLength = result.ContentLength;
+    if (
+      typeof declaredLength !== "number" ||
+      !Number.isSafeInteger(declaredLength) ||
+      declaredLength < 0 ||
+      declaredLength > maxBytes
+    ) {
       throw new ApiError(502, "Invalid landing manifest in object storage", "INTERNAL_ERROR");
     }
-    const bytes = new Uint8Array(await response.arrayBuffer());
+
+    let bytes: Uint8Array;
+    try {
+      bytes = result.Body ? await result.Body.transformToByteArray() : new Uint8Array();
+    } catch (error) {
+      throw this.toApiError(error, "GET", key);
+    }
     if (bytes.byteLength > maxBytes) {
       throw new ApiError(502, "Invalid landing manifest in object storage", "INTERNAL_ERROR");
     }
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
   }
 
-  private async request(input: SignedRequest): Promise<Response> {
-    if (!input.bucketOnly) assertObjectKey(input.key);
-    const { accountId, accessKeyId, secretAccessKey, bucketName } = this.config;
-    const encodedPath = input.bucketOnly
-      ? awsEncode(bucketName)
-      : [bucketName, ...input.key.split("/")].map(awsEncode).join("/");
-    const url = new URL(`https://${accountId}.r2.cloudflarestorage.com/${encodedPath}`);
-    const bodyHash = input.sha256 ?? (input.bytes ? await sha256Hex(input.bytes) : EMPTY_SHA256);
-    const { timestamp, shortDate } = amzDate(this.clock());
-    const headers = new Headers({
-      "x-amz-content-sha256": bodyHash,
-      "x-amz-date": timestamp,
-    });
-    if (input.contentType) headers.set("content-type", input.contentType);
-    if (input.sha256) headers.set("x-amz-meta-sha256", input.sha256);
+  private toApiError(error: unknown, method: "GET" | "HEAD" | "PUT", key: string): ApiError {
+    if (error instanceof ApiError) return error;
 
-    const signedHeaderNames = [
-      "host",
-      ...Array.from(headers.keys()).map((name) => name.toLowerCase()),
-    ]
-      .sort()
-      .join(";");
-    const canonicalHeaders = [
-      ["host", url.host] as const,
-      ...Array.from(headers.entries()).map(
-        ([name, value]) => [name.toLowerCase(), value.trim().replace(/\s+/g, " ")] as const,
-      ),
-    ]
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-      .map(([name, value]) => `${name}:${value}`)
-      .join("\n");
-    const canonicalRequest = [
-      input.method,
-      url.pathname,
-      "",
-      canonicalHeaders,
-      signedHeaderNames,
-      bodyHash,
-    ].join("\n");
-    const scope = `${shortDate}/${AWS_REGION}/${AWS_SERVICE}/aws4_request`;
-    const stringToSign = [
-      "AWS4-HMAC-SHA256",
-      timestamp,
-      scope,
-      await sha256Hex(new TextEncoder().encode(canonicalRequest)),
-    ].join("\n");
-    const dateKey = await hmac(new TextEncoder().encode(`AWS4${secretAccessKey}`), shortDate);
-    const regionKey = await hmac(dateKey, AWS_REGION);
-    const serviceKey = await hmac(regionKey, AWS_SERVICE);
-    const signingKey = await hmac(serviceKey, "aws4_request");
-    const signature = toHex(
-      await globalThis.crypto.subtle.sign(
-        "HMAC",
-        await globalThis.crypto.subtle.importKey(
-          "raw",
-          signingKey.slice().buffer,
-          { name: "HMAC", hash: "SHA-256" },
-          false,
-          ["sign"],
-        ),
-        new TextEncoder().encode(stringToSign),
-      ),
-    );
-    headers.set(
-      "authorization",
-      `AWS4-HMAC-SHA256 Credential=${accessKeyId}/${scope}, SignedHeaders=${signedHeaderNames}, Signature=${signature}`,
-    );
-
-    try {
-      return await this.fetcher(url, {
-        method: input.method,
-        headers,
-        ...(input.bytes ? { body: input.bytes.slice().buffer } : {}),
-        signal: AbortSignal.timeout(120_000),
-      });
-    } catch (error) {
-      const errorName = safeErrorName(error);
-      throw new ApiError(502, "Cloudflare R2 could not be reached", "INTERNAL_ERROR", {
+    const name = error instanceof Error ? error.name : "UnknownError";
+    const safeName = /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(name) ? name : "UnknownError";
+    const status = getProviderStatus(error);
+    const providerCode = getProviderCode(error);
+    return new ApiError(
+      502,
+      "Cloudflare R2 could not complete the landing storage operation",
+      "INTERNAL_ERROR",
+      {
         subsystem: "cloudflare_r2",
         outcome:
-          errorName === "TimeoutError" || errorName === "AbortError" ? "timeout" : "network_error",
-        method: input.method,
-        objectKind: objectKind(input.key),
-        errorName,
-      });
-    }
-  }
-
-  private assertSuccess(response: Response, input: SignedRequest): void {
-    if (!response.ok) {
-      throw new ApiError(
-        502,
-        "Cloudflare R2 could not complete the landing storage operation",
-        "INTERNAL_ERROR",
-        {
-          subsystem: "cloudflare_r2",
-          outcome: "http_error",
-          method: input.method,
-          objectKind: objectKind(input.key),
-          status: response.status,
-          providerRequestId:
-            response.headers.get("cf-ray") ?? response.headers.get("x-amz-request-id"),
-        },
-      );
-    }
+          status !== undefined
+            ? "http_error"
+            : safeName === "TimeoutError" || safeName === "AbortError"
+              ? "timeout"
+              : "network_error",
+        method,
+        objectKind: objectKind(key),
+        errorName: safeName,
+        ...(status !== undefined ? { status } : {}),
+        ...(providerCode ? { providerCode } : {}),
+        ...(getProviderRequestId(error) ? { providerRequestId: getProviderRequestId(error) } : {}),
+      },
+    );
   }
 }
 

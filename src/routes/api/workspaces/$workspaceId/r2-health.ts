@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CloudflareR2Store } from "@/lib/publications/r2.server";
 import {
   isR2DiagnosticEndpointEnabled,
+  R2_DIAGNOSTIC_OBJECT_KEY,
   runR2ReadOnlyHealthcheck,
 } from "@/lib/publications/health.server";
 import {
@@ -23,10 +24,12 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/r2-health")({
           const context = await requireAccessContext(request);
           await requireWorkspacePermission(context, workspaceId, "landing_pages.manage");
 
-          const result = await runR2ReadOnlyHealthcheck(() =>
-            new CloudflareR2Store().checkBucket(),
+          const store = new CloudflareR2Store();
+          const result = await runR2ReadOnlyHealthcheck(
+            () => store.checkBucket(),
+            () => store.head(R2_DIAGNOSTIC_OBJECT_KEY),
           );
-          if (result.status !== "connected") {
+          if (result.bucket.status !== "connected" || result.testObject.status !== "connected") {
             console.warn("[r2-health] probe_failed", { workspaceId, ...result });
           }
           return Response.json({ success: true, data: result });
