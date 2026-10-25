@@ -28,3 +28,11 @@ export type DomainHostProbeResult = {
   ready: boolean;
   errorCode: "DNS_OR_HTTPS_UNAVAILABLE" | "TIMEOUT" | null;
 };
+
+export type DomainVerificationResponse = {
+  hostId: string;
+  hostname: string;
+  technicalStatus: "ready" | "error";
+  checkedAt: string;
+  errorCode: "DNS_OR_HTTPS_UNAVAILABLE" | "TIMEOUT" | null;
+};

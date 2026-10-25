@@ -18,6 +18,7 @@ import { Route as AuthenticatedOrdersRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedOffersRouteImport } from './routes/_authenticated/offers'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedLandingsRouteImport } from './routes/_authenticated/landings'
+import { Route as AuthenticatedDomainsRouteImport } from './routes/_authenticated/domains'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAdministrationRouteImport } from './routes/_authenticated/administration'
 import { Route as ApiWorkspacesIndexRouteImport } from './routes/api/workspaces/index'
@@ -104,6 +105,11 @@ const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
 const AuthenticatedLandingsRoute = AuthenticatedLandingsRouteImport.update({
   id: '/landings',
   path: '/landings',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const AuthenticatedDomainsRoute = AuthenticatedDomainsRouteImport.update({
+  id: '/domains',
+  path: '/domains',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
@@ -361,6 +367,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/administration': typeof AuthenticatedAdministrationRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/domains': typeof AuthenticatedDomainsRoute
   '/landings': typeof AuthenticatedLandingsRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/offers': typeof AuthenticatedOffersRoute
@@ -414,6 +421,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/administration': typeof AuthenticatedAdministrationRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/domains': typeof AuthenticatedDomainsRoute
   '/landings': typeof AuthenticatedLandingsRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/offers': typeof AuthenticatedOffersRoute
@@ -469,6 +477,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/administration': typeof AuthenticatedAdministrationRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/domains': typeof AuthenticatedDomainsRoute
   '/_authenticated/landings': typeof AuthenticatedLandingsRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/offers': typeof AuthenticatedOffersRoute
@@ -524,6 +533,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/administration'
     | '/dashboard'
+    | '/domains'
     | '/landings'
     | '/leads'
     | '/offers'
@@ -577,6 +587,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/administration'
     | '/dashboard'
+    | '/domains'
     | '/landings'
     | '/leads'
     | '/offers'
@@ -631,6 +642,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/administration'
     | '/_authenticated/dashboard'
+    | '/_authenticated/domains'
     | '/_authenticated/landings'
     | '/_authenticated/leads'
     | '/_authenticated/offers'
@@ -774,6 +786,13 @@ declare module '@tanstack/react-router' {
       path: '/landings'
       fullPath: '/landings'
       preLoaderRoute: typeof AuthenticatedLandingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/domains': {
+      id: '/_authenticated/domains'
+      path: '/domains'
+      fullPath: '/domains'
+      preLoaderRoute: typeof AuthenticatedDomainsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/dashboard': {
@@ -1083,6 +1102,7 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdministrationRoute: typeof AuthenticatedAdministrationRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedDomainsRoute: typeof AuthenticatedDomainsRoute
   AuthenticatedLandingsRoute: typeof AuthenticatedLandingsRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedOffersRoute: typeof AuthenticatedOffersRoute
@@ -1094,6 +1114,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdministrationRoute: AuthenticatedAdministrationRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedDomainsRoute: AuthenticatedDomainsRoute,
   AuthenticatedLandingsRoute: AuthenticatedLandingsRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedOffersRoute: AuthenticatedOffersRoute,

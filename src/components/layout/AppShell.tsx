@@ -17,6 +17,7 @@ import {
   Files,
   ShoppingCart,
   Radio,
+  Globe2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -62,6 +63,9 @@ export function AppShell({ children }: { children: ReactNode }) {
       : []),
     ...(permissions["landing_pages.read"] || permissions["landing_pages.manage"]
       ? [{ to: "/landings" as const, label: "Landing pages", icon: Files }]
+      : []),
+    ...(permissions["landing_pages.read"] || permissions["landing_pages.manage"]
+      ? [{ to: "/domains" as const, label: "Domains", icon: Globe2 }]
       : []),
     ...(permissions["landing_pages.read"] || permissions["landing_pages.manage"]
       ? [{ to: "/pixels" as const, label: "Pixels", icon: Radio }]
