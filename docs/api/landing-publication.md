@@ -105,6 +105,18 @@ adapter and pins its signature format with a deterministic test. Scope the R2
 credential to this bucket with object read/write access; the server does not
 need bucket listing or deletion, and the Worker only has its private read binding.
 
+### Read-only DEV connection check
+
+`GET /api/workspaces/{workspaceId}/r2-health` performs a signed S3 `HeadBucket`
+request. It does not read or write objects, create publication records, or return
+credentials. It is available only when all of these conditions match: Render is
+running service `crmonia-intake-api-test` from branch `develop`, and
+`CRMONIA_R2_DIAGNOSTICS_ENABLED=true`. The authenticated caller also needs
+`landing_pages.manage` in the requested workspace. The endpoint returns only a
+status (`connected`, `configuration_error`, `provider_rejected`, `unreachable`,
+or `unavailable`) and, for a provider rejection, its HTTP status and request ID.
+Keep the opt-in variable unset outside the DEV service.
+
 ## Isolated workers.dev test
 
 The existing `crmonia-landing-poc.salernoads3103.workers.dev` address can use the

@@ -19,6 +19,7 @@ export type R2S3Config = {
 type SignedRequest = {
   method: "GET" | "HEAD" | "PUT";
   key: string;
+  bucketOnly?: boolean;
   bytes?: Uint8Array;
   contentType?: string;
   sha256?: string;
@@ -45,6 +46,7 @@ function envConfig(): R2S3Config {
       500,
       "Cloudflare R2 publication storage is not configured correctly",
       "INTERNAL_ERROR",
+      { subsystem: "cloudflare_r2", outcome: "configuration_error" },
     );
   }
   return config;
@@ -68,7 +70,8 @@ function assertObjectKey(key: string): void {
   }
 }
 
-function objectKind(key: string): "host_manifest" | "published_site_file" | "other" {
+function objectKind(key: string): "bucket" | "host_manifest" | "published_site_file" | "other" {
+  if (!key) return "bucket";
   if (key.startsWith("host-manifests/")) return "host_manifest";
   if (key.startsWith("crmonia/landing-sites/")) return "published_site_file";
   return "other";
@@ -133,6 +136,11 @@ export class CloudflareR2Store implements LandingR2Store {
     return { size, sha256: response.headers.get("x-amz-meta-sha256") };
   }
 
+  async checkBucket(): Promise<void> {
+    const input: SignedRequest = { method: "HEAD", key: "", bucketOnly: true };
+    this.assertSuccess(await this.request(input), input);
+  }
+
   async readText(key: string, maxBytes: number): Promise<string | null> {
     const response = await this.request({ method: "GET", key });
     if (response.status === 404) return null;
@@ -149,9 +157,11 @@ export class CloudflareR2Store implements LandingR2Store {
   }
 
   private async request(input: SignedRequest): Promise<Response> {
-    assertObjectKey(input.key);
+    if (!input.bucketOnly) assertObjectKey(input.key);
     const { accountId, accessKeyId, secretAccessKey, bucketName } = this.config;
-    const encodedPath = [bucketName, ...input.key.split("/")].map(awsEncode).join("/");
+    const encodedPath = input.bucketOnly
+      ? awsEncode(bucketName)
+      : [bucketName, ...input.key.split("/")].map(awsEncode).join("/");
     const url = new URL(`https://${accountId}.r2.cloudflarestorage.com/${encodedPath}`);
     const bodyHash = input.sha256 ?? (input.bytes ? await sha256Hex(input.bytes) : EMPTY_SHA256);
     const { timestamp, shortDate } = amzDate(this.clock());

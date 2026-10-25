@@ -30,6 +30,7 @@ import { Route as ApiInvitationsValidateRouteImport } from './routes/api/invitat
 import { Route as ApiInvitationsAcceptRouteImport } from './routes/api/invitations/accept'
 import { Route as ApiWorkspacesWorkspaceIdTrackingProfilesRouteImport } from './routes/api/workspaces/$workspaceId/tracking-profiles'
 import { Route as ApiWorkspacesWorkspaceIdTeamsRouteImport } from './routes/api/workspaces/$workspaceId/teams'
+import { Route as ApiWorkspacesWorkspaceIdR2HealthRouteImport } from './routes/api/workspaces/$workspaceId/r2-health'
 import { Route as ApiWorkspacesWorkspaceIdProductsRouteImport } from './routes/api/workspaces/$workspaceId/products'
 import { Route as ApiWorkspacesWorkspaceIdPermissionsRouteImport } from './routes/api/workspaces/$workspaceId/permissions'
 import { Route as ApiWorkspacesWorkspaceIdOrdersRouteImport } from './routes/api/workspaces/$workspaceId/orders'
@@ -172,6 +173,12 @@ const ApiWorkspacesWorkspaceIdTeamsRoute =
   ApiWorkspacesWorkspaceIdTeamsRouteImport.update({
     id: '/api/workspaces/$workspaceId/teams',
     path: '/api/workspaces/$workspaceId/teams',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiWorkspacesWorkspaceIdR2HealthRoute =
+  ApiWorkspacesWorkspaceIdR2HealthRouteImport.update({
+    id: '/api/workspaces/$workspaceId/r2-health',
+    path: '/api/workspaces/$workspaceId/r2-health',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiWorkspacesWorkspaceIdProductsRoute =
@@ -424,6 +431,7 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/orders': typeof ApiWorkspacesWorkspaceIdOrdersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
+  '/api/workspaces/$workspaceId/r2-health': typeof ApiWorkspacesWorkspaceIdR2HealthRoute
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/tracking-profiles': typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren
   '/api/workspaces/$workspaceId/domain-hosts/available': typeof ApiWorkspacesWorkspaceIdDomainHostsAvailableRoute
@@ -482,6 +490,7 @@ export interface FileRoutesByTo {
   '/api/workspaces/$workspaceId/orders': typeof ApiWorkspacesWorkspaceIdOrdersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
+  '/api/workspaces/$workspaceId/r2-health': typeof ApiWorkspacesWorkspaceIdR2HealthRoute
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/tracking-profiles': typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren
   '/api/workspaces/$workspaceId/domain-hosts/available': typeof ApiWorkspacesWorkspaceIdDomainHostsAvailableRoute
@@ -542,6 +551,7 @@ export interface FileRoutesById {
   '/api/workspaces/$workspaceId/orders': typeof ApiWorkspacesWorkspaceIdOrdersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   '/api/workspaces/$workspaceId/products': typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
+  '/api/workspaces/$workspaceId/r2-health': typeof ApiWorkspacesWorkspaceIdR2HealthRoute
   '/api/workspaces/$workspaceId/teams': typeof ApiWorkspacesWorkspaceIdTeamsRoute
   '/api/workspaces/$workspaceId/tracking-profiles': typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren
   '/api/workspaces/$workspaceId/domain-hosts/available': typeof ApiWorkspacesWorkspaceIdDomainHostsAvailableRoute
@@ -602,6 +612,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/orders'
     | '/api/workspaces/$workspaceId/permissions'
     | '/api/workspaces/$workspaceId/products'
+    | '/api/workspaces/$workspaceId/r2-health'
     | '/api/workspaces/$workspaceId/teams'
     | '/api/workspaces/$workspaceId/tracking-profiles'
     | '/api/workspaces/$workspaceId/domain-hosts/available'
@@ -660,6 +671,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/orders'
     | '/api/workspaces/$workspaceId/permissions'
     | '/api/workspaces/$workspaceId/products'
+    | '/api/workspaces/$workspaceId/r2-health'
     | '/api/workspaces/$workspaceId/teams'
     | '/api/workspaces/$workspaceId/tracking-profiles'
     | '/api/workspaces/$workspaceId/domain-hosts/available'
@@ -719,6 +731,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/orders'
     | '/api/workspaces/$workspaceId/permissions'
     | '/api/workspaces/$workspaceId/products'
+    | '/api/workspaces/$workspaceId/r2-health'
     | '/api/workspaces/$workspaceId/teams'
     | '/api/workspaces/$workspaceId/tracking-profiles'
     | '/api/workspaces/$workspaceId/domain-hosts/available'
@@ -770,6 +783,7 @@ export interface RootRouteChildren {
   ApiWorkspacesWorkspaceIdOrdersRoute: typeof ApiWorkspacesWorkspaceIdOrdersRouteWithChildren
   ApiWorkspacesWorkspaceIdPermissionsRoute: typeof ApiWorkspacesWorkspaceIdPermissionsRoute
   ApiWorkspacesWorkspaceIdProductsRoute: typeof ApiWorkspacesWorkspaceIdProductsRouteWithChildren
+  ApiWorkspacesWorkspaceIdR2HealthRoute: typeof ApiWorkspacesWorkspaceIdR2HealthRoute
   ApiWorkspacesWorkspaceIdTeamsRoute: typeof ApiWorkspacesWorkspaceIdTeamsRoute
   ApiWorkspacesWorkspaceIdTrackingProfilesRoute: typeof ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren
   ApiWorkspacesWorkspaceIdDomainHostsAvailableRoute: typeof ApiWorkspacesWorkspaceIdDomainHostsAvailableRoute
@@ -926,6 +940,13 @@ declare module '@tanstack/react-router' {
       path: '/api/workspaces/$workspaceId/teams'
       fullPath: '/api/workspaces/$workspaceId/teams'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdTeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/r2-health': {
+      id: '/api/workspaces/$workspaceId/r2-health'
+      path: '/api/workspaces/$workspaceId/r2-health'
+      fullPath: '/api/workspaces/$workspaceId/r2-health'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdR2HealthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/workspaces/$workspaceId/products': {
@@ -1455,6 +1476,7 @@ const rootRouteChildren: RootRouteChildren = {
     ApiWorkspacesWorkspaceIdPermissionsRoute,
   ApiWorkspacesWorkspaceIdProductsRoute:
     ApiWorkspacesWorkspaceIdProductsRouteWithChildren,
+  ApiWorkspacesWorkspaceIdR2HealthRoute: ApiWorkspacesWorkspaceIdR2HealthRoute,
   ApiWorkspacesWorkspaceIdTeamsRoute: ApiWorkspacesWorkspaceIdTeamsRoute,
   ApiWorkspacesWorkspaceIdTrackingProfilesRoute:
     ApiWorkspacesWorkspaceIdTrackingProfilesRouteWithChildren,
