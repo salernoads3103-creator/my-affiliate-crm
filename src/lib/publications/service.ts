@@ -84,6 +84,90 @@ export type PublicationResult = {
   replayed: boolean;
 };
 
+export class PublicationReadinessError extends ApiError {
+  constructor(
+    readonly reason: "not_ready" | "unavailable",
+    diagnostic?: Record<string, unknown>,
+  ) {
+    super(
+      reason === "not_ready" ? 409 : 503,
+      reason === "not_ready"
+        ? "DNS and HTTPS need a fresh successful check before publication can continue"
+        : "DNS and HTTPS could not be checked before publication",
+      reason === "not_ready" ? "CONFLICT" : "INTERNAL_ERROR",
+      diagnostic,
+    );
+    this.name = "PublicationReadinessError";
+  }
+}
+
+type PublicationFailureStage =
+  | "r2_preflight"
+  | "archive_validation"
+  | "r2_upload"
+  | "database_switch"
+  | "r2_manifest"
+  | "completion";
+
+function isR2StorageFailure(error: unknown): boolean {
+  if (!(error instanceof ApiError) || !error.cause || typeof error.cause !== "object") {
+    return false;
+  }
+  return "subsystem" in error.cause && error.cause.subsystem === "cloudflare_r2";
+}
+
+function safePublicationDiagnostic(error: unknown): Record<string, string | number> {
+  if (error instanceof ApiError) {
+    const details: Record<string, string | number> = {
+      httpStatus: error.status,
+      apiCode: error.code,
+    };
+    if (error.cause && typeof error.cause === "object" && "subsystem" in error.cause) {
+      const cause = error.cause as Record<string, unknown>;
+      if (cause.subsystem === "cloudflare_r2") {
+        for (const key of ["subsystem", "outcome", "method", "objectKind", "errorName"] as const) {
+          if (typeof cause[key] === "string") details[key] = cause[key];
+        }
+        if (typeof cause.status === "number") details.providerStatus = cause.status;
+        if (
+          typeof cause.providerRequestId === "string" &&
+          /^[A-Za-z0-9._:-]{1,128}$/.test(cause.providerRequestId)
+        ) {
+          details.providerRequestId = cause.providerRequestId;
+        }
+      }
+    }
+    return details;
+  }
+  const name = error instanceof Error ? error.name : "UnknownError";
+  return { errorType: /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(name) ? name : "UnknownError" };
+}
+
+async function assertPublicationHostReady(verifyHost: () => Promise<boolean>): Promise<void> {
+  let ready: boolean;
+  try {
+    ready = await verifyHost();
+  } catch (error) {
+    const errorName = error instanceof Error ? error.name : "UnknownError";
+    const diagnostic =
+      error instanceof ApiError
+        ? {
+            subsystem: "domain_verification",
+            errorName,
+            status: error.status,
+            code: error.code,
+          }
+        : { subsystem: "domain_verification", errorName };
+    throw new PublicationReadinessError("unavailable", diagnostic);
+  }
+  if (!ready) {
+    throw new PublicationReadinessError("not_ready", {
+      subsystem: "domain_verification",
+      reason: "not_ready",
+    });
+  }
+}
+
 function manifestKey(hostname: string): string {
   return `host-manifests/${hostname}.json`;
 }
@@ -205,9 +289,13 @@ async function advanceOrRecover(
   hostId: string,
   workspaceId: string,
   targetVersionId: string,
+  verifyHost: () => Promise<boolean>,
 ): Promise<void> {
   const currentVersionId = await repository.getCurrentVersionId(workspaceId, hostId);
   if (currentVersionId === targetVersionId) return;
+  // Uploads may outlast the five-minute DNS/HTTPS proof checked at claim time.
+  // Refresh it immediately before the database pointer switch.
+  await assertPublicationHostReady(verifyHost);
   try {
     await repository.advance(operationId);
   } catch (error) {
@@ -235,6 +323,7 @@ async function publishClaimedOperation(
   dependencies: {
     repository: PublicationRepository;
     storage: LandingR2Store;
+    verifyHost: () => Promise<boolean>;
     getPreparedArchive: () => Promise<PreparedPublicationArchive>;
   },
   claim: PublicationClaim,
@@ -255,8 +344,7 @@ async function publishClaimedOperation(
     };
   }
 
-  let stage: "preflight" | "archive_validation" | "upload" | "database_switch" | "manifest" =
-    "preflight";
+  let stage: PublicationFailureStage = "r2_preflight";
   try {
     await assertManifestMatches(
       dependencies.storage,
@@ -282,7 +370,7 @@ async function publishClaimedOperation(
       }
       stage = "archive_validation";
       const files = await extractStaticLandingFiles(prepared.bytes);
-      stage = "upload";
+      stage = "r2_upload";
       await uploadFiles(dependencies.storage, claim.targetPrefix, files);
     } else if (currentVersionId !== claim.targetVersionId) {
       const index = await dependencies.storage.head(`${claim.targetPrefix}index.html`);
@@ -298,8 +386,9 @@ async function publishClaimedOperation(
       input.hostId,
       input.workspaceId,
       claim.targetVersionId,
+      dependencies.verifyHost,
     );
-    stage = "manifest";
+    stage = "r2_manifest";
     await writeManifestAndConfirm(
       dependencies.storage,
       input.hostname,
@@ -315,6 +404,17 @@ async function publishClaimedOperation(
       replayed: claim.wasReplay,
     };
   } catch (error) {
+    console.error("[landing-publication] operation_failed", {
+      workspaceId: input.workspaceId,
+      hostId: input.hostId,
+      landingId: input.landingId,
+      operationId: claim.operationId,
+      stage,
+      ...safePublicationDiagnostic(error),
+    });
+    // No DB pointer was changed. Keep the operation and immutable R2 prefix
+    // retryable with the same idempotency key after DNS/HTTPS is rechecked.
+    if (error instanceof PublicationReadinessError) throw error;
     const status = await dependencies.repository
       .getOperationStatus(claim.operationId)
       .catch(() => null);
@@ -334,10 +434,10 @@ async function publishClaimedOperation(
       throw error;
     }
     if (status === "uploading") {
-      if (stage === "upload") {
+      if (stage === "r2_upload" || (stage === "r2_preflight" && isR2StorageFailure(error))) {
         // A failed PUT can have committed before its response timed out. Keep
-        // this immutable prefix retryable with the same idempotency key; a
-        // competing retry writes identical bytes to the same object keys.
+        // this immutable prefix retryable with the same idempotency key. A
+        // failed R2 preflight read also must not consume a new version attempt.
         throw error;
       }
       await dependencies.repository.fail(claim.operationId).catch(() => undefined);
@@ -350,11 +450,24 @@ export async function publishLanding(
   dependencies: {
     repository: PublicationRepository;
     storage: LandingR2Store;
+    verifyHost: () => Promise<boolean>;
     getPreparedArchive: () => Promise<PreparedPublicationArchive>;
   },
   input: PublishLandingInput,
 ): Promise<PublicationResult> {
-  const prepared = await dependencies.getPreparedArchive();
+  let prepared: PreparedPublicationArchive;
+  try {
+    prepared = await dependencies.getPreparedArchive();
+  } catch (error) {
+    console.error("[landing-publication] operation_failed", {
+      workspaceId: input.workspaceId,
+      hostId: input.hostId,
+      landingId: input.landingId,
+      stage: "prepared_archive_read",
+      ...safePublicationDiagnostic(error),
+    });
+    throw error;
+  }
   const zipFingerprint = await sha256Hex(prepared.bytes);
   const requestFingerprint = await sha256Hex(
     new TextEncoder().encode(
@@ -372,6 +485,9 @@ export async function publishLanding(
     input.workspaceId,
     input.hostId,
   );
+  // The selected address can have been reserved before adapter preparation.
+  // Recheck readiness immediately before creating or replaying a publication.
+  await assertPublicationHostReady(dependencies.verifyHost);
 
   const claim = await dependencies.repository.claim({
     ...input,
@@ -403,7 +519,11 @@ export async function publishLanding(
 }
 
 export async function resumeLandingPublication(
-  dependencies: { repository: PublicationRepository; storage: LandingR2Store },
+  dependencies: {
+    repository: PublicationRepository;
+    storage: LandingR2Store;
+    verifyHost: () => Promise<boolean>;
+  },
   input: PublishLandingInput,
   existing: ExistingPublicationOperation,
 ): Promise<PublicationResult> {
@@ -447,7 +567,11 @@ export async function resumeLandingPublication(
 }
 
 export async function rollbackLandingPublication(
-  dependencies: { repository: PublicationRepository; storage: LandingR2Store },
+  dependencies: {
+    repository: PublicationRepository;
+    storage: LandingR2Store;
+    verifyHost: () => Promise<boolean>;
+  },
   input: PublishLandingInput & { targetVersionId: string },
 ): Promise<PublicationResult> {
   const expectedCurrentVersionId = await dependencies.repository.getCurrentVersionId(
@@ -468,6 +592,7 @@ export async function rollbackLandingPublication(
   const index = await dependencies.storage.head(`${targetPrefix}index.html`);
   if (!index)
     throw new ApiError(409, "The selected version files are unavailable in R2", "CONFLICT");
+  await assertPublicationHostReady(dependencies.verifyHost);
   const requestFingerprint = await sha256Hex(
     new TextEncoder().encode(
       JSON.stringify({

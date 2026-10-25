@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { ApiError } from "../src/lib/api-error";
 import {
+  OfferLaunchStepError,
   continueOfferLaunch,
   launchRequestFingerprint,
   type OfferLaunchState,
   type OfferLaunchWorkflowPort,
+  withOfferLaunchLeaseHeartbeat,
 } from "../src/lib/offer-launches/workflow";
 
 function setup() {
@@ -83,6 +85,49 @@ function setup() {
 }
 
 describe("offer launch recovery", () => {
+  test("renews the processing lease during a long-running launch step", async () => {
+    let renewals = 0;
+    const result = await withOfferLaunchLeaseHeartbeat(
+      {
+        workspaceId: "20000000-0000-4000-8000-000000000001",
+        launchId: "10000000-0000-4000-8000-000000000001",
+        renew: async () => {
+          renewals += 1;
+        },
+        intervalMs: 5,
+      },
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        return "done";
+      },
+    );
+
+    expect(result).toBe("done");
+    expect(renewals).toBeGreaterThan(1);
+  });
+
+  test("does not advance a long-running step after its processing lease is lost", async () => {
+    let renewals = 0;
+    await expect(
+      withOfferLaunchLeaseHeartbeat(
+        {
+          workspaceId: "20000000-0000-4000-8000-000000000001",
+          launchId: "10000000-0000-4000-8000-000000000001",
+          renew: async () => {
+            renewals += 1;
+            if (renewals > 1) throw new ApiError(409, "lease expired", "CONFLICT");
+          },
+          intervalMs: 5,
+        },
+        async () => {
+          await new Promise((resolve) => setTimeout(resolve, 20));
+          return "done";
+        },
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+    expect(renewals).toBeGreaterThan(1);
+  });
+
   test("the idempotency fingerprint includes stable tracking values and is reproducible", async () => {
     const input = {
       workspaceId: "20000000-0000-4000-8000-000000000001",
@@ -180,6 +225,22 @@ describe("offer launch recovery", () => {
     expect(result.url).toBe("https://shop.example");
     expect(fixture.calls.adapter).toBe(1);
     expect(fixture.calls.publish).toBe(2);
+  });
+
+  test("a fresh DNS/HTTPS check failure is recorded as domain readiness, not publication conflict", async () => {
+    const fixture = setup();
+    fixture.port.publish = async () => {
+      fixture.calls.publish += 1;
+      throw new OfferLaunchStepError("DOMAIN_NOT_READY");
+    };
+
+    await expect(
+      continueOfferLaunch(fixture.state().workspace_id, fixture.state().id, fixture.port),
+    ).rejects.toMatchObject({ code: "CONFLICT" });
+
+    expect(fixture.state().stage).toBe("adapter_prepared");
+    expect(fixture.state().last_error_code).toBe("DOMAIN_NOT_READY");
+    expect(fixture.state().published_url).toBeNull();
   });
 
   test("a blocked adapter never reaches publication", async () => {

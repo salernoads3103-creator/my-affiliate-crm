@@ -41,6 +41,11 @@ export type OfferLaunchResult = {
   url: string | null;
 };
 
+function safeErrorType(error: unknown): string {
+  const name = error instanceof Error ? error.name : "UnknownError";
+  return /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(name) ? name : "UnknownError";
+}
+
 export type OfferLaunchWorkflowPort = {
   get: (workspaceId: string, launchId: string) => Promise<OfferLaunchState | null>;
   ensureLanding: (launch: OfferLaunchState) => Promise<void>;
@@ -60,6 +65,60 @@ export type OfferLaunchWorkflowPort = {
   recordError: (launch: OfferLaunchState, code: OfferLaunchErrorCode) => Promise<void>;
   hostname: (workspaceId: string, hostId: string) => Promise<string | null>;
 };
+
+export async function withOfferLaunchLeaseHeartbeat<T>(
+  input: {
+    workspaceId: string;
+    launchId: string;
+    renew: () => Promise<void>;
+    intervalMs?: number;
+  },
+  action: () => Promise<T>,
+): Promise<T> {
+  const intervalMs = input.intervalMs ?? 60_000;
+  await input.renew();
+  let pendingRenewal: Promise<void> | null = null;
+  let renewalFailed = false;
+  const timer = setInterval(() => {
+    if (pendingRenewal) return;
+    const renewal = Promise.resolve()
+      .then(input.renew)
+      .catch((error: unknown) => {
+        renewalFailed = true;
+        console.warn("[offer-launch] lease_renewal_failed", {
+          workspaceId: input.workspaceId,
+          launchId: input.launchId,
+          ...(error instanceof ApiError
+            ? { httpStatus: error.status, apiCode: error.code }
+            : { errorType: safeErrorType(error) }),
+        });
+      })
+      .finally(() => {
+        if (pendingRenewal === renewal) pendingRenewal = null;
+      });
+    pendingRenewal = renewal;
+  }, intervalMs);
+
+  let outcome: { ok: true; value: T } | { ok: false; error: unknown };
+  try {
+    outcome = { ok: true, value: await action() };
+  } catch (error) {
+    outcome = { ok: false, error };
+  } finally {
+    clearInterval(timer);
+    if (pendingRenewal) await pendingRenewal;
+  }
+
+  if (!outcome.ok) throw outcome.error;
+  if (renewalFailed) {
+    throw new ApiError(
+      409,
+      "The offer launch lease could not be renewed; continue the saved launch to resume safely",
+      "CONFLICT",
+    );
+  }
+  return outcome.value;
+}
 
 export function launchRequestFingerprint(input: {
   workspaceId: string;
@@ -87,6 +146,7 @@ function safeErrorCode(
   error: unknown,
   step: "landing" | "domain" | "adapter" | "publication",
 ): OfferLaunchErrorCode {
+  if (error instanceof OfferLaunchStepError) return error.launchErrorCode;
   if (step === "landing") return "LANDING_ARCHIVE_UNAVAILABLE";
   if (step === "domain") {
     return error instanceof ApiError && error.code === "CONFLICT"
@@ -105,15 +165,20 @@ function safeErrorCode(
     : "PUBLICATION_CONFLICT";
 }
 
-class OfferLaunchStepError extends ApiError {
+export class OfferLaunchStepError extends ApiError {
   constructor(
-    readonly launchErrorCode: "LANDING_ADAPTATION_REQUIRED" | "INTAKE_API_NOT_CONFIGURED",
+    readonly launchErrorCode:
+      | "LANDING_ADAPTATION_REQUIRED"
+      | "INTAKE_API_NOT_CONFIGURED"
+      | "DOMAIN_NOT_READY",
   ) {
     super(
       409,
       launchErrorCode === "INTAKE_API_NOT_CONFIGURED"
         ? "The public Intake API is not configured"
-        : "This landing form needs adaptation before it can be published",
+        : launchErrorCode === "DOMAIN_NOT_READY"
+          ? "DNS and HTTPS need a fresh successful check before publication can continue"
+          : "This landing form needs adaptation before it can be published",
       "CONFLICT",
     );
     this.name = "OfferLaunchStepError";
@@ -185,7 +250,18 @@ export async function continueOfferLaunch(
     };
     return toResult(launch, await port.hostname(workspaceId, launch.domain_host_id));
   } catch (error) {
-    await port.recordError(launch, safeErrorCode(error, step)).catch(() => undefined);
+    const errorCode = safeErrorCode(error, step);
+    console.warn("[offer-launch] step_failed", {
+      workspaceId: launch.workspace_id,
+      launchId: launch.id,
+      failedAtStep: step,
+      savedStage: launch.stage,
+      errorCode,
+      ...(error instanceof ApiError
+        ? { httpStatus: error.status, apiCode: error.code }
+        : { errorType: safeErrorType(error) }),
+    });
+    await port.recordError(launch, errorCode).catch(() => undefined);
     throw error;
   }
 }

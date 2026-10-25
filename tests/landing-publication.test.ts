@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 import { ApiError } from "../src/lib/api-error";
 import { extractStaticLandingFiles } from "../src/lib/landings/archive";
 import {
+  PublicationReadinessError,
   publishLanding,
   resumeLandingPublication,
   rollbackLandingPublication,
@@ -265,13 +266,14 @@ function dependencies() {
     ]),
   ];
   let archiveIndex = 0;
+  let verifyHost = async () => true;
   const getPreparedArchive = async () => ({
     bytes: archives[Math.min(archiveIndex, archives.length - 1)],
     buildFingerprint,
   });
   const publish = (key: string) =>
     publishLanding(
-      { repository, storage, getPreparedArchive },
+      { repository, storage, getPreparedArchive, verifyHost },
       {
         workspaceId,
         hostId,
@@ -287,6 +289,9 @@ function dependencies() {
     archives,
     setArchiveIndex(index: number) {
       archiveIndex = index;
+    },
+    setVerifyHost(check: () => Promise<boolean>) {
+      verifyHost = check;
     },
     publish,
   };
@@ -331,6 +336,79 @@ describe("Landing Factory R2 publication", () => {
     expect(storage.objects.has(`host-manifests/${hostname}.json`)).toBe(true);
   });
 
+  it("does not create an operation when the DNS/HTTPS proof is stale", async () => {
+    const fixture = dependencies();
+    fixture.setVerifyHost(async () => false);
+
+    await expect(fixture.publish("stale-host-proof")).rejects.toMatchObject({
+      reason: "not_ready",
+      status: 409,
+    });
+    expect(fixture.repository.operations.size).toBe(0);
+    expect(fixture.repository.versions.size).toBe(0);
+    expect(fixture.storage.objects.size).toBe(0);
+  });
+
+  it("keeps an uploaded operation retryable if readiness expires before the DB switch", async () => {
+    const fixture = dependencies();
+    let verificationCalls = 0;
+    fixture.setVerifyHost(async () => {
+      verificationCalls += 1;
+      return verificationCalls !== 2;
+    });
+
+    await expect(fixture.publish("refresh-after-upload")).rejects.toBeInstanceOf(
+      PublicationReadinessError,
+    );
+    expect(fixture.repository.operations.size).toBe(1);
+    const [operation] = [...fixture.repository.operations.values()];
+    expect(operation.status).toBe("uploading");
+    expect(fixture.repository.currentVersionId).toBeNull();
+    expect(fixture.storage.objects.has(`host-manifests/${hostname}.json`)).toBe(false);
+
+    fixture.setVerifyHost(async () => true);
+    const resumed = await fixture.publish("refresh-after-upload");
+
+    expect(resumed.versionId).toBe(operation.claim.targetVersionId);
+    expect(fixture.repository.operations.size).toBe(1);
+    expect(fixture.repository.versions.size).toBe(1);
+    expect(fixture.repository.operations.get(operation.claim.operationId)?.status).toBe(
+      "completed",
+    );
+  });
+
+  it("keeps the same publication attempt retryable when the R2 manifest preflight fails", async () => {
+    const fixture = dependencies();
+    const readText = fixture.storage.readText.bind(fixture.storage);
+    let failPreflight = true;
+    fixture.storage.readText = async (key, maxBytes) => {
+      if (failPreflight) {
+        failPreflight = false;
+        throw new ApiError(502, "R2 unavailable", "INTERNAL_ERROR", {
+          subsystem: "cloudflare_r2",
+          outcome: "http_error",
+          method: "GET",
+          objectKind: "host_manifest",
+          status: 403,
+        });
+      }
+      return readText(key, maxBytes);
+    };
+
+    await expect(fixture.publish("r2-preflight-retry")).rejects.toMatchObject({ status: 502 });
+    expect(fixture.repository.operations.size).toBe(1);
+    expect([...fixture.repository.operations.values()][0]?.status).toBe("uploading");
+    expect(fixture.repository.versions.size).toBe(1);
+    expect(fixture.storage.objects.size).toBe(0);
+
+    const result = await fixture.publish("r2-preflight-retry");
+    expect(fixture.repository.operations.size).toBe(1);
+    expect(fixture.repository.versions.size).toBe(1);
+    const [operation] = [...fixture.repository.operations.values()];
+    expect(operation?.status).toBe("completed");
+    expect(result.versionId).toBe(operation?.claim.targetVersionId);
+  });
+
   it("runs concurrent duplicate requests against one immutable version", async () => {
     const { publish, repository, storage } = dependencies();
     const [first, duplicate] = await Promise.all([
@@ -353,6 +431,7 @@ describe("Landing Factory R2 publication", () => {
       {
         repository,
         storage,
+        verifyHost: async () => true,
         getPreparedArchive: async () => {
           throw new ApiError(409, "Prepare the landing ZIP again", "CONFLICT");
         },
@@ -382,6 +461,7 @@ describe("Landing Factory R2 publication", () => {
       {
         repository,
         storage,
+        verifyHost: async () => true,
         getPreparedArchive: async () => ({ bytes: badArchive, buildFingerprint }),
       },
       {
@@ -474,7 +554,7 @@ describe("Landing Factory R2 publication", () => {
     );
     if (!operation) throw new Error("Expected a persisted publication operation");
     const resumed = await resumeLandingPublication(
-      { repository, storage },
+      { repository, storage, verifyHost: async () => true },
       {
         workspaceId,
         hostId,
@@ -500,7 +580,7 @@ describe("Landing Factory R2 publication", () => {
     setArchiveIndex(1);
     const second = await publish("rollback-version-two");
     const result = await rollbackLandingPublication(
-      { repository, storage },
+      { repository, storage, verifyHost: async () => true },
       {
         workspaceId,
         hostId,
@@ -529,6 +609,7 @@ describe("Landing Factory R2 publication", () => {
       {
         repository,
         storage,
+        verifyHost: async () => true,
         getPreparedArchive: async () => ({
           bytes: makeZip([{ path: "index.html", value: "<h1>site</h1>" }]),
           buildFingerprint,

@@ -7,6 +7,7 @@ import {
   requireWorkspacePermission,
 } from "@/lib/access/access.server";
 import { ApiError } from "@/lib/api-error";
+import { DomainService } from "@/lib/domains/service.server";
 import { parseLandingRouteId } from "@/lib/landings/http.server";
 import { CloudflareR2Store } from "@/lib/publications/r2.server";
 import { SupabasePublicationRepository } from "@/lib/publications/repository.server";
@@ -58,7 +59,17 @@ export const Route = createFileRoute(
           const repository = new SupabasePublicationRepository();
           const host = await repository.getHostTarget(workspaceId, parsed.data.hostId, landingId);
           const result = await rollbackLandingPublication(
-            { repository, storage: new CloudflareR2Store() },
+            {
+              repository,
+              storage: new CloudflareR2Store(),
+              verifyHost: async () => {
+                const verification = await new DomainService().verifyHost(
+                  workspaceId,
+                  parsed.data.hostId,
+                );
+                return verification.technicalStatus === "ready";
+              },
+            },
             {
               workspaceId,
               hostId: parsed.data.hostId,

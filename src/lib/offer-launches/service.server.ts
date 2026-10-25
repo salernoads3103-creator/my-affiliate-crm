@@ -8,9 +8,19 @@ import { sha256Hex } from "@/lib/landings/fingerprint";
 import { LandingService } from "@/lib/landings/service";
 import { CloudflareR2Store } from "@/lib/publications/r2.server";
 import { SupabasePublicationRepository } from "@/lib/publications/repository.server";
-import { publishLanding, resumeLandingPublication } from "@/lib/publications/service";
+import {
+  PublicationReadinessError,
+  publishLanding,
+  resumeLandingPublication,
+} from "@/lib/publications/service";
 import { prepareLandingAdapter } from "@/lib/landings/adapter.server";
-import type { OfferLaunchErrorCode, OfferLaunchState, OfferLaunchWorkflowPort } from "./workflow";
+import {
+  OfferLaunchStepError,
+  type OfferLaunchErrorCode,
+  type OfferLaunchState,
+  type OfferLaunchWorkflowPort,
+  withOfferLaunchLeaseHeartbeat,
+} from "./workflow";
 import { continueOfferLaunch } from "./workflow";
 
 type LaunchRow = Database["public"]["Tables"]["workspace_offer_launch_workflows"]["Row"];
@@ -297,22 +307,29 @@ export async function continueSavedOfferLaunch(input: {
   try {
     const port: OfferLaunchWorkflowPort = {
       get: (workspaceId, launchId) => repository.get(workspaceId, launchId),
-      ensureLanding: async (launch) => {
-        await repository.renew(input.workspaceId, input.launchId, input.processingToken);
-        const landingService = new LandingService(input.client);
-        const staged = await landingService.readStagedLaunchArchive(row.source_archive_path);
-        const bytes = new Uint8Array(await staged.arrayBuffer());
-        const analysis = await analyzeLandingArchive(bytes);
-        await landingService.createOrResumeLaunchDraft({
-          workspaceId: input.workspaceId,
-          landingId: launch.id,
-          createdByUserId: row.created_by_user_id,
-          offerId: launch.offer_id,
-          name: row.offer_name,
-          archive: staged,
-          analysis,
-        });
-      },
+      ensureLanding: (launch) =>
+        withOfferLaunchLeaseHeartbeat(
+          {
+            workspaceId: input.workspaceId,
+            launchId: input.launchId,
+            renew: () => repository.renew(input.workspaceId, input.launchId, input.processingToken),
+          },
+          async () => {
+            const landingService = new LandingService(input.client);
+            const staged = await landingService.readStagedLaunchArchive(row.source_archive_path);
+            const bytes = new Uint8Array(await staged.arrayBuffer());
+            const analysis = await analyzeLandingArchive(bytes);
+            await landingService.createOrResumeLaunchDraft({
+              workspaceId: input.workspaceId,
+              landingId: launch.id,
+              createdByUserId: row.created_by_user_id,
+              offerId: launch.offer_id,
+              name: row.offer_name,
+              archive: staged,
+              analysis,
+            });
+          },
+        ),
       changeHostname: async (launch, hostId) => {
         await repository.renew(input.workspaceId, input.launchId, input.processingToken);
         const domains = new DomainService();
@@ -330,96 +347,141 @@ export async function continueSavedOfferLaunch(input: {
           launch.id,
         );
       },
-      prepareAdapter: async (launch) => {
-        await repository.renew(input.workspaceId, input.launchId, input.processingToken);
-        const address = (await new DomainService().listAddresses(input.workspaceId)).find(
-          (item) => item.id === launch.domain_host_id,
-        );
-        if (!address) throw new ApiError(404, "Domain address was not found", "NOT_FOUND");
-        const adapted = await prepareLandingAdapter(input.client, input.workspaceId, launch.id, {
-          allowedOrigin: `https://${address.hostname}`,
-          resolvedTracking: {
-            tiktokProfileId: row.tiktok_tracking_profile_id,
-            tiktokPixelId: row.tiktok_pixel_id,
-            googleAdsProfileId: row.google_ads_tracking_profile_id,
-            googleAdsConversionId: row.google_ads_conversion_id,
-            googleAdsConversionLabel: row.google_ads_conversion_label,
+      prepareAdapter: (launch) =>
+        withOfferLaunchLeaseHeartbeat(
+          {
+            workspaceId: input.workspaceId,
+            launchId: input.launchId,
+            renew: () => repository.renew(input.workspaceId, input.launchId, input.processingToken),
           },
-        });
-        if (adapted.adapter_status === "prepared") return "prepared";
-        return {
-          blocked:
-            adapted.adapter_reason === "api_url_not_configured"
-              ? "INTAKE_API_NOT_CONFIGURED"
-              : "LANDING_ADAPTATION_REQUIRED",
-        };
-      },
-      publish: async (launch) => {
-        await repository.renew(input.workspaceId, input.launchId, input.processingToken);
-        const publicationRepository = new SupabasePublicationRepository();
-        const landingService = new LandingService(input.client);
-        const host = await publicationRepository.getHostTarget(
-          input.workspaceId,
-          launch.domain_host_id,
-          launch.id,
-        );
-        let attempt = launch.publication_attempt;
-        let keyHash = await hashPublicationIdempotencyKey(launch.id, attempt);
-        let existing = await publicationRepository.findOperation(
-          input.workspaceId,
-          launch.domain_host_id,
-          keyHash,
-        );
-        if (
-          existing &&
-          (existing.landingId !== launch.id || existing.operationKind !== "publish")
-        ) {
-          throw new ApiError(409, "This publication key belongs to another operation", "CONFLICT");
-        }
-        if (existing?.status === "failed") {
-          attempt = await repository.setPublicationAttempt(input.workspaceId, launch.id, attempt);
-          keyHash = await hashPublicationIdempotencyKey(launch.id, attempt);
-          existing = await publicationRepository.findOperation(
-            input.workspaceId,
-            launch.domain_host_id,
-            keyHash,
-          );
-        }
-        if (existing?.status === "failed") {
-          throw new ApiError(409, "A new publication attempt could not be started", "CONFLICT");
-        }
-        const publishInput = {
-          workspaceId: input.workspaceId,
-          hostId: launch.domain_host_id,
-          landingId: launch.id,
-          hostname: host.hostname,
-          idempotencyKeyHash: keyHash,
-          createdByUserId: row.created_by_user_id,
-        };
-        const dependencies = {
-          repository: publicationRepository,
-          storage: new CloudflareR2Store(),
-        };
-        const result =
-          existing &&
-          ["database_switched", "recovery_required", "completed"].includes(existing.status)
-            ? await resumeLandingPublication(dependencies, publishInput, existing)
-            : await publishLanding(
-                {
-                  ...dependencies,
-                  getPreparedArchive: () =>
-                    landingService.getPreparedArchiveForPublication(input.workspaceId, launch.id, {
-                      tiktokProfileId: row.tiktok_tracking_profile_id,
-                      tiktokPixelId: row.tiktok_pixel_id,
-                      googleAdsProfileId: row.google_ads_tracking_profile_id,
-                      googleAdsConversionId: row.google_ads_conversion_id,
-                      googleAdsConversionLabel: row.google_ads_conversion_label,
-                    }),
+          async () => {
+            const address = (await new DomainService().listAddresses(input.workspaceId)).find(
+              (item) => item.id === launch.domain_host_id,
+            );
+            if (!address) throw new ApiError(404, "Domain address was not found", "NOT_FOUND");
+            const adapted = await prepareLandingAdapter(
+              input.client,
+              input.workspaceId,
+              launch.id,
+              {
+                allowedOrigin: `https://${address.hostname}`,
+                resolvedTracking: {
+                  tiktokProfileId: row.tiktok_tracking_profile_id,
+                  tiktokPixelId: row.tiktok_pixel_id,
+                  googleAdsProfileId: row.google_ads_tracking_profile_id,
+                  googleAdsConversionId: row.google_ads_conversion_id,
+                  googleAdsConversionLabel: row.google_ads_conversion_label,
                 },
-                publishInput,
+              },
+            );
+            if (adapted.adapter_status === "prepared") return "prepared";
+            return {
+              blocked:
+                adapted.adapter_reason === "api_url_not_configured"
+                  ? "INTAKE_API_NOT_CONFIGURED"
+                  : "LANDING_ADAPTATION_REQUIRED",
+            };
+          },
+        ),
+      publish: (launch) =>
+        withOfferLaunchLeaseHeartbeat(
+          {
+            workspaceId: input.workspaceId,
+            launchId: input.launchId,
+            renew: () => repository.renew(input.workspaceId, input.launchId, input.processingToken),
+          },
+          async () => {
+            const publicationRepository = new SupabasePublicationRepository();
+            const landingService = new LandingService(input.client);
+            const host = await publicationRepository.getHostTarget(
+              input.workspaceId,
+              launch.domain_host_id,
+              launch.id,
+            );
+            let attempt = launch.publication_attempt;
+            let keyHash = await hashPublicationIdempotencyKey(launch.id, attempt);
+            let existing = await publicationRepository.findOperation(
+              input.workspaceId,
+              launch.domain_host_id,
+              keyHash,
+            );
+            if (
+              existing &&
+              (existing.landingId !== launch.id || existing.operationKind !== "publish")
+            ) {
+              throw new ApiError(
+                409,
+                "This publication key belongs to another operation",
+                "CONFLICT",
               );
-        return { versionId: result.versionId, url: result.url };
-      },
+            }
+            if (existing?.status === "failed") {
+              attempt = await repository.setPublicationAttempt(
+                input.workspaceId,
+                launch.id,
+                attempt,
+              );
+              keyHash = await hashPublicationIdempotencyKey(launch.id, attempt);
+              existing = await publicationRepository.findOperation(
+                input.workspaceId,
+                launch.domain_host_id,
+                keyHash,
+              );
+            }
+            if (existing?.status === "failed") {
+              throw new ApiError(409, "A new publication attempt could not be started", "CONFLICT");
+            }
+            const publishInput = {
+              workspaceId: input.workspaceId,
+              hostId: launch.domain_host_id,
+              landingId: launch.id,
+              hostname: host.hostname,
+              idempotencyKeyHash: keyHash,
+              createdByUserId: row.created_by_user_id,
+            };
+            const dependencies = {
+              repository: publicationRepository,
+              storage: new CloudflareR2Store(),
+              verifyHost: async () => {
+                const verification = await new DomainService().verifyHost(
+                  input.workspaceId,
+                  launch.domain_host_id,
+                );
+                return verification.technicalStatus === "ready";
+              },
+            };
+            try {
+              const result =
+                existing &&
+                ["database_switched", "recovery_required", "completed"].includes(existing.status)
+                  ? await resumeLandingPublication(dependencies, publishInput, existing)
+                  : await publishLanding(
+                      {
+                        ...dependencies,
+                        getPreparedArchive: () =>
+                          landingService.getPreparedArchiveForPublication(
+                            input.workspaceId,
+                            launch.id,
+                            {
+                              tiktokProfileId: row.tiktok_tracking_profile_id,
+                              tiktokPixelId: row.tiktok_pixel_id,
+                              googleAdsProfileId: row.google_ads_tracking_profile_id,
+                              googleAdsConversionId: row.google_ads_conversion_id,
+                              googleAdsConversionLabel: row.google_ads_conversion_label,
+                            },
+                          ),
+                      },
+                      publishInput,
+                    );
+              return { versionId: result.versionId, url: result.url };
+            } catch (error) {
+              if (error instanceof PublicationReadinessError && error.reason === "not_ready") {
+                throw new OfferLaunchStepError("DOMAIN_NOT_READY");
+              }
+              throw error;
+            }
+          },
+        ),
       advance: (launch, stage) => repository.advance(launch, stage),
       complete: (launch, publication) => repository.complete(launch, publication),
       recordError: (launch, code) => repository.recordError(launch, code),

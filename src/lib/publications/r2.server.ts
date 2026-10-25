@@ -68,6 +68,17 @@ function assertObjectKey(key: string): void {
   }
 }
 
+function objectKind(key: string): "host_manifest" | "published_site_file" | "other" {
+  if (key.startsWith("host-manifests/")) return "host_manifest";
+  if (key.startsWith("crmonia/landing-sites/")) return "published_site_file";
+  return "other";
+}
+
+function safeErrorName(error: unknown): string {
+  const name = error instanceof Error ? error.name : "UnknownError";
+  return /^[A-Za-z][A-Za-z0-9]{0,63}$/.test(name) ? name : "UnknownError";
+}
+
 function toHex(bytes: ArrayBuffer): string {
   return Array.from(new Uint8Array(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
@@ -102,15 +113,14 @@ export class CloudflareR2Store implements LandingR2Store {
   }
 
   async put(key: string, bytes: Uint8Array, contentType: string, digest: string): Promise<void> {
-    this.assertSuccess(
-      await this.request({ method: "PUT", key, bytes, contentType, sha256: digest }),
-    );
+    const input = { method: "PUT" as const, key, bytes, contentType, sha256: digest };
+    this.assertSuccess(await this.request(input), input);
   }
 
   async head(key: string): Promise<R2ObjectHead | null> {
     const response = await this.request({ method: "HEAD", key });
     if (response.status === 404) return null;
-    this.assertSuccess(response);
+    this.assertSuccess(response, { method: "HEAD", key });
     const rawSize = response.headers.get("content-length");
     const size = rawSize === null ? Number.NaN : Number(rawSize);
     if (!Number.isSafeInteger(size) || size < 0) {
@@ -126,7 +136,7 @@ export class CloudflareR2Store implements LandingR2Store {
   async readText(key: string, maxBytes: number): Promise<string | null> {
     const response = await this.request({ method: "GET", key });
     if (response.status === 404) return null;
-    this.assertSuccess(response);
+    this.assertSuccess(response, { method: "GET", key });
     const declaredLength = Number(response.headers.get("content-length"));
     if (!Number.isSafeInteger(declaredLength) || declaredLength < 0 || declaredLength > maxBytes) {
       throw new ApiError(502, "Invalid landing manifest in object storage", "INTERNAL_ERROR");
@@ -211,18 +221,34 @@ export class CloudflareR2Store implements LandingR2Store {
         ...(input.bytes ? { body: input.bytes.slice().buffer } : {}),
         signal: AbortSignal.timeout(120_000),
       });
-    } catch {
-      throw new ApiError(502, "Cloudflare R2 could not be reached", "INTERNAL_ERROR");
+    } catch (error) {
+      const errorName = safeErrorName(error);
+      throw new ApiError(502, "Cloudflare R2 could not be reached", "INTERNAL_ERROR", {
+        subsystem: "cloudflare_r2",
+        outcome:
+          errorName === "TimeoutError" || errorName === "AbortError" ? "timeout" : "network_error",
+        method: input.method,
+        objectKind: objectKind(input.key),
+        errorName,
+      });
     }
   }
 
-  private assertSuccess(response: Response): void {
+  private assertSuccess(response: Response, input: SignedRequest): void {
     if (!response.ok) {
       throw new ApiError(
         502,
         "Cloudflare R2 could not complete the landing storage operation",
         "INTERNAL_ERROR",
-        { status: response.status },
+        {
+          subsystem: "cloudflare_r2",
+          outcome: "http_error",
+          method: input.method,
+          objectKind: objectKind(input.key),
+          status: response.status,
+          providerRequestId:
+            response.headers.get("cf-ray") ?? response.headers.get("x-amz-request-id"),
+        },
       );
     }
   }

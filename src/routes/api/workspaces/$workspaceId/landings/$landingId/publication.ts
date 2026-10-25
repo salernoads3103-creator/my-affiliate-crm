@@ -9,6 +9,7 @@ import {
   requireWorkspacePermission,
 } from "@/lib/access/access.server";
 import { ApiError } from "@/lib/api-error";
+import { DomainService } from "@/lib/domains/service.server";
 import { LandingService } from "@/lib/landings/service";
 import { parseLandingRouteId } from "@/lib/landings/http.server";
 import { CloudflareR2Store } from "@/lib/publications/r2.server";
@@ -120,7 +121,17 @@ export const Route = createFileRoute(
             idempotencyKeyHash: requestKeyHash,
             createdByUserId: context.user.id,
           };
-          const dependencies = { repository, storage: new CloudflareR2Store() };
+          const dependencies = {
+            repository,
+            storage: new CloudflareR2Store(),
+            verifyHost: async () => {
+              const verification = await new DomainService().verifyHost(
+                workspaceId,
+                parsed.data.hostId,
+              );
+              return verification.technicalStatus === "ready";
+            },
+          };
           const result =
             existing &&
             ["database_switched", "recovery_required", "completed"].includes(existing.status)

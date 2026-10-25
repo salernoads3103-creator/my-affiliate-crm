@@ -53,5 +53,33 @@ describe("Cloudflare R2 S3 client", () => {
 
     expect(result).toBeInstanceOf(ApiError);
     expect((result as Error).message).not.toContain(config.secretAccessKey);
+    expect((result as ApiError).cause).toMatchObject({
+      subsystem: "cloudflare_r2",
+      outcome: "http_error",
+      method: "PUT",
+      objectKind: "other",
+      status: 403,
+    });
+    expect(JSON.stringify((result as ApiError).cause)).not.toContain(config.secretAccessKey);
+  });
+
+  it("classifies network failures without preserving raw exception text", async () => {
+    const store = new CloudflareR2Store(config, async () => {
+      throw new Error(`network failed with ${config.secretAccessKey}`);
+    });
+
+    const result = await store
+      .head("crmonia/landing-sites/one/index.html")
+      .catch((error: unknown) => error);
+
+    expect(result).toBeInstanceOf(ApiError);
+    expect((result as ApiError).cause).toMatchObject({
+      subsystem: "cloudflare_r2",
+      outcome: "network_error",
+      method: "HEAD",
+      objectKind: "published_site_file",
+      errorName: "Error",
+    });
+    expect(JSON.stringify((result as ApiError).cause)).not.toContain(config.secretAccessKey);
   });
 });
