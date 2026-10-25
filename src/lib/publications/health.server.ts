@@ -1,11 +1,7 @@
 import { ApiError } from "@/lib/api-error";
+import type { R2HealthResult } from "./health.types";
 
-export type R2HealthResult =
-  | { status: "connected" }
-  | { status: "configuration_error" }
-  | { status: "unreachable" }
-  | { status: "unavailable" }
-  | { status: "provider_rejected"; providerStatus: number; requestId?: string };
+export type { R2HealthResult } from "./health.types";
 
 export function isR2DiagnosticEndpointEnabled(env: Record<string, string | undefined>): boolean {
   return (

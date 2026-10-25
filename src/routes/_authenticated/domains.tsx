@@ -1,7 +1,7 @@
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Globe2, Loader2, Plus, RefreshCw, Search } from "lucide-react";
+import { Check, Copy, Database, Globe2, Loader2, Plus, RefreshCw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
@@ -13,6 +13,7 @@ import {
   type DomainUsageFilter,
 } from "@/lib/domains/presentation";
 import { localizeError, t, type TranslationKey } from "@/lib/i18n";
+import { canShowR2Diagnostics } from "@/lib/publications/health-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -133,6 +134,11 @@ function DomainsPage() {
   const [technicalFilter, setTechnicalFilter] = useState<DomainTechnicalFilter>("all");
   const [usageFilter, setUsageFilter] = useState<DomainUsageFilter>("all");
   const [verifyingHostId, setVerifyingHostId] = useState<string | null>(null);
+  const [showR2Diagnostics, setShowR2Diagnostics] = useState(false);
+
+  useEffect(() => {
+    setShowR2Diagnostics(canShowR2Diagnostics(window.location.hostname, canManage));
+  }, [canManage]);
 
   const domainsQuery = useQuery({
     queryKey: [...DOMAINS_QUERY_KEY, workspaceId],
@@ -199,6 +205,36 @@ function DomainsPage() {
     },
     onError: (error) => toast.error(localizeError(error, t("Could not check DNS/HTTPS."), locale)),
     onSettled: () => setVerifyingHostId(null),
+  });
+
+  const r2HealthMutation = useMutation({
+    mutationFn: () => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return domainService.checkR2Health(workspaceId);
+    },
+    onSuccess: (result) => {
+      switch (result.status) {
+        case "connected":
+          toast.success(t("R2 connection confirmed", {}, locale));
+          break;
+        case "configuration_error":
+          toast.error(t("R2 configuration is invalid", {}, locale));
+          break;
+        case "provider_rejected":
+          toast.error(
+            t("R2 rejected the request (HTTP {status})", { status: result.providerStatus }, locale),
+          );
+          break;
+        case "unreachable":
+          toast.error(t("R2 is unreachable", {}, locale));
+          break;
+        case "unavailable":
+          toast.error(t("R2 healthcheck unavailable", {}, locale));
+          break;
+      }
+    },
+    onError: (error) =>
+      toast.error(localizeError(error, t("Could not check R2 connection.", {}, locale), locale)),
   });
 
   const submitDomain = (event: FormEvent<HTMLFormElement>) => {
@@ -270,14 +306,31 @@ function DomainsPage() {
 
   return (
     <div className="mx-auto min-w-0 max-w-6xl space-y-6">
-      <header className="space-y-1">
-        <p className="text-xs font-medium text-muted-foreground">
-          {t("Addresses for landing pages")}
-        </p>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Domains")}</h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          {t("Add a purchased domain to CRMONIA, then build a pool of subdomains.")}
-        </p>
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-1">
+          <p className="text-xs font-medium text-muted-foreground">
+            {t("Addresses for landing pages")}
+          </p>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{t("Domains")}</h1>
+          <p className="max-w-3xl text-sm text-muted-foreground">
+            {t("Add a purchased domain to CRMONIA, then build a pool of subdomains.")}
+          </p>
+        </div>
+        {showR2Diagnostics && canManage && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={r2HealthMutation.isPending}
+            onClick={() => r2HealthMutation.mutate()}
+          >
+            {r2HealthMutation.isPending ? (
+              <Loader2 className="animate-spin" aria-hidden="true" />
+            ) : (
+              <Database aria-hidden="true" />
+            )}
+            {r2HealthMutation.isPending ? t("Checking R2…") : t("Check R2 connection")}
+          </Button>
+        )}
       </header>
 
       <div className="grid gap-4 lg:grid-cols-2">

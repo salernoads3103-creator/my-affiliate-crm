@@ -29,10 +29,7 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/r2-health")({
           if (result.status !== "connected") {
             console.warn("[r2-health] probe_failed", { workspaceId, ...result });
           }
-          return Response.json(
-            { success: true, data: result },
-            { status: result.status === "connected" ? 200 : 503 },
-          );
+          return Response.json({ success: true, data: result });
         } catch (error) {
           return accessErrorResponse(error);
         }

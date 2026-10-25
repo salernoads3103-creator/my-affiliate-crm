@@ -3,6 +3,7 @@ import type {
   DomainAddress,
   DomainVerificationResponse,
 } from "@/lib/domains/types";
+import type { R2HealthResult } from "@/lib/publications/health.types";
 import { accessApi } from "@/services/accessApi";
 
 function domainsPath(workspaceId: string): string {
@@ -45,6 +46,12 @@ export const domainService = {
     return accessApi.post<DomainVerificationResponse>(
       `/api/workspaces/${encodeURIComponent(workspaceId)}/domain-hosts/${encodeURIComponent(hostId)}/verify`,
       {},
+    );
+  },
+
+  checkR2Health(workspaceId: string): Promise<R2HealthResult> {
+    return accessApi.get<R2HealthResult>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/r2-health`,
     );
   },
 };
