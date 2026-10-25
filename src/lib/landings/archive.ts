@@ -428,6 +428,89 @@ async function inspectEntryContent(
   return output;
 }
 
+export type StaticLandingFile = {
+  path: string;
+  bytes: Uint8Array;
+  contentType: string;
+};
+
+const STATIC_CONTENT_TYPES: Record<string, string> = {
+  avif: "image/avif",
+  bmp: "image/bmp",
+  css: "text/css; charset=utf-8",
+  eot: "application/vnd.ms-fontobject",
+  gif: "image/gif",
+  htm: "text/html; charset=utf-8",
+  html: "text/html; charset=utf-8",
+  ico: "image/x-icon",
+  jpeg: "image/jpeg",
+  jpg: "image/jpeg",
+  js: "application/javascript; charset=utf-8",
+  json: "application/json; charset=utf-8",
+  m4a: "audio/mp4",
+  map: "application/json; charset=utf-8",
+  mjs: "text/javascript; charset=utf-8",
+  mp3: "audio/mpeg",
+  mp4: "video/mp4",
+  ogg: "audio/ogg",
+  otf: "font/otf",
+  pdf: "application/pdf",
+  png: "image/png",
+  svg: "image/svg+xml",
+  ttf: "font/ttf",
+  txt: "text/plain; charset=utf-8",
+  wav: "audio/wav",
+  webmanifest: "application/manifest+json",
+  webm: "video/webm",
+  webp: "image/webp",
+  woff: "font/woff",
+  woff2: "font/woff2",
+  xml: "application/xml; charset=utf-8",
+};
+
+/**
+ * Revalidates and extracts only allowed static files from an adapted ZIP.
+ * The returned paths are relative to the detected site root, so index.html
+ * is placed at the root of the published version even for older nested ZIPs.
+ */
+export async function extractStaticLandingFiles(bytes: Uint8Array): Promise<StaticLandingFile[]> {
+  const parsed = parseEntries(bytes);
+  const files = parsed.entries.filter((entry) => !entry.isDirectory);
+  const root = selectSiteRoot(files);
+  if (!root.index || root.siteRootPath === null || root.ambiguous) {
+    throw new LandingArchiveError();
+  }
+
+  const siteFiles = files.filter((entry) => entry.name.startsWith(root.siteRootPath!));
+  if (siteFiles.length === 0 || siteFiles.length > MAX_FILES) throw new LandingArchiveError();
+
+  const output: StaticLandingFile[] = [];
+  for (const entry of siteFiles) {
+    const path = entry.name.slice(root.siteRootPath.length);
+    if (
+      !path ||
+      path.startsWith("/") ||
+      path.split("/").some((segment) => !segment || segment.startsWith("."))
+    ) {
+      throw new LandingArchiveError();
+    }
+    assertAllowedFileType(path);
+    const content = await inspectEntryContent(bytes, entry, MAX_ENTRY_BYTES);
+    if (!content) throw new LandingArchiveError();
+    const extension = path.split(".").at(-1)?.toLowerCase() ?? "";
+    output.push({
+      path,
+      bytes: content,
+      contentType: STATIC_CONTENT_TYPES[extension] ?? "application/octet-stream",
+    });
+  }
+
+  if (!output.some((entry) => entry.path.toLowerCase() === "index.html")) {
+    throw new LandingArchiveError();
+  }
+  return output;
+}
+
 function readAttributes(source: string): Record<string, string> {
   const attributes: Record<string, string> = {};
   const expression = /([^\s=/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g;

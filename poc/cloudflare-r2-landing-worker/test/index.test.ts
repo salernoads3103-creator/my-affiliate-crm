@@ -22,6 +22,10 @@ class MemoryBucket implements R2BucketReader {
 
 function fixture(): { bucket: MemoryBucket; env: Env } {
   const bucket = new MemoryBucket();
+  const publicationPrefix =
+    "crmonia/landing-sites/11111111-1111-4111-8111-111111111111/" +
+    "22222222-2222-4222-8222-222222222222/" +
+    "33333333-3333-4333-8333-333333333333/";
   bucket.objects.set(
     "host-manifests/shop.example.test.json",
     JSON.stringify({ sitePrefix: "sites/landing-1/version-1/" }),
@@ -33,6 +37,12 @@ function fixture(): { bucket: MemoryBucket; env: Env } {
   bucket.objects.set("sites/landing-1/version-1/index.html", "<h1>Shop</h1>");
   bucket.objects.set("sites/landing-1/version-1/assets/site.css", "body{color:#123}");
   bucket.objects.set("sites/landing-2/version-3/index.html", "<h1>Second shop</h1>");
+  bucket.objects.set(
+    "host-manifests/published.example.test.json",
+    JSON.stringify({ sitePrefix: publicationPrefix }),
+  );
+  bucket.objects.set(`${publicationPrefix}index.html`, "<h1>Published CRMONIA site</h1>");
+  bucket.objects.set(`${publicationPrefix}assets/site.css`, "body{color:#234}");
   return { bucket, env: { LANDING_BUCKET: bucket } };
 }
 
@@ -68,6 +78,20 @@ describe("isolated Cloudflare R2 landing worker", () => {
 
     expect(await first.text()).toBe("<h1>Shop</h1>");
     expect(await second.text()).toBe("<h1>Second shop</h1>");
+  });
+
+  it("serves the immutable prefix format used by CRMONIA publication versions", async () => {
+    const { env } = fixture();
+    const html = await handleRequest(new Request("https://published.example.test/"), env);
+    const css = await handleRequest(
+      new Request("https://published.example.test/assets/site.css"),
+      env,
+    );
+
+    expect(html.status).toBe(200);
+    expect(await html.text()).toBe("<h1>Published CRMONIA site</h1>");
+    expect(css.status).toBe(200);
+    expect(css.headers.get("content-type")).toBe("text/css; charset=utf-8");
   });
 
   it("serves a requested asset with a safe content type", async () => {

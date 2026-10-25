@@ -692,6 +692,96 @@ export type Database = {
         };
         Relationships: [];
       };
+      landing_publication_versions: {
+        Row: {
+          build_fingerprint: string;
+          created_at: string;
+          created_by_user_id: string | null;
+          domain_host_id: string;
+          id: string;
+          landing_id: string;
+          r2_prefix: string;
+          version_number: number;
+          workspace_id: string;
+          zip_fingerprint: string;
+        };
+        Insert: {
+          build_fingerprint: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          domain_host_id: string;
+          id?: string;
+          landing_id: string;
+          r2_prefix: string;
+          version_number: number;
+          workspace_id: string;
+          zip_fingerprint: string;
+        };
+        Update: {
+          build_fingerprint?: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          domain_host_id?: string;
+          id?: string;
+          landing_id?: string;
+          r2_prefix?: string;
+          version_number?: number;
+          workspace_id?: string;
+          zip_fingerprint?: string;
+        };
+        Relationships: [];
+      };
+      landing_publication_operations: {
+        Row: {
+          created_at: string;
+          created_by_user_id: string | null;
+          domain_host_id: string;
+          expected_current_version_id: string | null;
+          id: string;
+          idempotency_key_hash: string;
+          landing_id: string;
+          operation_kind: "publish" | "rollback";
+          request_fingerprint: string;
+          reservation_created: boolean;
+          status: "uploading" | "database_switched" | "completed" | "failed" | "recovery_required";
+          target_publication_version_id: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          domain_host_id: string;
+          expected_current_version_id?: string | null;
+          id: string;
+          idempotency_key_hash: string;
+          landing_id: string;
+          operation_kind: "publish" | "rollback";
+          request_fingerprint: string;
+          reservation_created?: boolean;
+          status?: "uploading" | "database_switched" | "completed" | "failed" | "recovery_required";
+          target_publication_version_id: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string | null;
+          domain_host_id?: string;
+          expected_current_version_id?: string | null;
+          id?: string;
+          idempotency_key_hash?: string;
+          landing_id?: string;
+          operation_kind?: "publish" | "rollback";
+          request_fingerprint?: string;
+          reservation_created?: boolean;
+          status?: "uploading" | "database_switched" | "completed" | "failed" | "recovery_required";
+          target_publication_version_id?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       workspace_tracking_profiles: {
         Row: {
           created_at: string;
@@ -1186,6 +1276,48 @@ export type Database = {
       };
       reserve_workspace_domain_host: {
         Args: { p_domain_host_id: string; p_landing_id: string; p_workspace_id: string };
+        Returns: boolean;
+      };
+      claim_landing_publication_operation: {
+        Args: {
+          p_build_fingerprint: string | null;
+          p_created_by_user_id: string;
+          p_domain_host_id: string;
+          p_expected_current_version_id: string | null;
+          p_idempotency_key_hash: string;
+          p_landing_id: string;
+          p_operation_id: string;
+          p_operation_kind: "publish" | "rollback";
+          p_request_fingerprint: string;
+          p_target_publication_version_id: string | null;
+          p_workspace_id: string;
+          p_zip_fingerprint: string | null;
+        };
+        Returns: {
+          expected_current_version_id: string | null;
+          operation_id: string;
+          operation_status: string;
+          reservation_created: boolean;
+          target_prefix: string;
+          target_publication_version_id: string;
+          version_number: number | null;
+          was_replay: boolean;
+        }[];
+      };
+      advance_landing_publication_operation: {
+        Args: { p_operation_id: string };
+        Returns: string;
+      };
+      complete_landing_publication_operation: {
+        Args: { p_operation_id: string };
+        Returns: string;
+      };
+      fail_landing_publication_operation: {
+        Args: { p_operation_id: string };
+        Returns: boolean;
+      };
+      require_landing_publication_recovery: {
+        Args: { p_operation_id: string };
         Returns: boolean;
       };
       main_workspace_id: {

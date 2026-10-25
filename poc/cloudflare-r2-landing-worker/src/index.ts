@@ -19,10 +19,13 @@ const MANIFEST_PREFIX = "host-manifests/";
 const MAX_MANIFEST_BYTES = 4_096;
 const DNS_LABEL = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const SITE_SEGMENT = /^[a-zA-Z0-9_-]{1,64}$/;
+const UUID_SEGMENT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const CONTENT_TYPES: Record<string, string> = {
   avif: "image/avif",
+  bmp: "image/bmp",
   css: "text/css; charset=utf-8",
+  eot: "application/vnd.ms-fontobject",
   gif: "image/gif",
   html: "text/html; charset=utf-8",
   ico: "image/x-icon",
@@ -31,6 +34,10 @@ const CONTENT_TYPES: Record<string, string> = {
   js: "application/javascript; charset=utf-8",
   json: "application/json; charset=utf-8",
   mjs: "text/javascript; charset=utf-8",
+  map: "application/json; charset=utf-8",
+  mp3: "audio/mpeg",
+  mp4: "video/mp4",
+  ogg: "audio/ogg",
   otf: "font/otf",
   pdf: "application/pdf",
   png: "image/png",
@@ -38,6 +45,8 @@ const CONTENT_TYPES: Record<string, string> = {
   ttf: "font/ttf",
   txt: "text/plain; charset=utf-8",
   webmanifest: "application/manifest+json",
+  wav: "audio/wav",
+  webm: "video/webm",
   webp: "image/webp",
   woff: "font/woff",
   woff2: "font/woff2",
@@ -100,11 +109,16 @@ function isValidSitePrefix(value: unknown): value is string {
   if (typeof value !== "string" || !value.endsWith("/")) return false;
 
   const segments = value.slice(0, -1).split("/");
-  return (
+  const legacyPocPrefix =
     segments.length === 3 &&
     segments[0] === "sites" &&
-    segments.slice(1).every((segment) => SITE_SEGMENT.test(segment))
-  );
+    segments.slice(1).every((segment) => SITE_SEGMENT.test(segment));
+  const crmoniaPublicationPrefix =
+    segments.length === 5 &&
+    segments[0] === "crmonia" &&
+    segments[1] === "landing-sites" &&
+    segments.slice(2).every((segment) => UUID_SEGMENT.test(segment));
+  return legacyPocPrefix || crmoniaPublicationPrefix;
 }
 
 async function readManifest(

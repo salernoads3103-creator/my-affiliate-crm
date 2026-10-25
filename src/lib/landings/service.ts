@@ -988,6 +988,37 @@ export class LandingService {
     );
   }
 
+  async getPreparedArchiveForPublication(
+    workspaceId: string,
+    landingId: string,
+  ): Promise<{ bytes: Uint8Array; buildFingerprint: string }> {
+    const selection = await new TrackingProfileService().landingConfiguration(
+      workspaceId,
+      landingId,
+    );
+    const readiness = await this.calculatePreparationReadiness(workspaceId, landingId, selection);
+    if (!readiness.configuration.readiness.zipReady) {
+      throw new ApiError(409, "The adapted ZIP is not current and ready to publish", "CONFLICT");
+    }
+
+    const landing = await this.repository.getDraft(workspaceId, landingId);
+    if (
+      !landing ||
+      landing.status !== "draft" ||
+      landing.deletion_started_at ||
+      landing.adapter_status !== "prepared" ||
+      !landing.adapted_archive_path ||
+      landing.adapted_build_fingerprint !== readiness.currentFingerprint
+    ) {
+      throw new ApiError(409, "Prepare the landing ZIP again before publishing", "CONFLICT");
+    }
+    const archive = await this.storage.download(landing.adapted_archive_path);
+    return {
+      bytes: new Uint8Array(await archive.arrayBuffer()),
+      buildFingerprint: landing.adapted_build_fingerprint,
+    };
+  }
+
   async downloadPreviousAdaptedArchive(workspaceId: string, landingId: string): Promise<Blob> {
     return getDownloadablePreviousAdaptedArchive(
       { repository: this.repository, storage: this.storage },

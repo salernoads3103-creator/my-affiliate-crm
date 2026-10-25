@@ -58,10 +58,12 @@ import { Route as ApiWorkspacesWorkspaceIdOrdersOrderIdStatusRouteImport } from 
 import { Route as ApiWorkspacesWorkspaceIdOrdersOrderIdDeliveryRouteImport } from './routes/api/workspaces/$workspaceId/orders/$orderId/delivery'
 import { Route as ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRouteImport } from './routes/api/workspaces/$workspaceId/offers/$offerId/intake-form'
 import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
+import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId/publication'
 import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId/adapter'
 import { Route as ApiWorkspacesWorkspaceIdDomainsDomainIdHostsRouteImport } from './routes/api/workspaces/$workspaceId/domains/$domainId/hosts'
 import { Route as ApiWorkspacesWorkspaceIdDomainHostsHostIdVerifyRouteImport } from './routes/api/workspaces/$workspaceId/domain-hosts/$hostId/verify'
 import { Route as ApiWorkspacesWorkspaceIdDomainHostsHostIdReservationRouteImport } from './routes/api/workspaces/$workspaceId/domain-hosts/$hostId/reservation'
+import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId/publication/rollback'
 
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
@@ -337,6 +339,12 @@ const ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute =
     path: '/tracking-config',
     getParentRoute: () => ApiWorkspacesWorkspaceIdLandingsLandingIdRoute,
   } as any)
+const ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRoute =
+  ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteImport.update({
+    id: '/publication',
+    path: '/publication',
+    getParentRoute: () => ApiWorkspacesWorkspaceIdLandingsLandingIdRoute,
+  } as any)
 const ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute =
   ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRouteImport.update({
     id: '/adapter',
@@ -361,6 +369,15 @@ const ApiWorkspacesWorkspaceIdDomainHostsHostIdReservationRoute =
     path: '/api/workspaces/$workspaceId/domain-hosts/$hostId/reservation',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute =
+  ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRouteImport.update(
+    {
+      id: '/rollback',
+      path: '/rollback',
+      getParentRoute: () =>
+        ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRoute,
+    } as any,
+  )
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -410,11 +427,13 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/domain-hosts/$hostId/verify': typeof ApiWorkspacesWorkspaceIdDomainHostsHostIdVerifyRoute
   '/api/workspaces/$workspaceId/domains/$domainId/hosts': typeof ApiWorkspacesWorkspaceIdDomainsDomainIdHostsRoute
   '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/publication': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteWithChildren
   '/api/workspaces/$workspaceId/landings/$landingId/tracking-config': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
   '/api/workspaces/$workspaceId/orders/$orderId/delivery': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdDeliveryRoute
   '/api/workspaces/$workspaceId/orders/$orderId/status': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdStatusRoute
   '/api/workspaces/$workspaceId/orders/$orderId/waybill': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdWaybillRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -464,11 +483,13 @@ export interface FileRoutesByTo {
   '/api/workspaces/$workspaceId/domain-hosts/$hostId/verify': typeof ApiWorkspacesWorkspaceIdDomainHostsHostIdVerifyRoute
   '/api/workspaces/$workspaceId/domains/$domainId/hosts': typeof ApiWorkspacesWorkspaceIdDomainsDomainIdHostsRoute
   '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/publication': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteWithChildren
   '/api/workspaces/$workspaceId/landings/$landingId/tracking-config': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
   '/api/workspaces/$workspaceId/orders/$orderId/delivery': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdDeliveryRoute
   '/api/workspaces/$workspaceId/orders/$orderId/status': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdStatusRoute
   '/api/workspaces/$workspaceId/orders/$orderId/waybill': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdWaybillRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -520,11 +541,13 @@ export interface FileRoutesById {
   '/api/workspaces/$workspaceId/domain-hosts/$hostId/verify': typeof ApiWorkspacesWorkspaceIdDomainHostsHostIdVerifyRoute
   '/api/workspaces/$workspaceId/domains/$domainId/hosts': typeof ApiWorkspacesWorkspaceIdDomainsDomainIdHostsRoute
   '/api/workspaces/$workspaceId/landings/$landingId/adapter': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/publication': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteWithChildren
   '/api/workspaces/$workspaceId/landings/$landingId/tracking-config': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute
   '/api/workspaces/$workspaceId/offers/$offerId/intake-form': typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
   '/api/workspaces/$workspaceId/orders/$orderId/delivery': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdDeliveryRoute
   '/api/workspaces/$workspaceId/orders/$orderId/status': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdStatusRoute
   '/api/workspaces/$workspaceId/orders/$orderId/waybill': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdWaybillRoute
+  '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback': typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -576,11 +599,13 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/domain-hosts/$hostId/verify'
     | '/api/workspaces/$workspaceId/domains/$domainId/hosts'
     | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
+    | '/api/workspaces/$workspaceId/landings/$landingId/publication'
     | '/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
     | '/api/workspaces/$workspaceId/orders/$orderId/delivery'
     | '/api/workspaces/$workspaceId/orders/$orderId/status'
     | '/api/workspaces/$workspaceId/orders/$orderId/waybill'
+    | '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -630,11 +655,13 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/domain-hosts/$hostId/verify'
     | '/api/workspaces/$workspaceId/domains/$domainId/hosts'
     | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
+    | '/api/workspaces/$workspaceId/landings/$landingId/publication'
     | '/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
     | '/api/workspaces/$workspaceId/orders/$orderId/delivery'
     | '/api/workspaces/$workspaceId/orders/$orderId/status'
     | '/api/workspaces/$workspaceId/orders/$orderId/waybill'
+    | '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback'
   id:
     | '__root__'
     | '/'
@@ -685,11 +712,13 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/domain-hosts/$hostId/verify'
     | '/api/workspaces/$workspaceId/domains/$domainId/hosts'
     | '/api/workspaces/$workspaceId/landings/$landingId/adapter'
+    | '/api/workspaces/$workspaceId/landings/$landingId/publication'
     | '/api/workspaces/$workspaceId/landings/$landingId/tracking-config'
     | '/api/workspaces/$workspaceId/offers/$offerId/intake-form'
     | '/api/workspaces/$workspaceId/orders/$orderId/delivery'
     | '/api/workspaces/$workspaceId/orders/$orderId/status'
     | '/api/workspaces/$workspaceId/orders/$orderId/waybill'
+    | '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1068,6 +1097,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRouteImport
       parentRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRoute
     }
+    '/api/workspaces/$workspaceId/landings/$landingId/publication': {
+      id: '/api/workspaces/$workspaceId/landings/$landingId/publication'
+      path: '/publication'
+      fullPath: '/api/workspaces/$workspaceId/landings/$landingId/publication'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteImport
+      parentRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdRoute
+    }
     '/api/workspaces/$workspaceId/landings/$landingId/adapter': {
       id: '/api/workspaces/$workspaceId/landings/$landingId/adapter'
       path: '/adapter'
@@ -1095,6 +1131,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/workspaces/$workspaceId/domain-hosts/$hostId/reservation'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdDomainHostsHostIdReservationRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback': {
+      id: '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback'
+      path: '/rollback'
+      fullPath: '/api/workspaces/$workspaceId/landings/$landingId/publication/rollback'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRouteImport
+      parentRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRoute
     }
   }
 }
@@ -1156,8 +1199,24 @@ const ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren =
     ApiWorkspacesWorkspaceIdInvitationsRouteChildren,
   )
 
+interface ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteChildren {
+  ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute
+}
+
+const ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteChildren: ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteChildren =
+  {
+    ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute:
+      ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute,
+  }
+
+const ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteWithChildren =
+  ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRoute._addFileChildren(
+    ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteChildren,
+  )
+
 interface ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren {
   ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute
+  ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteWithChildren
   ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute: typeof ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute
 }
 
@@ -1165,6 +1224,8 @@ const ApiWorkspacesWorkspaceIdLandingsLandingIdRouteChildren: ApiWorkspacesWorks
   {
     ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute:
       ApiWorkspacesWorkspaceIdLandingsLandingIdAdapterRoute,
+    ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRoute:
+      ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRouteWithChildren,
     ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute:
       ApiWorkspacesWorkspaceIdLandingsLandingIdTrackingConfigRoute,
   }
