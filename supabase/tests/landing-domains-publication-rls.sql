@@ -1,5 +1,5 @@
 -- Run only on a disposable local Supabase database after all migrations through
--- 20261025100000_landing_domains_publication_foundation.sql. This test rolls back.
+-- 20261025130000_domain_bulk_add_conflict_target_fix.sql. This test rolls back.
 BEGIN;
 
 DO $$
@@ -15,9 +15,16 @@ DECLARE
   v_form_b UUID := 'f2510000-0000-4000-8000-000000000102';
   v_domain_a UUID := 'b2510000-0000-4000-8000-000000000101';
   v_domain_b UUID := 'b2510000-0000-4000-8000-000000000102';
+  v_domain_created UUID;
+  v_domain_conflict UUID;
   v_host_a UUID := 'b2510000-0000-4000-8000-000000000201';
   v_host_a_unpublished UUID := 'b2510000-0000-4000-8000-000000000202';
   v_host_b UUID := 'b2510000-0000-4000-8000-000000000301';
+  v_host_root_a UUID := 'b2510000-0000-4000-8000-000000000211';
+  v_host_root_b UUID := 'b2510000-0000-4000-8000-000000000311';
+  v_host_unready UUID := 'b2510000-0000-4000-8000-000000000212';
+  v_host_generated UUID;
+  v_landing_a2 UUID := 'd2510000-0000-4000-8000-000000000103';
   v_version_a1 UUID := 'c2510000-0000-4000-8000-000000000201';
   v_version_a2 UUID := 'c2510000-0000-4000-8000-000000000202';
   v_version_b1 UUID := 'c2510000-0000-4000-8000-000000000301';
@@ -25,9 +32,10 @@ DECLARE
   v_accepted TEXT;
   v_rejected BOOLEAN;
   v_table TEXT;
+  v_outcomes TEXT;
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM auth.users WHERE id = v_user_a
+    SELECT 1 FROM auth.users WHERE id IN (v_user_a, 'a2510000-0000-4000-8000-000000000102')
   ) OR EXISTS (
     SELECT 1 FROM public.workspaces
     WHERE id IN (v_workspace_a, v_workspace_b)
@@ -144,6 +152,9 @@ BEGIN
   ) VALUES (
     v_user_a, 'authenticated', 'authenticated', 'landing-domains-a@example.invalid',
     '', now(), '{}'::JSONB, '{}'::JSONB, now(), now()
+  ), (
+    'a2510000-0000-4000-8000-000000000102', 'authenticated', 'authenticated',
+    'landing-domains-b@example.invalid', '', now(), '{}'::JSONB, '{}'::JSONB, now(), now()
   );
   INSERT INTO public.workspaces (id, name, slug) VALUES
     (v_workspace_a, 'Landing domains test A', 'landing-domains-test-a'),
@@ -184,25 +195,156 @@ BEGIN
       v_workspace_b::TEXT || '/' || v_landing_b::TEXT || '/source.zip', '{}'::JSONB,
       v_workspace_b::TEXT || '/' || v_landing_b::TEXT
         || '/adapted-a2510000-0000-4000-8000-000000000112.zip',
-      100, 'prepared', 'f2510000-0000-4000-8000-000000000112', repeat('b', 64));
+      100, 'prepared', 'f2510000-0000-4000-8000-000000000112', repeat('b', 64)),
+    (v_landing_a2, v_workspace_a, 'Domains landing A2', v_offer_a, 'draft',
+      v_workspace_a::TEXT || '/' || v_landing_a2::TEXT || '/source.zip', '{}'::JSONB,
+      v_workspace_a::TEXT || '/' || v_landing_a2::TEXT || '/adapted-a2510000-0000-4000-8000-000000000113.zip',
+      100, 'prepared', 'f2510000-0000-4000-8000-000000000113', repeat('c', 64));
 
   INSERT INTO public.workspace_domains (
     id, workspace_id, domain_name, connection_status
   ) VALUES
     (v_domain_a, v_workspace_a, 'example-a.test', 'active'),
     (v_domain_b, v_workspace_b, 'example-b.test', 'active');
+  SELECT created.domain_id, created.root_host_id
+    INTO v_domain_created, v_host_generated
+  FROM public.create_workspace_domain_with_root_host(
+    v_workspace_a, 'new-example-a.test', v_user_a
+  ) AS created;
+  IF v_domain_created IS NULL OR v_host_generated IS NULL THEN
+    RAISE EXCEPTION 'A root domain and address were not created together';
+  END IF;
+  SELECT created.domain_id, created.root_host_id
+    INTO v_domain_conflict, v_host_generated
+  FROM public.create_workspace_domain_with_root_host(
+    v_workspace_a, 'new-example-a.test', v_user_a
+  ) AS created;
+  IF v_domain_conflict IS NULL OR v_host_generated IS NULL THEN
+    RAISE EXCEPTION 'Root domain creation is not idempotent within the owning workspace';
+  END IF;
+  SELECT created.domain_id
+    INTO v_domain_conflict
+  FROM public.create_workspace_domain_with_root_host(
+    v_workspace_b, 'new-example-a.test', 'a2510000-0000-4000-8000-000000000102'
+  ) AS created;
+  IF v_domain_conflict IS NOT NULL THEN
+    RAISE EXCEPTION 'A root hostname already registered in another workspace was disclosed';
+  END IF;
+  SELECT created.domain_id
+    INTO v_domain_conflict
+  FROM public.create_workspace_domain_with_root_host(
+    v_workspace_b, 'reserved.example-a.test', 'a2510000-0000-4000-8000-000000000102'
+  ) AS created;
+  IF v_domain_conflict IS NULL THEN
+    RAISE EXCEPTION 'A second workspace could not register an independent root domain';
+  END IF;
   INSERT INTO public.workspace_domain_hosts (
-    id, workspace_id, domain_id, apex_domain, hostname
+    id, workspace_id, domain_id, apex_domain, hostname,
+    technical_status, technical_checked_at
   ) VALUES
-    (v_host_a, v_workspace_a, v_domain_a, 'example-a.test', 'shop.example-a.test'),
-    (v_host_a_unpublished, v_workspace_a, v_domain_a, 'example-a.test', 'draft.example-a.test'),
-    (v_host_b, v_workspace_b, v_domain_b, 'example-b.test', 'shop.example-b.test');
+    (v_host_root_a, v_workspace_a, v_domain_a, 'example-a.test', 'example-a.test', 'ready', now()),
+    (v_host_a, v_workspace_a, v_domain_a, 'example-a.test', 'shop.example-a.test', 'ready', now()),
+    (v_host_a_unpublished, v_workspace_a, v_domain_a, 'example-a.test', 'draft.example-a.test', 'ready', now()),
+    (v_host_unready, v_workspace_a, v_domain_a, 'example-a.test', 'unready.example-a.test', 'not_configured', NULL),
+    (v_host_root_b, v_workspace_b, v_domain_b, 'example-b.test', 'example-b.test', 'ready', now()),
+    (v_host_b, v_workspace_b, v_domain_b, 'example-b.test', 'shop.example-b.test', 'ready', now());
 
+  SELECT string_agg(batch.outcome, ',' ORDER BY batch.input_index)
+    INTO v_outcomes
+  FROM public.add_workspace_domain_hosts(
+    v_workspace_a, v_domain_a,
+    ARRAY['bulk.example-a.test', 'bulk.example-a.test', 'reserved.example-a.test']
+  ) AS batch;
+  IF v_outcomes <> 'added,already_exists,conflict' THEN
+    RAISE EXCEPTION 'Bulk add did not return added, duplicate, and cross-workspace conflict results';
+  END IF;
+
+  -- Regression: the OUT column named hostname must not make the conflict
+  -- target ambiguous, and retrying the same batch must remain idempotent.
+  SELECT string_agg(batch.outcome, ',' ORDER BY batch.input_index)
+    INTO v_outcomes
+  FROM public.add_workspace_domain_hosts(
+    v_workspace_a, v_domain_a, ARRAY['bulk.example-a.test']
+  ) AS batch;
+  IF v_outcomes <> 'already_exists' THEN
+    RAISE EXCEPTION 'Bulk add retry must return already_exists without raising an ambiguity error';
+  END IF;
+  IF (
+    SELECT count(*)
+    FROM public.workspace_domain_hosts AS host
+    WHERE host.hostname = 'bulk.example-a.test'
+  ) <> 1 THEN
+    RAISE EXCEPTION 'Bulk add retry created a duplicate hostname';
+  END IF;
+
+  PERFORM public.record_workspace_domain_host_verification(
+    v_workspace_a, v_host_generated, 'checking', NULL
+  );
+  PERFORM public.record_workspace_domain_host_verification(
+    v_workspace_a, v_host_generated, 'ready', NULL
+  );
+  IF NOT EXISTS (
+    SELECT 1 FROM public.workspace_domains
+    WHERE id = v_domain_created AND connection_status = 'active'
+  ) THEN
+    RAISE EXCEPTION 'A verified root domain was not marked active';
+  END IF;
+
+  IF has_table_privilege('service_role', 'public.workspace_domains', 'INSERT')
+     OR has_table_privilege('service_role', 'public.workspace_domains', 'UPDATE')
+     OR has_table_privilege('service_role', 'public.workspace_domain_hosts', 'INSERT')
+     OR has_table_privilege('service_role', 'public.workspace_domain_hosts', 'UPDATE') THEN
+    RAISE EXCEPTION 'Service-role table writes must use the controlled domain RPCs';
+  END IF;
+  FOREACH v_table IN ARRAY ARRAY[
+    'create_workspace_domain_with_root_host(uuid,text,uuid)',
+    'add_workspace_domain_hosts(uuid,uuid,text[])',
+    'record_workspace_domain_host_verification(uuid,uuid,text,text)',
+    'reserve_workspace_domain_host(uuid,uuid,uuid)',
+    'release_workspace_domain_host(uuid,uuid,uuid)'
+  ] LOOP
+    IF has_function_privilege('anon', 'public.' || v_table, 'EXECUTE')
+       OR has_function_privilege('authenticated', 'public.' || v_table, 'EXECUTE')
+       OR NOT has_function_privilege('service_role', 'public.' || v_table, 'EXECUTE') THEN
+      RAISE EXCEPTION 'Domain mutation RPC ACL is incorrect for public.%', v_table;
+    END IF;
+  END LOOP;
+
+  PERFORM public.reserve_workspace_domain_host(v_workspace_a, v_host_a, v_landing_a);
   PERFORM public.reserve_workspace_domain_host(v_workspace_a, v_host_a, v_landing_a);
   PERFORM public.reserve_workspace_domain_host(
     v_workspace_a, v_host_a_unpublished, v_landing_a
   );
   PERFORM public.reserve_workspace_domain_host(v_workspace_b, v_host_b, v_landing_b);
+
+  v_rejected := FALSE;
+  BEGIN
+    PERFORM public.reserve_workspace_domain_host(v_workspace_a, v_host_a, v_landing_a2);
+  EXCEPTION WHEN unique_violation THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected THEN
+    RAISE EXCEPTION 'A hostname reserved by another landing was assigned twice';
+  END IF;
+
+  v_rejected := FALSE;
+  BEGIN
+    PERFORM public.reserve_workspace_domain_host(v_workspace_a, v_host_unready, v_landing_a);
+  EXCEPTION WHEN check_violation THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected THEN
+    RAISE EXCEPTION 'An address without a successful DNS/HTTPS check was reserved';
+  END IF;
+
+  PERFORM public.release_workspace_domain_host(v_workspace_a, v_host_a_unpublished, v_landing_a);
+  PERFORM public.release_workspace_domain_host(v_workspace_a, v_host_a_unpublished, v_landing_a);
+  IF EXISTS (
+    SELECT 1 FROM public.workspace_domain_hosts
+    WHERE id = v_host_a_unpublished AND status <> 'available'
+  ) THEN
+    RAISE EXCEPTION 'An unpublished reservation was not safely released';
+  END IF;
 
   IF public.is_landing_origin_allowed('https://draft.example-a.test')
      OR public.is_landing_form_origin_allowed(
@@ -276,7 +418,7 @@ BEGIN
       v_workspace_a, v_form_a, v_offer_a, v_landing_a,
       v_host_a_unpublished, 'draft.example-a.test', 'https://draft.example-a.test'
     );
-  EXCEPTION WHEN check_violation THEN
+  EXCEPTION WHEN check_violation OR foreign_key_violation THEN
     v_rejected := TRUE;
   END;
   IF NOT v_rejected THEN
@@ -408,6 +550,15 @@ BEGIN
   PERFORM public.switch_landing_publication_version(
     v_workspace_a, v_host_a, v_version_a1, NULL
   );
+  v_rejected := FALSE;
+  BEGIN
+    PERFORM public.release_workspace_domain_host(v_workspace_a, v_host_a, v_landing_a);
+  EXCEPTION WHEN check_violation THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected THEN
+    RAISE EXCEPTION 'An address with an active publication was released';
+  END IF;
 END;
 $$;
 
@@ -419,11 +570,11 @@ DECLARE
   v_count BIGINT;
 BEGIN
   SELECT count(*) INTO v_count FROM public.workspace_domains;
-  IF v_count <> 1 THEN
+  IF v_count <> 2 THEN
     RAISE EXCEPTION 'RLS did not isolate workspace_domains to the user''s authorized workspace';
   END IF;
   SELECT count(*) INTO v_count FROM public.workspace_domain_hosts;
-  IF v_count <> 2 THEN
+  IF v_count <> 6 THEN
     RAISE EXCEPTION 'RLS did not isolate workspace_domain_hosts to the user''s authorized workspace';
   END IF;
   SELECT count(*) INTO v_count FROM public.landing_publication_versions;

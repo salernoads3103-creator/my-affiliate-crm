@@ -533,6 +533,84 @@ export type Database = {
         };
         Relationships: [];
       };
+      workspace_domains: {
+        Row: {
+          connection_status: "pending" | "active" | "error";
+          created_at: string;
+          created_by_user_id: string | null;
+          domain_name: string;
+          id: string;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          connection_status?: "pending" | "active" | "error";
+          created_at?: string;
+          created_by_user_id?: string | null;
+          domain_name: string;
+          id?: string;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          connection_status?: "pending" | "active" | "error";
+          created_at?: string;
+          created_by_user_id?: string | null;
+          domain_name?: string;
+          id?: string;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
+      workspace_domain_hosts: {
+        Row: {
+          apex_domain: string;
+          created_at: string;
+          created_by_user_id: string | null;
+          current_publication_version_id: string | null;
+          domain_id: string;
+          hostname: string;
+          id: string;
+          reserved_landing_id: string | null;
+          status: "available" | "reserved" | "disabled";
+          technical_checked_at: string | null;
+          technical_error_code: string | null;
+          technical_status: "not_configured" | "checking" | "ready" | "error";
+          workspace_id: string;
+        };
+        Insert: {
+          apex_domain: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          current_publication_version_id?: string | null;
+          domain_id: string;
+          hostname: string;
+          id?: string;
+          reserved_landing_id?: string | null;
+          status?: "available" | "reserved" | "disabled";
+          technical_checked_at?: string | null;
+          technical_error_code?: string | null;
+          technical_status?: "not_configured" | "checking" | "ready" | "error";
+          workspace_id: string;
+        };
+        Update: {
+          apex_domain?: string;
+          created_at?: string;
+          created_by_user_id?: string | null;
+          current_publication_version_id?: string | null;
+          domain_id?: string;
+          hostname?: string;
+          id?: string;
+          reserved_landing_id?: string | null;
+          status?: "available" | "reserved" | "disabled";
+          technical_checked_at?: string | null;
+          technical_error_code?: string | null;
+          technical_status?: "not_configured" | "checking" | "ready" | "error";
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       workspace_landings: {
         Row: {
           adapted_archive_bytes: number | null;
@@ -1075,6 +1153,39 @@ export type Database = {
           p_team_id: string | null;
           p_workspace_id: string;
         };
+        Returns: boolean;
+      };
+      create_workspace_domain_with_root_host: {
+        Args: { p_created_by_user_id: string; p_domain_name: string; p_workspace_id: string };
+        Returns: {
+          domain_id: string | null;
+          result: "created" | "exists" | "conflict";
+          root_host_id: string | null;
+        }[];
+      };
+      add_workspace_domain_hosts: {
+        Args: { p_domain_id: string; p_hostnames: string[]; p_workspace_id: string };
+        Returns: {
+          hostname: string;
+          input_index: number;
+          outcome: "added" | "already_exists" | "conflict";
+        }[];
+      };
+      record_workspace_domain_host_verification: {
+        Args: {
+          p_domain_host_id: string;
+          p_error_code: string | null;
+          p_technical_status: "checking" | "ready" | "error";
+          p_workspace_id: string;
+        };
+        Returns: boolean;
+      };
+      release_workspace_domain_host: {
+        Args: { p_domain_host_id: string; p_landing_id: string; p_workspace_id: string };
+        Returns: boolean;
+      };
+      reserve_workspace_domain_host: {
+        Args: { p_domain_host_id: string; p_landing_id: string; p_workspace_id: string };
         Returns: boolean;
       };
       main_workspace_id: {
