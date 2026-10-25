@@ -236,6 +236,90 @@ export type Database = {
         };
         Relationships: [];
       };
+      workspace_offer_launch_workflows: {
+        Row: {
+          created_at: string;
+          created_by_user_id: string;
+          domain_host_id: string;
+          google_ads_conversion_id: string | null;
+          google_ads_conversion_label: string | null;
+          google_ads_tracking_profile_id: string | null;
+          id: string;
+          last_error_code: string | null;
+          offer_id: string;
+          offer_name: string;
+          offer_price_minor: number;
+          product_id: string;
+          publication_attempt: number;
+          publication_version_id: string | null;
+          processing_token: string | null;
+          processing_until: string | null;
+          published_url: string | null;
+          request_fingerprint: string;
+          source_archive_path: string;
+          source_archive_sha256: string;
+          stage: "offer_created" | "landing_created" | "adapter_prepared" | "published";
+          tiktok_tracking_profile_id: string | null;
+          tiktok_pixel_id: string | null;
+          updated_at: string;
+          workspace_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          created_by_user_id: string;
+          domain_host_id: string;
+          google_ads_conversion_id?: string | null;
+          google_ads_conversion_label?: string | null;
+          google_ads_tracking_profile_id?: string | null;
+          id: string;
+          last_error_code?: string | null;
+          offer_id: string;
+          offer_name: string;
+          offer_price_minor: number;
+          product_id: string;
+          publication_attempt?: number;
+          publication_version_id?: string | null;
+          processing_token?: string | null;
+          processing_until?: string | null;
+          published_url?: string | null;
+          request_fingerprint: string;
+          source_archive_path: string;
+          source_archive_sha256: string;
+          stage?: "offer_created" | "landing_created" | "adapter_prepared" | "published";
+          tiktok_tracking_profile_id?: string | null;
+          tiktok_pixel_id?: string | null;
+          updated_at?: string;
+          workspace_id: string;
+        };
+        Update: {
+          created_at?: string;
+          created_by_user_id?: string;
+          domain_host_id?: string;
+          google_ads_conversion_id?: string | null;
+          google_ads_conversion_label?: string | null;
+          google_ads_tracking_profile_id?: string | null;
+          id?: string;
+          last_error_code?: string | null;
+          offer_id?: string;
+          offer_name?: string;
+          offer_price_minor?: number;
+          product_id?: string;
+          publication_attempt?: number;
+          publication_version_id?: string | null;
+          processing_token?: string | null;
+          processing_until?: string | null;
+          published_url?: string | null;
+          request_fingerprint?: string;
+          source_archive_path?: string;
+          source_archive_sha256?: string;
+          stage?: "offer_created" | "landing_created" | "adapter_prepared" | "published";
+          tiktok_tracking_profile_id?: string | null;
+          tiktok_pixel_id?: string | null;
+          updated_at?: string;
+          workspace_id?: string;
+        };
+        Relationships: [];
+      };
       workspace_orders: {
         Row: {
           buyer_email: string | null;
@@ -1078,6 +1162,46 @@ export type Database = {
           p_workspace_id: string;
         };
         Returns: string;
+      };
+      begin_workspace_offer_launch: {
+        Args: {
+          p_domain_host_id: string;
+          p_google_ads_conversion_id?: string | null;
+          p_google_ads_conversion_label?: string | null;
+          p_google_ads_tracking_profile_id?: string | null;
+          p_launch_id: string;
+          p_offer_name: string;
+          p_offer_price_minor: number;
+          p_product_id: string;
+          p_request_fingerprint: string;
+          p_source_archive_path: string;
+          p_source_archive_sha256: string;
+          p_tiktok_tracking_profile_id?: string | null;
+          p_tiktok_pixel_id?: string | null;
+          p_workspace_id: string;
+        };
+        Returns: {
+          launch_id: string;
+          offer_id: string;
+          replayed: boolean;
+          stage: string;
+        }[];
+      };
+      change_workspace_offer_launch_host: {
+        Args: { p_domain_host_id: string; p_launch_id: string; p_workspace_id: string };
+        Returns: { already_selected: boolean; domain_host_id: string; hostname: string }[];
+      };
+      claim_workspace_offer_launch: {
+        Args: { p_launch_id: string; p_processing_token: string; p_workspace_id: string };
+        Returns: boolean;
+      };
+      renew_workspace_offer_launch_claim: {
+        Args: { p_launch_id: string; p_processing_token: string; p_workspace_id: string };
+        Returns: boolean;
+      };
+      release_workspace_offer_launch_claim: {
+        Args: { p_launch_id: string; p_processing_token: string; p_workspace_id: string };
+        Returns: boolean;
       };
       get_landing_form_config: {
         Args: { p_offer_id: string; p_workspace_id: string };

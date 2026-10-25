@@ -8,7 +8,7 @@ import {
   needsLandingReprepare,
   sha256Hex,
 } from "@/lib/landings/fingerprint";
-import { trackingFingerprint } from "@/lib/tracking-profiles/logic";
+import { trackingFingerprint, type ResolvedTrackingConfig } from "@/lib/tracking-profiles/logic";
 import { TrackingProfileService } from "@/lib/tracking-profiles/service.server";
 import {
   buildAdaptedLandingArchive,
@@ -268,6 +268,17 @@ export class SupabaseLandingRepository implements LandingRepository {
     if (error) throw databaseError(error);
   }
 
+  async resetLaunchDraftError(workspaceId: string, landingId: string): Promise<void> {
+    const { error } = await this.privilegedClient
+      .from("workspace_landings")
+      .update({ status: "draft" })
+      .eq("workspace_id", workspaceId)
+      .eq("id", landingId)
+      .eq("status", "error")
+      .is("deletion_started_at", null);
+    if (error) throw databaseError(error);
+  }
+
   async getDraft(workspaceId: string, landingId: string): Promise<LandingDraftRecord | null> {
     const { data, error } = await this.privilegedClient
       .from("workspace_landings")
@@ -459,6 +470,21 @@ export class SupabaseLandingArchiveStorage implements LandingArchiveStorage {
       contentType: "application/zip",
       cacheControl: "3600",
       upsert: false,
+    });
+    if (error)
+      throw new ApiError(
+        500,
+        "Could not store the private landing archive",
+        "INTERNAL_ERROR",
+        error,
+      );
+  }
+
+  async putReplacing(path: string, archive: Blob): Promise<void> {
+    const { error } = await this.client.storage.from(LANDING_ARCHIVE_BUCKET).upload(path, archive, {
+      contentType: "application/zip",
+      cacheControl: "3600",
+      upsert: true,
     });
     if (error)
       throw new ApiError(
@@ -885,6 +911,96 @@ export class LandingService {
     return { landings: await this.repository.list(workspaceId, search) };
   }
 
+  async stageLaunchArchive(
+    workspaceId: string,
+    launchId: string,
+    archiveSha256: string,
+    archive: Blob,
+  ): Promise<string> {
+    if (!/^[a-f0-9]{64}$/.test(archiveSha256)) {
+      throw new ApiError(400, "Invalid launch archive fingerprint", "VALIDATION_ERROR");
+    }
+    const path = `${workspaceId}/.offer-launches/${launchId}/${archiveSha256}/source.zip`;
+    await this.storage.putReplacing(path, archive);
+    return path;
+  }
+
+  async readStagedLaunchArchive(path: string): Promise<Blob> {
+    return this.storage.download(path);
+  }
+
+  async removeStagedLaunchArchive(path: string): Promise<void> {
+    await this.storage.remove(path);
+  }
+
+  async createOrResumeLaunchDraft(input: {
+    workspaceId: string;
+    landingId: string;
+    createdByUserId: string;
+    offerId: string;
+    name: string;
+    archive: Blob;
+    analysis: LandingArchiveAnalysis;
+  }): Promise<LandingPage> {
+    const existing = await this.repository.getDraft(input.workspaceId, input.landingId);
+    if (!existing) {
+      try {
+        return await createLandingDraft(
+          { repository: this.repository, storage: this.storage },
+          {
+            workspaceId: input.workspaceId,
+            createdByUserId: input.createdByUserId,
+            offerId: input.offerId,
+            name: input.name,
+            archive: input.archive,
+            analysis: input.analysis,
+            createId: () => input.landingId,
+          },
+        );
+      } catch (error) {
+        // A concurrent resume may have inserted the deterministic draft first.
+        // Only treat that unique-ID race as replay; preserve storage failures.
+        if (!(error instanceof ApiError) || error.code !== "CONFLICT") throw error;
+        const raced = await this.repository.getDraft(input.workspaceId, input.landingId);
+        if (!raced) throw error;
+      }
+    }
+
+    const current = await this.repository.getDraft(input.workspaceId, input.landingId);
+    if (!current) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+
+    if (
+      current.offer_id !== input.offerId ||
+      current.name !== input.name ||
+      current.source_archive_path !== `${input.workspaceId}/${input.landingId}/source.zip` ||
+      current.deletion_started_at !== null ||
+      !["draft", "error"].includes(current.status)
+    ) {
+      throw new ApiError(409, "The saved launch draft no longer matches this workflow", "CONFLICT");
+    }
+    if (current.status === "error") {
+      await this.repository.resetLaunchDraftError(input.workspaceId, input.landingId);
+    }
+
+    if (current.adapter_status !== "prepared") {
+      await this.storage.putReplacing(current.source_archive_path, input.archive);
+      const updated = await this.repository.updateDraft({
+        workspaceId: input.workspaceId,
+        landingId: input.landingId,
+        offerId: input.offerId,
+        name: input.name,
+        sourceArchivePath: current.source_archive_path,
+        sourceArchiveBytes: input.archive.size,
+        analysis: input.analysis,
+      });
+      const offer = await this.repository.ensureOffer(input.workspaceId, input.offerId, false);
+      return toLandingPage(updated, offer.name);
+    }
+
+    const offer = await this.repository.ensureOffer(input.workspaceId, input.offerId, false);
+    return toLandingPage(current, offer.name);
+  }
+
   async inspectDraftAdapter(
     workspaceId: string,
     landingId: string,
@@ -991,10 +1107,12 @@ export class LandingService {
   async getPreparedArchiveForPublication(
     workspaceId: string,
     landingId: string,
+    trackingSnapshot?: ResolvedTrackingConfig,
   ): Promise<{ bytes: Uint8Array; buildFingerprint: string }> {
     const selection = await new TrackingProfileService().landingConfiguration(
       workspaceId,
       landingId,
+      trackingSnapshot,
     );
     const readiness = await this.calculatePreparationReadiness(workspaceId, landingId, selection);
     if (!readiness.configuration.readiness.zipReady) {

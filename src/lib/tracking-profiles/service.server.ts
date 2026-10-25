@@ -154,6 +154,7 @@ export class TrackingProfileService {
   async landingConfiguration(
     workspaceId: string,
     landingId: string,
+    trackingSnapshot?: ResolvedTrackingConfig,
   ): Promise<LandingTrackingSelection> {
     const { data, error } = await supabaseAdmin
       .from("workspace_landings")
@@ -165,6 +166,13 @@ export class TrackingProfileService {
       .maybeSingle();
     if (error) throw mapDatabaseError(error);
     if (!data) throw new ApiError(404, "Landing draft not found", "NOT_FOUND");
+    if (
+      trackingSnapshot &&
+      (trackingSnapshot.tiktokProfileId !== data.tiktok_tracking_profile_id ||
+        trackingSnapshot.googleAdsProfileId !== data.google_ads_tracking_profile_id)
+    ) {
+      throw new ApiError(409, "The saved tracking selection does not match this launch", "CONFLICT");
+    }
 
     const [tiktokProfile, googleProfile] = await Promise.all([
       data.tiktok_tracking_profile_id
@@ -174,7 +182,7 @@ export class TrackingProfileService {
         ? this.get(workspaceId, data.google_ads_tracking_profile_id)
         : Promise.resolve(null),
     ]);
-    const liveConfig: ResolvedTrackingConfig = {
+    const liveConfig: ResolvedTrackingConfig = trackingSnapshot ?? {
       tiktokProfileId: data.tiktok_tracking_profile_id,
       tiktokPixelId: tiktokProfile?.tiktok_pixel_id ?? data.tiktok_pixel_id,
       googleAdsProfileId: data.google_ads_tracking_profile_id,
@@ -196,9 +204,14 @@ export class TrackingProfileService {
       tiktokPixelId: liveConfig.tiktokPixelId,
       googleAdsConversionId: liveConfig.googleAdsConversionId,
       googleAdsConversionLabel: liveConfig.googleAdsConversionLabel,
-      tiktokProfileActive: !data.tiktok_tracking_profile_id || tiktokProfile?.is_active === true,
+      tiktokProfileActive:
+        trackingSnapshot !== undefined ||
+        !data.tiktok_tracking_profile_id ||
+        tiktokProfile?.is_active === true,
       googleAdsProfileActive:
-        !data.google_ads_tracking_profile_id || googleProfile?.is_active === true,
+        trackingSnapshot !== undefined ||
+        !data.google_ads_tracking_profile_id ||
+        googleProfile?.is_active === true,
       legacyTikTokPixelId: data.tiktok_tracking_profile_id ? null : data.tiktok_pixel_id,
       legacyGoogleAdsConversionId: data.google_ads_tracking_profile_id
         ? null

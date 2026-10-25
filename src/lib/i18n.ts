@@ -1067,6 +1067,53 @@ const uk = {
     "Спершу перевірте основний домен, потім додавайте субдомени.",
   "Timeout during the DNS/HTTPS check": "Перевірка DNS/HTTPS завершилася за тайм-аутом.",
   "DNS or HTTPS is not reachable": "DNS або HTTPS недоступні.",
+  "Create and get link": "Створити та отримати посилання",
+  "Launch offer": "Підготувати запуск",
+  "Offer price (UAH)": "Ціна офера (грн)",
+  "Available hostname": "Вільна адреса",
+  "No verified free addresses": "Немає вільних перевірених адрес",
+  "Manage domains before launch.": "Спочатку додайте й перевірте адресу в розділі «Домени».",
+  "Tracking pixels (optional)": "Рекламні пікселі (необов'язково)",
+  "No tracking": "Без трекінгу",
+  "Landing ZIP": "ZIP-архів лендингу",
+  "Choose ZIP file": "Оберіть ZIP-файл",
+  "Starting launch": "Запускаємо процес",
+  "Preparing landing": "Готуємо лендинг",
+  "Connecting form": "Підключаємо форму",
+  "Publishing landing": "Публікуємо лендинг",
+  "Launch complete": "Запуск завершено",
+  "The HTTPS link is available.": "Посилання HTTPS готове.",
+  "Continue launch": "Продовжити запуск",
+  "Retry safely": "Безпечно повторити",
+  "Another request is processing this launch.": "Інший запит уже обробляє цей запуск.",
+  "Change hostname and continue": "Обрати іншу адресу й продовжити",
+  "Select another verified hostname": "Оберіть іншу перевірену адресу",
+  "Preparing the launch failed. Your progress is saved.":
+    "Не вдалося підготувати запуск. Прогрес збережено.",
+  "This ZIP needs adaptation before it can be launched.":
+    "Цей ZIP потребує адаптації перед запуском.",
+  "The public Intake API is not configured.": "Не налаштовано публічний API приймання заявок.",
+  "The ZIP or selected tracking profiles conflict with automatic adaptation":
+    "ZIP або вибрані профілі трекінгу конфліктують з автоматичною адаптацією.",
+  "The selected address is no longer free. Choose another verified address.":
+    "Адреса вже зайнята. Оберіть іншу вільну перевірену адресу.",
+  "The selected address needs a fresh DNS and HTTPS check.":
+    "Потрібно повторно перевірити DNS і HTTPS цієї адреси.",
+  "The launch state changed; review the selected hostname":
+    "Стан запуску змінився. Перевірте вибрану адресу й повторіть дію.",
+  "Publication is still being confirmed. Retry to safely continue.":
+    "Публікація ще підтверджується. Повторіть дію, щоб безпечно продовжити.",
+  "Could not load launch options.": "Не вдалося завантажити параметри запуску.",
+  "Choose an active product, a free verified hostname, and a ZIP.":
+    "Оберіть активний товар, вільну перевірену адресу та ZIP.",
+  "Tracking profiles are optional.": "Профілі трекінгу можна не обирати.",
+  "Offer link": "Посилання на лендинг",
+  "Start another launch": "Підготувати ще один запуск",
+  "The launch is already complete.": "Цей запуск уже завершено.",
+  "Waiting for the saved launch…": "Очікуємо на збережений запуск…",
+  "Recovering saved launch…": "Відновлюємо збережений запуск…",
+  "Could not recover the saved launch. Retry loading its state before continuing.":
+    "Не вдалося відновити стан запуску. Повторіть завантаження перед продовженням.",
 } as const;
 
 export type TranslationKey = keyof typeof uk;
@@ -1605,6 +1652,53 @@ const en: Partial<Record<TranslationKey, string>> = {
     "Verify the root domain before adding subdomains.",
   "Timeout during the DNS/HTTPS check": "The DNS/HTTPS check timed out.",
   "DNS or HTTPS is not reachable": "DNS or HTTPS could not be reached.",
+  "Create and get link": "Create and get link",
+  "Launch offer": "Prepare launch",
+  "Offer price (UAH)": "Offer price (UAH)",
+  "Available hostname": "Available address",
+  "No verified free addresses": "No verified free addresses",
+  "Manage domains before launch.": "Add and verify an address in Domains first.",
+  "Tracking pixels (optional)": "Ad pixels (optional)",
+  "No tracking": "No tracking",
+  "Landing ZIP": "Landing ZIP",
+  "Choose ZIP file": "Choose ZIP file",
+  "Starting launch": "Starting launch",
+  "Preparing landing": "Preparing landing",
+  "Connecting form": "Connecting form",
+  "Publishing landing": "Publishing landing",
+  "Launch complete": "Launch complete",
+  "The HTTPS link is available.": "The HTTPS link is ready.",
+  "Continue launch": "Continue launch",
+  "Retry safely": "Retry safely",
+  "Another request is processing this launch.": "Another request is processing this launch.",
+  "Change hostname and continue": "Choose another address and continue",
+  "Select another verified hostname": "Select another verified address",
+  "Preparing the launch failed. Your progress is saved.":
+    "The launch could not be prepared. Your progress is saved.",
+  "This ZIP needs adaptation before it can be launched.":
+    "This ZIP needs adaptation before it can be launched.",
+  "The public Intake API is not configured.": "The public Intake API is not configured.",
+  "The ZIP or selected tracking profiles conflict with automatic adaptation":
+    "The ZIP or selected tracking profiles conflict with automatic adaptation.",
+  "The selected address is no longer free. Choose another verified address.":
+    "That address is no longer free. Choose another verified address.",
+  "The selected address needs a fresh DNS and HTTPS check.":
+    "This address needs a fresh DNS and HTTPS check.",
+  "The launch state changed; review the selected hostname":
+    "The launch state changed. Review the selected address and retry.",
+  "Publication is still being confirmed. Retry to safely continue.":
+    "Publication is still being confirmed. Retry to continue safely.",
+  "Could not load launch options.": "Could not load launch options.",
+  "Choose an active product, a free verified hostname, and a ZIP.":
+    "Choose an active product, a free verified address, and a ZIP.",
+  "Tracking profiles are optional.": "Tracking profiles are optional.",
+  "Offer link": "Landing link",
+  "Start another launch": "Prepare another launch",
+  "The launch is already complete.": "This launch is already complete.",
+  "Waiting for the saved launch…": "Waiting for the saved launch…",
+  "Recovering saved launch…": "Recovering saved launch…",
+  "Could not recover the saved launch. Retry loading its state before continuing.":
+    "Could not recover the saved launch. Retry loading its state before continuing.",
 };
 
 const catalogs = { uk, en } as const;

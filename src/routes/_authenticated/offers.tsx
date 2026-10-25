@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image as ImageIcon, Loader2, Pencil, Plus, Search } from "lucide-react";
+import { Image as ImageIcon, Loader2, Pencil, Plus, Rocket, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
 import { OfferModal } from "@/components/offers/OfferModal";
+import { OfferLaunchDialog } from "@/components/offers/OfferLaunchDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,8 +35,10 @@ function OffersPage() {
   const canReadOffers = permissions["offers.read"] === true;
   const canReadProducts = permissions["products.read"] === true;
   const canManageOffers = permissions["offers.manage"] === true && canReadProducts;
+  const canLaunchOffer = canManageOffers && permissions["landing_pages.manage"] === true;
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [launchOpen, setLaunchOpen] = useState(false);
   const [editingOffer, setEditingOffer] = useState<OfferCatalogItem | null>(null);
 
   const offersQuery = useQuery({
@@ -100,10 +103,18 @@ function OffersPage() {
           <h1 className="mt-1 text-2xl font-bold tracking-tight sm:text-3xl">{t("Offers")}</h1>
         </div>
         {canManageOffers && (
-          <Button onClick={openCreate}>
-            <Plus className="mr-2 h-4 w-4" />
-            {t("Create offer")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {canLaunchOffer && (
+              <Button onClick={() => setLaunchOpen(true)}>
+                <Rocket className="mr-2 h-4 w-4" />
+                {t("Create and get link")}
+              </Button>
+            )}
+            <Button variant="outline" onClick={openCreate}>
+              <Plus className="mr-2 h-4 w-4" />
+              {t("Create offer")}
+            </Button>
+          </div>
         )}
       </header>
 
@@ -143,10 +154,18 @@ function OffersPage() {
               </p>
             )}
             {!search.trim() && canManageOffers && (
-              <Button className="mt-4" onClick={openCreate}>
-                <Plus className="mr-2 h-4 w-4" />
-                {t("Create offer")}
-              </Button>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                {canLaunchOffer && (
+                  <Button onClick={() => setLaunchOpen(true)}>
+                    <Rocket className="mr-2 h-4 w-4" />
+                    {t("Create and get link")}
+                  </Button>
+                )}
+                <Button variant="outline" onClick={openCreate}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("Create offer")}
+                </Button>
+              </div>
             )}
           </div>
         ) : (
@@ -250,6 +269,13 @@ function OffersPage() {
           await saveMutation.mutateAsync(values);
         }}
       />
+      {canLaunchOffer && (
+        <OfferLaunchDialog
+          open={launchOpen}
+          workspaceId={workspaceId}
+          onOpenChange={setLaunchOpen}
+        />
+      )}
     </div>
   );
 }

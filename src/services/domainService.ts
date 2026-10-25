@@ -15,6 +15,13 @@ export const domainService = {
     return response.addresses;
   },
 
+  async listAvailable(workspaceId: string): Promise<DomainAddress[]> {
+    const response = await accessApi.get<{ addresses: DomainAddress[] }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/domain-hosts/available`,
+    );
+    return response.addresses;
+  },
+
   createRoot(workspaceId: string, domainName: string): Promise<{ domainId: string }> {
     return accessApi.post<{ domainId: string; rootHostId: string; created: boolean }>(
       domainsPath(workspaceId),

@@ -34,6 +34,7 @@ import { Route as ApiWorkspacesWorkspaceIdProductsRouteImport } from './routes/a
 import { Route as ApiWorkspacesWorkspaceIdPermissionsRouteImport } from './routes/api/workspaces/$workspaceId/permissions'
 import { Route as ApiWorkspacesWorkspaceIdOrdersRouteImport } from './routes/api/workspaces/$workspaceId/orders'
 import { Route as ApiWorkspacesWorkspaceIdOffersRouteImport } from './routes/api/workspaces/$workspaceId/offers'
+import { Route as ApiWorkspacesWorkspaceIdOfferLaunchesRouteImport } from './routes/api/workspaces/$workspaceId/offer-launches'
 import { Route as ApiWorkspacesWorkspaceIdMembersRouteImport } from './routes/api/workspaces/$workspaceId/members'
 import { Route as ApiWorkspacesWorkspaceIdLandingsRouteImport } from './routes/api/workspaces/$workspaceId/landings'
 import { Route as ApiWorkspacesWorkspaceIdInvitationsRouteImport } from './routes/api/workspaces/$workspaceId/invitations'
@@ -47,6 +48,7 @@ import { Route as ApiWorkspacesWorkspaceIdOrdersContextRouteImport } from './rou
 import { Route as ApiWorkspacesWorkspaceIdOrdersOrderIdRouteImport } from './routes/api/workspaces/$workspaceId/orders/$orderId'
 import { Route as ApiWorkspacesWorkspaceIdOffersCatalogRouteImport } from './routes/api/workspaces/$workspaceId/offers/catalog'
 import { Route as ApiWorkspacesWorkspaceIdOffersOfferIdRouteImport } from './routes/api/workspaces/$workspaceId/offers/$offerId'
+import { Route as ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRouteImport } from './routes/api/workspaces/$workspaceId/offer-launches/$launchId'
 import { Route as ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRouteImport } from './routes/api/workspaces/$workspaceId/nova-poshta/settings'
 import { Route as ApiWorkspacesWorkspaceIdNovaPoshtaDirectoriesRouteImport } from './routes/api/workspaces/$workspaceId/nova-poshta/directories'
 import { Route as ApiWorkspacesWorkspaceIdMembersUserIdRouteImport } from './routes/api/workspaces/$workspaceId/members/$userId'
@@ -196,6 +198,12 @@ const ApiWorkspacesWorkspaceIdOffersRoute =
     path: '/api/workspaces/$workspaceId/offers',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiWorkspacesWorkspaceIdOfferLaunchesRoute =
+  ApiWorkspacesWorkspaceIdOfferLaunchesRouteImport.update({
+    id: '/api/workspaces/$workspaceId/offer-launches',
+    path: '/api/workspaces/$workspaceId/offer-launches',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWorkspacesWorkspaceIdMembersRoute =
   ApiWorkspacesWorkspaceIdMembersRouteImport.update({
     id: '/api/workspaces/$workspaceId/members',
@@ -272,6 +280,12 @@ const ApiWorkspacesWorkspaceIdOffersOfferIdRoute =
     id: '/$offerId',
     path: '/$offerId',
     getParentRoute: () => ApiWorkspacesWorkspaceIdOffersRoute,
+  } as any)
+const ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRoute =
+  ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRouteImport.update({
+    id: '/$launchId',
+    path: '/$launchId',
+    getParentRoute: () => ApiWorkspacesWorkspaceIdOfferLaunchesRoute,
   } as any)
 const ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRoute =
   ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRouteImport.update({
@@ -405,6 +419,7 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
   '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
+  '/api/workspaces/$workspaceId/offer-launches': typeof ApiWorkspacesWorkspaceIdOfferLaunchesRouteWithChildren
   '/api/workspaces/$workspaceId/offers': typeof ApiWorkspacesWorkspaceIdOffersRouteWithChildren
   '/api/workspaces/$workspaceId/orders': typeof ApiWorkspacesWorkspaceIdOrdersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
@@ -417,6 +432,7 @@ export interface FileRoutesByFullPath {
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/nova-poshta/directories': typeof ApiWorkspacesWorkspaceIdNovaPoshtaDirectoriesRoute
   '/api/workspaces/$workspaceId/nova-poshta/settings': typeof ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRoute
+  '/api/workspaces/$workspaceId/offer-launches/$launchId': typeof ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRoute
   '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/orders/$orderId': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdRouteWithChildren
@@ -461,6 +477,7 @@ export interface FileRoutesByTo {
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
   '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
+  '/api/workspaces/$workspaceId/offer-launches': typeof ApiWorkspacesWorkspaceIdOfferLaunchesRouteWithChildren
   '/api/workspaces/$workspaceId/offers': typeof ApiWorkspacesWorkspaceIdOffersRouteWithChildren
   '/api/workspaces/$workspaceId/orders': typeof ApiWorkspacesWorkspaceIdOrdersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
@@ -473,6 +490,7 @@ export interface FileRoutesByTo {
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/nova-poshta/directories': typeof ApiWorkspacesWorkspaceIdNovaPoshtaDirectoriesRoute
   '/api/workspaces/$workspaceId/nova-poshta/settings': typeof ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRoute
+  '/api/workspaces/$workspaceId/offer-launches/$launchId': typeof ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRoute
   '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/orders/$orderId': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdRouteWithChildren
@@ -519,6 +537,7 @@ export interface FileRoutesById {
   '/api/workspaces/$workspaceId/invitations': typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
   '/api/workspaces/$workspaceId/landings': typeof ApiWorkspacesWorkspaceIdLandingsRouteWithChildren
   '/api/workspaces/$workspaceId/members': typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
+  '/api/workspaces/$workspaceId/offer-launches': typeof ApiWorkspacesWorkspaceIdOfferLaunchesRouteWithChildren
   '/api/workspaces/$workspaceId/offers': typeof ApiWorkspacesWorkspaceIdOffersRouteWithChildren
   '/api/workspaces/$workspaceId/orders': typeof ApiWorkspacesWorkspaceIdOrdersRouteWithChildren
   '/api/workspaces/$workspaceId/permissions': typeof ApiWorkspacesWorkspaceIdPermissionsRoute
@@ -531,6 +550,7 @@ export interface FileRoutesById {
   '/api/workspaces/$workspaceId/members/$userId': typeof ApiWorkspacesWorkspaceIdMembersUserIdRoute
   '/api/workspaces/$workspaceId/nova-poshta/directories': typeof ApiWorkspacesWorkspaceIdNovaPoshtaDirectoriesRoute
   '/api/workspaces/$workspaceId/nova-poshta/settings': typeof ApiWorkspacesWorkspaceIdNovaPoshtaSettingsRoute
+  '/api/workspaces/$workspaceId/offer-launches/$launchId': typeof ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRoute
   '/api/workspaces/$workspaceId/offers/$offerId': typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteWithChildren
   '/api/workspaces/$workspaceId/offers/catalog': typeof ApiWorkspacesWorkspaceIdOffersCatalogRoute
   '/api/workspaces/$workspaceId/orders/$orderId': typeof ApiWorkspacesWorkspaceIdOrdersOrderIdRouteWithChildren
@@ -577,6 +597,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/invitations'
     | '/api/workspaces/$workspaceId/landings'
     | '/api/workspaces/$workspaceId/members'
+    | '/api/workspaces/$workspaceId/offer-launches'
     | '/api/workspaces/$workspaceId/offers'
     | '/api/workspaces/$workspaceId/orders'
     | '/api/workspaces/$workspaceId/permissions'
@@ -589,6 +610,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/nova-poshta/directories'
     | '/api/workspaces/$workspaceId/nova-poshta/settings'
+    | '/api/workspaces/$workspaceId/offer-launches/$launchId'
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/orders/$orderId'
@@ -633,6 +655,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/invitations'
     | '/api/workspaces/$workspaceId/landings'
     | '/api/workspaces/$workspaceId/members'
+    | '/api/workspaces/$workspaceId/offer-launches'
     | '/api/workspaces/$workspaceId/offers'
     | '/api/workspaces/$workspaceId/orders'
     | '/api/workspaces/$workspaceId/permissions'
@@ -645,6 +668,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/nova-poshta/directories'
     | '/api/workspaces/$workspaceId/nova-poshta/settings'
+    | '/api/workspaces/$workspaceId/offer-launches/$launchId'
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/orders/$orderId'
@@ -690,6 +714,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/invitations'
     | '/api/workspaces/$workspaceId/landings'
     | '/api/workspaces/$workspaceId/members'
+    | '/api/workspaces/$workspaceId/offer-launches'
     | '/api/workspaces/$workspaceId/offers'
     | '/api/workspaces/$workspaceId/orders'
     | '/api/workspaces/$workspaceId/permissions'
@@ -702,6 +727,7 @@ export interface FileRouteTypes {
     | '/api/workspaces/$workspaceId/members/$userId'
     | '/api/workspaces/$workspaceId/nova-poshta/directories'
     | '/api/workspaces/$workspaceId/nova-poshta/settings'
+    | '/api/workspaces/$workspaceId/offer-launches/$launchId'
     | '/api/workspaces/$workspaceId/offers/$offerId'
     | '/api/workspaces/$workspaceId/offers/catalog'
     | '/api/workspaces/$workspaceId/orders/$orderId'
@@ -739,6 +765,7 @@ export interface RootRouteChildren {
   ApiWorkspacesWorkspaceIdInvitationsRoute: typeof ApiWorkspacesWorkspaceIdInvitationsRouteWithChildren
   ApiWorkspacesWorkspaceIdLandingsRoute: typeof ApiWorkspacesWorkspaceIdLandingsRouteWithChildren
   ApiWorkspacesWorkspaceIdMembersRoute: typeof ApiWorkspacesWorkspaceIdMembersRouteWithChildren
+  ApiWorkspacesWorkspaceIdOfferLaunchesRoute: typeof ApiWorkspacesWorkspaceIdOfferLaunchesRouteWithChildren
   ApiWorkspacesWorkspaceIdOffersRoute: typeof ApiWorkspacesWorkspaceIdOffersRouteWithChildren
   ApiWorkspacesWorkspaceIdOrdersRoute: typeof ApiWorkspacesWorkspaceIdOrdersRouteWithChildren
   ApiWorkspacesWorkspaceIdPermissionsRoute: typeof ApiWorkspacesWorkspaceIdPermissionsRoute
@@ -929,6 +956,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdOffersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/workspaces/$workspaceId/offer-launches': {
+      id: '/api/workspaces/$workspaceId/offer-launches'
+      path: '/api/workspaces/$workspaceId/offer-launches'
+      fullPath: '/api/workspaces/$workspaceId/offer-launches'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdOfferLaunchesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/workspaces/$workspaceId/members': {
       id: '/api/workspaces/$workspaceId/members'
       path: '/api/workspaces/$workspaceId/members'
@@ -1019,6 +1053,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/workspaces/$workspaceId/offers/$offerId'
       preLoaderRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdRouteImport
       parentRoute: typeof ApiWorkspacesWorkspaceIdOffersRoute
+    }
+    '/api/workspaces/$workspaceId/offer-launches/$launchId': {
+      id: '/api/workspaces/$workspaceId/offer-launches/$launchId'
+      path: '/$launchId'
+      fullPath: '/api/workspaces/$workspaceId/offer-launches/$launchId'
+      preLoaderRoute: typeof ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRouteImport
+      parentRoute: typeof ApiWorkspacesWorkspaceIdOfferLaunchesRoute
     }
     '/api/workspaces/$workspaceId/nova-poshta/settings': {
       id: '/api/workspaces/$workspaceId/nova-poshta/settings'
@@ -1265,6 +1306,21 @@ const ApiWorkspacesWorkspaceIdMembersRouteWithChildren =
     ApiWorkspacesWorkspaceIdMembersRouteChildren,
   )
 
+interface ApiWorkspacesWorkspaceIdOfferLaunchesRouteChildren {
+  ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRoute: typeof ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRoute
+}
+
+const ApiWorkspacesWorkspaceIdOfferLaunchesRouteChildren: ApiWorkspacesWorkspaceIdOfferLaunchesRouteChildren =
+  {
+    ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRoute:
+      ApiWorkspacesWorkspaceIdOfferLaunchesLaunchIdRoute,
+  }
+
+const ApiWorkspacesWorkspaceIdOfferLaunchesRouteWithChildren =
+  ApiWorkspacesWorkspaceIdOfferLaunchesRoute._addFileChildren(
+    ApiWorkspacesWorkspaceIdOfferLaunchesRouteChildren,
+  )
+
 interface ApiWorkspacesWorkspaceIdOffersOfferIdRouteChildren {
   ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute: typeof ApiWorkspacesWorkspaceIdOffersOfferIdIntakeFormRoute
 }
@@ -1389,6 +1445,8 @@ const rootRouteChildren: RootRouteChildren = {
     ApiWorkspacesWorkspaceIdLandingsRouteWithChildren,
   ApiWorkspacesWorkspaceIdMembersRoute:
     ApiWorkspacesWorkspaceIdMembersRouteWithChildren,
+  ApiWorkspacesWorkspaceIdOfferLaunchesRoute:
+    ApiWorkspacesWorkspaceIdOfferLaunchesRouteWithChildren,
   ApiWorkspacesWorkspaceIdOffersRoute:
     ApiWorkspacesWorkspaceIdOffersRouteWithChildren,
   ApiWorkspacesWorkspaceIdOrdersRoute:
