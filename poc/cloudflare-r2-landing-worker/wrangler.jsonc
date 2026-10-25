@@ -1,0 +1,12 @@
+{
+  "name": "crmonia-landing-poc",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-25",
+  "workers_dev": true,
+  "r2_buckets": [
+    {
+      "binding": "LANDING_BUCKET",
+      "bucket_name": "crmonia-landing-poc-test",
+    },
+  ],
+}
