@@ -124,7 +124,9 @@ export function LandingDraftDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{isEditing ? t("Edit landing draft") : t("Prepare launch")}</DialogTitle>
+          <DialogTitle>
+            {isEditing ? t("Edit landing draft") : t("Add landing to an offer")}
+          </DialogTitle>
           <DialogDescription>
             {isEditing
               ? t("Update the draft details or replace its source ZIP.")
@@ -291,7 +293,7 @@ export function LandingDraftDialog({
               ) : (
                 <Upload className="mr-2 h-4 w-4" />
               )}
-              {isEditing ? t("Save changes") : t("Prepare launch")}
+              {isEditing ? t("Save changes") : t("Add landing")}
             </Button>
           </DialogFooter>
         </form>

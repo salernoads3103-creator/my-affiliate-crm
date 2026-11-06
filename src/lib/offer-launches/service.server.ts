@@ -262,28 +262,57 @@ export class OfferLaunchRepository {
     }
     return row.publication_attempt;
   }
+
+  async listRows(workspaceId: string): Promise<LaunchRow[]> {
+    const { data, error } = await this.client
+      .from("workspace_offer_launch_workflows")
+      .select("*")
+      .eq("workspace_id", workspaceId)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw rpcError(error);
+    return data ?? [];
+  }
 }
 
 export function launchStageView(row: LaunchRow): {
   launchId: string;
   offerId: string;
   offerName: string;
+  productId: string;
   stage: LaunchStage;
   lastErrorCode: OfferLaunchErrorCode | null;
   url: string | null;
   isProcessing: boolean;
   hostId: string;
+  publicationAttempt: number;
+  createdAt: string;
 } {
   return {
     launchId: row.id,
     offerId: row.offer_id,
     offerName: row.offer_name,
+    productId: row.product_id,
     stage: row.stage,
     lastErrorCode: row.last_error_code as OfferLaunchErrorCode | null,
     url: row.stage === "published" ? row.published_url : null,
     isProcessing: row.processing_until !== null && Date.parse(row.processing_until) > Date.now(),
     hostId: row.domain_host_id,
+    publicationAttempt: row.publication_attempt,
+    createdAt: row.created_at,
   };
+}
+
+export async function listSavedOfferLaunches(workspaceId: string) {
+  const [rows, addresses] = await Promise.all([
+    new OfferLaunchRepository().listRows(workspaceId),
+    new DomainService().listAddresses(workspaceId),
+  ]);
+  const hostnameById = new Map(addresses.map((address) => [address.id, address.hostname]));
+  return rows.map((row) => ({
+    ...launchStageView(row),
+    hostname: hostnameById.get(row.domain_host_id) ?? null,
+  }));
 }
 
 export async function continueSavedOfferLaunch(input: {

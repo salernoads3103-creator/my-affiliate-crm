@@ -1,11 +1,10 @@
 import { useState } from "react";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image as ImageIcon, Loader2, Pencil, Plus, Rocket, Search } from "lucide-react";
+import { Image as ImageIcon, Loader2, Pencil, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
 import { OfferModal } from "@/components/offers/OfferModal";
-import { OfferLaunchDialog } from "@/components/offers/OfferLaunchDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +37,6 @@ function OffersPage() {
   const canLaunchOffer = canManageOffers && permissions["landing_pages.manage"] === true;
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
-  const [launchOpen, setLaunchOpen] = useState(false);
   const [editingOffer, setEditingOffer] = useState<OfferCatalogItem | null>(null);
 
   const offersQuery = useQuery({
@@ -105,9 +103,8 @@ function OffersPage() {
         {canManageOffers && (
           <div className="flex flex-wrap gap-2">
             {canLaunchOffer && (
-              <Button onClick={() => setLaunchOpen(true)}>
-                <Rocket className="mr-2 h-4 w-4" />
-                {t("Create and get link")}
+              <Button asChild>
+                <Link to="/launches">{t("Create launch")}</Link>
               </Button>
             )}
             <Button variant="outline" onClick={openCreate}>
@@ -156,9 +153,8 @@ function OffersPage() {
             {!search.trim() && canManageOffers && (
               <div className="mt-4 flex flex-wrap justify-center gap-2">
                 {canLaunchOffer && (
-                  <Button onClick={() => setLaunchOpen(true)}>
-                    <Rocket className="mr-2 h-4 w-4" />
-                    {t("Create and get link")}
+                  <Button asChild>
+                    <Link to="/launches">{t("Create launch")}</Link>
                   </Button>
                 )}
                 <Button variant="outline" onClick={openCreate}>
@@ -269,13 +265,6 @@ function OffersPage() {
           await saveMutation.mutateAsync(values);
         }}
       />
-      {canLaunchOffer && (
-        <OfferLaunchDialog
-          open={launchOpen}
-          workspaceId={workspaceId}
-          onOpenChange={setLaunchOpen}
-        />
-      )}
     </div>
   );
 }

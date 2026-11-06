@@ -599,7 +599,7 @@ function LandingsPage() {
         {canCreateLandings && (
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="mr-2 h-4 w-4" />
-            {t("Prepare launch")}
+            {t("Add landing")}
           </Button>
         )}
       </header>
@@ -640,7 +640,7 @@ function LandingsPage() {
             {!search.trim() && canCreateLandings && (
               <Button className="mt-4" onClick={() => setDialogOpen(true)}>
                 <Plus className="mr-2 h-4 w-4" />
-                {t("Prepare launch")}
+                {t("Add landing")}
               </Button>
             )}
           </div>

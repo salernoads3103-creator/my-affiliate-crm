@@ -13,12 +13,12 @@ import {
   Sun,
   Languages,
   Package,
-  Tag,
-  Files,
   ShoppingCart,
-  Radio,
-  Globe2,
   Building2,
+  Globe2,
+  Rocket,
+  Radio,
+  type LucideIcon,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -37,12 +37,57 @@ import {
 import { useCommandPalette } from "@/hooks/useCommandPalette";
 import { canAccessAdministration, useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import { t, type Locale, type TranslationKey } from "@/lib/i18n";
+import {
+  hasSidebarPermission,
+  isActiveSidebarRoute,
+  type SidebarPermission,
+} from "@/lib/navigation";
 import type { ThemePreference } from "@/lib/theme";
 
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/leads", label: "Leads", icon: Users },
-] as const;
+type NavItem = {
+  to:
+    | "/dashboard"
+    | "/leads"
+    | "/orders"
+    | "/launches"
+    | "/products"
+    | "/domains"
+    | "/pixels"
+    | "/administration";
+  label: TranslationKey;
+  icon: LucideIcon;
+  permission?: SidebarPermission;
+};
+const NAV_GROUPS: { label: TranslationKey; items: NavItem[] }[] = [
+  {
+    label: "Work",
+    items: [
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/leads", label: "Leads", icon: Users },
+      { to: "/orders", label: "Orders", icon: ShoppingCart, permission: "orders.read" },
+    ],
+  },
+  {
+    label: "Launches",
+    items: [
+      { to: "/products", label: "Products", icon: Package, permission: "products.read" },
+      { to: "/launches", label: "Launches", icon: Rocket, permission: "launches" },
+      { to: "/domains", label: "Domains", icon: Globe2, permission: "landing_pages.read" },
+      { to: "/pixels", label: "Pixels", icon: Radio, permission: "landing_pages.read" },
+    ],
+  },
+  {
+    label: "System",
+    items: [
+      {
+        to: "/administration",
+        label: "Administration",
+        icon: Users,
+        permission: "administration",
+      },
+    ],
+  },
+];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -53,28 +98,12 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { locale, setLocale } = useLocale();
   const { open, setOpen } = useCommandPalette();
   const { permissions, workspace, workspaces, setWorkspaceId } = useWorkspaceAccess();
-  const navItems = [
-    ...NAV,
-    ...(permissions["products.read"]
-      ? [{ to: "/products" as const, label: "Products", icon: Package }]
-      : []),
-    ...(permissions["offers.read"] ? [{ to: "/offers" as const, label: "Offers", icon: Tag }] : []),
-    ...(permissions["orders.read"] || permissions["orders.manage"]
-      ? [{ to: "/orders" as const, label: "Orders", icon: ShoppingCart }]
-      : []),
-    ...(permissions["landing_pages.read"] || permissions["landing_pages.manage"]
-      ? [{ to: "/landings" as const, label: "Landing pages", icon: Files }]
-      : []),
-    ...(permissions["landing_pages.read"] || permissions["landing_pages.manage"]
-      ? [{ to: "/domains" as const, label: "Domains", icon: Globe2 }]
-      : []),
-    ...(permissions["landing_pages.read"] || permissions["landing_pages.manage"]
-      ? [{ to: "/pixels" as const, label: "Pixels", icon: Radio }]
-      : []),
-    ...(canAccessAdministration(permissions)
-      ? [{ to: "/administration" as const, label: "Administration", icon: Users }]
-      : []),
-  ];
+  const navGroups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) =>
+      hasSidebarPermission(item.permission, permissions, canAccessAdministration),
+    ),
+  })).filter((group) => group.items.length > 0);
 
   const signOut = async () => {
     await queryClient.cancelQueries();
@@ -138,33 +167,42 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       )}
 
-      <nav className="flex-1 px-3 space-y-1">
-        {navItems.map((item) => {
-          const active = pathname.startsWith(item.to);
-          const Icon = item.icon;
-          return (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={() => setMobileOpen(false)}
-              className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                active
-                  ? "text-primary-foreground"
-                  : "text-foreground/70 hover:text-foreground hover:bg-muted/60"
-              }`}
-            >
-              {active && (
-                <motion.span
-                  layoutId="nav-active"
-                  className="absolute inset-0 rounded-xl gradient-brand shadow-lg shadow-primary/25"
-                  transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                />
-              )}
-              <Icon className="relative h-4 w-4" />
-              <span className="relative">{t(item.label as TranslationKey)}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3">
+        {navGroups.map((group) => (
+          <section key={group.label} aria-label={t(group.label)}>
+            <h2 className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+              {t(group.label)}
+            </h2>
+            <div className="space-y-1">
+              {group.items.map((item) => {
+                const active = isActiveSidebarRoute(pathname, item.to);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.to}
+                    to={item.to}
+                    onClick={() => setMobileOpen(false)}
+                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                      active
+                        ? "text-primary-foreground"
+                        : "text-foreground/70 hover:bg-muted/60 hover:text-foreground"
+                    }`}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="nav-active"
+                        className="absolute inset-0 rounded-xl gradient-brand shadow-lg shadow-primary/25"
+                        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                      />
+                    )}
+                    <Icon className="relative h-4 w-4" />
+                    <span className="relative">{t(item.label)}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </section>
+        ))}
       </nav>
 
       <div className="p-4 space-y-2">

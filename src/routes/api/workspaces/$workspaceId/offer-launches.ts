@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   accessErrorResponse,
   accessSuccessResponse,
+  hasWorkspacePermission,
   requireAccessContext,
   requireWorkspacePermission,
 } from "@/lib/access/access.server";
@@ -20,6 +21,7 @@ import { parseUahToMinorUnits } from "@/lib/products/money";
 import {
   OfferLaunchRepository,
   continueSavedOfferLaunch,
+  listSavedOfferLaunches,
 } from "@/lib/offer-launches/service.server";
 import { launchRequestFingerprint } from "@/lib/offer-launches/workflow";
 import { MAX_LANDING_ARCHIVE_BYTES } from "@/lib/landings/validation";
@@ -52,6 +54,23 @@ async function sha256(bytes: Uint8Array): Promise<string> {
 export const Route = createFileRoute("/api/workspaces/$workspaceId/offer-launches")({
   server: {
     handlers: {
+      GET: async ({ request, params }) => {
+        try {
+          const workspaceId = parseLandingRouteId(params.workspaceId, "workspace");
+          const context = await requireAccessContext(request);
+          await requireWorkspacePermission(context, workspaceId, "offers.read");
+          await requireWorkspacePermission(context, workspaceId, "products.read");
+          const canReadLandings =
+            (await hasWorkspacePermission(context, workspaceId, "landing_pages.read")) ||
+            (await hasWorkspacePermission(context, workspaceId, "landing_pages.manage"));
+          if (!canReadLandings) {
+            throw new ApiError(403, "Insufficient workspace permissions");
+          }
+          return accessSuccessResponse(await listSavedOfferLaunches(workspaceId));
+        } catch (error) {
+          return accessErrorResponse(error);
+        }
+      },
       POST: async ({ request, params }) => {
         try {
           const workspaceId = parseLandingRouteId(params.workspaceId, "workspace");

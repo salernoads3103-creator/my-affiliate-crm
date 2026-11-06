@@ -19,13 +19,19 @@ export type OfferLaunchStatus = {
   isProcessing: boolean;
   hostId: string;
   hostname: string | null;
+  productId?: string;
+  publicationAttempt?: number;
+  createdAt?: string;
 };
+
+export type OfferLaunchListResponse = OfferLaunchStatus[];
 
 function basePath(workspaceId: string) {
   return `/api/workspaces/${encodeURIComponent(workspaceId)}/offer-launches`;
 }
 
 export const offerLaunchService = {
+  list: (workspaceId: string) => accessApi.get<OfferLaunchListResponse>(basePath(workspaceId)),
   start: (
     workspaceId: string,
     input: {

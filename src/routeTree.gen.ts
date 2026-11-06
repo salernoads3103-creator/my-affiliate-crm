@@ -19,7 +19,9 @@ import { Route as AuthenticatedPixelsRouteImport } from './routes/_authenticated
 import { Route as AuthenticatedOrdersRouteImport } from './routes/_authenticated/orders'
 import { Route as AuthenticatedOffersRouteImport } from './routes/_authenticated/offers'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
+import { Route as AuthenticatedLaunchesRouteImport } from './routes/_authenticated/launches'
 import { Route as AuthenticatedLandingsRouteImport } from './routes/_authenticated/landings'
+import { Route as AuthenticatedIntegrationsRouteImport } from './routes/_authenticated/integrations'
 import { Route as AuthenticatedDomainsRouteImport } from './routes/_authenticated/domains'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
 import { Route as AuthenticatedAdministrationRouteImport } from './routes/_authenticated/administration'
@@ -119,11 +121,22 @@ const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
   path: '/leads',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedLaunchesRoute = AuthenticatedLaunchesRouteImport.update({
+  id: '/launches',
+  path: '/launches',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedLandingsRoute = AuthenticatedLandingsRouteImport.update({
   id: '/landings',
   path: '/landings',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedIntegrationsRoute =
+  AuthenticatedIntegrationsRouteImport.update({
+    id: '/integrations',
+    path: '/integrations',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedDomainsRoute = AuthenticatedDomainsRouteImport.update({
   id: '/domains',
   path: '/domains',
@@ -420,7 +433,9 @@ export interface FileRoutesByFullPath {
   '/administration': typeof AuthenticatedAdministrationRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/domains': typeof AuthenticatedDomainsRoute
+  '/integrations': typeof AuthenticatedIntegrationsRoute
   '/landings': typeof AuthenticatedLandingsRoute
+  '/launches': typeof AuthenticatedLaunchesRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/offers': typeof AuthenticatedOffersRoute
   '/orders': typeof AuthenticatedOrdersRoute
@@ -481,7 +496,9 @@ export interface FileRoutesByTo {
   '/administration': typeof AuthenticatedAdministrationRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/domains': typeof AuthenticatedDomainsRoute
+  '/integrations': typeof AuthenticatedIntegrationsRoute
   '/landings': typeof AuthenticatedLandingsRoute
+  '/launches': typeof AuthenticatedLaunchesRoute
   '/leads': typeof AuthenticatedLeadsRoute
   '/offers': typeof AuthenticatedOffersRoute
   '/orders': typeof AuthenticatedOrdersRoute
@@ -544,7 +561,9 @@ export interface FileRoutesById {
   '/_authenticated/administration': typeof AuthenticatedAdministrationRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/domains': typeof AuthenticatedDomainsRoute
+  '/_authenticated/integrations': typeof AuthenticatedIntegrationsRoute
   '/_authenticated/landings': typeof AuthenticatedLandingsRoute
+  '/_authenticated/launches': typeof AuthenticatedLaunchesRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRoute
   '/_authenticated/offers': typeof AuthenticatedOffersRoute
   '/_authenticated/orders': typeof AuthenticatedOrdersRoute
@@ -607,7 +626,9 @@ export interface FileRouteTypes {
     | '/administration'
     | '/dashboard'
     | '/domains'
+    | '/integrations'
     | '/landings'
+    | '/launches'
     | '/leads'
     | '/offers'
     | '/orders'
@@ -668,7 +689,9 @@ export interface FileRouteTypes {
     | '/administration'
     | '/dashboard'
     | '/domains'
+    | '/integrations'
     | '/landings'
+    | '/launches'
     | '/leads'
     | '/offers'
     | '/orders'
@@ -730,7 +753,9 @@ export interface FileRouteTypes {
     | '/_authenticated/administration'
     | '/_authenticated/dashboard'
     | '/_authenticated/domains'
+    | '/_authenticated/integrations'
     | '/_authenticated/landings'
+    | '/_authenticated/launches'
     | '/_authenticated/leads'
     | '/_authenticated/offers'
     | '/_authenticated/orders'
@@ -891,11 +916,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedLeadsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/launches': {
+      id: '/_authenticated/launches'
+      path: '/launches'
+      fullPath: '/launches'
+      preLoaderRoute: typeof AuthenticatedLaunchesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/landings': {
       id: '/_authenticated/landings'
       path: '/landings'
       fullPath: '/landings'
       preLoaderRoute: typeof AuthenticatedLandingsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/integrations': {
+      id: '/_authenticated/integrations'
+      path: '/integrations'
+      fullPath: '/integrations'
+      preLoaderRoute: typeof AuthenticatedIntegrationsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/domains': {
@@ -1248,7 +1287,9 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedAdministrationRoute: typeof AuthenticatedAdministrationRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
   AuthenticatedDomainsRoute: typeof AuthenticatedDomainsRoute
+  AuthenticatedIntegrationsRoute: typeof AuthenticatedIntegrationsRoute
   AuthenticatedLandingsRoute: typeof AuthenticatedLandingsRoute
+  AuthenticatedLaunchesRoute: typeof AuthenticatedLaunchesRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRoute
   AuthenticatedOffersRoute: typeof AuthenticatedOffersRoute
   AuthenticatedOrdersRoute: typeof AuthenticatedOrdersRoute
@@ -1260,7 +1301,9 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAdministrationRoute: AuthenticatedAdministrationRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedDomainsRoute: AuthenticatedDomainsRoute,
+  AuthenticatedIntegrationsRoute: AuthenticatedIntegrationsRoute,
   AuthenticatedLandingsRoute: AuthenticatedLandingsRoute,
+  AuthenticatedLaunchesRoute: AuthenticatedLaunchesRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRoute,
   AuthenticatedOffersRoute: AuthenticatedOffersRoute,
   AuthenticatedOrdersRoute: AuthenticatedOrdersRoute,

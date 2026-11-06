@@ -2,9 +2,10 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ExternalLink, Loader2, Rocket } from "lucide-react";
+import { Check, ExternalLink, Loader2, Plus, Rocket } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
+import { ProductModal } from "@/components/products/ProductModal";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,10 +32,15 @@ import { offerLaunchService, type OfferLaunchStatus } from "@/services/offerLaun
 import { formatMinorUnits, formatMinorUnitsInput } from "@/lib/products/money";
 import { localizeError, t, type TranslationKey } from "@/lib/i18n";
 import type { DomainAddress } from "@/lib/domains/types";
+import type { ProductWriteRequest } from "@/lib/products/types";
+import type { TrackingPlatform, TrackingProfileWriteInput } from "@/lib/tracking-profiles/types";
 
 type Props = {
   open: boolean;
   workspaceId: string;
+  canCreateProduct?: boolean;
+  canReadCost?: boolean;
+  initialLaunchId?: string | null;
   onOpenChange: (open: boolean) => void;
 };
 
@@ -76,7 +82,14 @@ function errorCopy(code: OfferLaunchStatus["lastErrorCode"]): TranslationKey | n
   }
 }
 
-export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
+export function OfferLaunchDialog({
+  open,
+  workspaceId,
+  canCreateProduct = false,
+  canReadCost = false,
+  initialLaunchId = null,
+  onOpenChange,
+}: Props) {
   const { locale } = useLocale();
   const queryClient = useQueryClient();
   const storageKey = `crmonia:offer-launch:${workspaceId}`;
@@ -90,14 +103,27 @@ export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
   const [googleProfileId, setGoogleProfileId] = useState("none");
   const [archive, setArchive] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [productSaving, setProductSaving] = useState(false);
+  const [profileDialogOpen, setProfileDialogOpen] = useState(false);
+  const [profilePlatform, setProfilePlatform] = useState<TrackingPlatform>("tiktok");
+  const [profileName, setProfileName] = useState("");
+  const [tiktokPixelId, setTiktokPixelId] = useState("");
+  const [googleAdsConversionId, setGoogleAdsConversionId] = useState("");
+  const [googleAdsConversionLabel, setGoogleAdsConversionLabel] = useState("");
+  const [profileSaving, setProfileSaving] = useState(false);
 
   useEffect(() => {
     if (!open || typeof window === "undefined") return;
     const stored = window.localStorage.getItem(storageKey);
-    setLaunchId(stored && /^[0-9a-f-]{36}$/i.test(stored) ? stored : null);
+    const requested =
+      initialLaunchId && /^[0-9a-f-]{36}$/i.test(initialLaunchId) ? initialLaunchId : null;
+    const nextLaunchId = requested ?? (stored && /^[0-9a-f-]{36}$/i.test(stored) ? stored : null);
+    if (nextLaunchId) window.localStorage.setItem(storageKey, nextLaunchId);
+    setLaunchId(nextLaunchId);
     setRunStatus(null);
     setFormError(null);
-  }, [open, storageKey]);
+  }, [open, storageKey, initialLaunchId]);
 
   const productsQuery = useQuery({
     queryKey: ["products", workspaceId, "offer-launch"],
@@ -137,12 +163,15 @@ export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
     onSuccess: async (status) => {
       setRunStatus(status);
       await queryClient.invalidateQueries({ queryKey: OFFERS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ["workspace-landings", workspaceId] });
+      await queryClient.invalidateQueries({ queryKey: ["offer-launches", workspaceId] });
       await queryClient.invalidateQueries({ queryKey: ["offer-launch", workspaceId] });
     },
     onError: async (error) => {
       setFormError(
         localizeError(error, t("Preparing the launch failed. Your progress is saved."), locale),
       );
+      await queryClient.invalidateQueries({ queryKey: ["offer-launches", workspaceId] });
       await queryClient.invalidateQueries({ queryKey: ["offer-launch", workspaceId] });
       await Promise.all([
         statusQuery.refetch().catch(() => undefined),
@@ -158,6 +187,8 @@ export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
     onSuccess: async (status) => {
       setRunStatus(status);
       await queryClient.invalidateQueries({ queryKey: OFFERS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ["workspace-landings", workspaceId] });
+      await queryClient.invalidateQueries({ queryKey: ["offer-launches", workspaceId] });
       await queryClient.invalidateQueries({ queryKey: ["offer-launch", workspaceId, launchId] });
       await domainsQuery.refetch();
     },
@@ -165,6 +196,7 @@ export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
       toast.error(
         localizeError(error, t("Preparing the launch failed. Your progress is saved."), locale),
       );
+      await queryClient.invalidateQueries({ queryKey: ["offer-launches", workspaceId] });
       await Promise.all([
         statusQuery.refetch().catch(() => undefined),
         domainsQuery.refetch().catch(() => undefined),
@@ -184,6 +216,61 @@ export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
   const isBusy =
     startMutation.isPending || resumeMutation.isPending || Boolean(status?.isProcessing);
   const message = status?.lastErrorCode ? errorCopy(status.lastErrorCode) : null;
+
+  const createProduct = async (values: ProductWriteRequest) => {
+    setProductSaving(true);
+    try {
+      const created = await productService.create(workspaceId, values);
+      await queryClient.invalidateQueries({ queryKey: ["products", workspaceId] });
+      await productsQuery.refetch();
+      setProductId(created.id);
+      setOfferName(values.name.trim());
+      setPriceUah(values.salePrice);
+      setProductDialogOpen(false);
+    } catch (error) {
+      toast.error(localizeError(error, t("Failed to save product"), locale));
+    } finally {
+      setProductSaving(false);
+    }
+  };
+
+  const openProfileDialog = (platform: TrackingPlatform) => {
+    setProfilePlatform(platform);
+    setProfileName("");
+    setTiktokPixelId("");
+    setGoogleAdsConversionId("");
+    setGoogleAdsConversionLabel("");
+    setProfileDialogOpen(true);
+  };
+
+  const createTrackingProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = profileName.trim();
+    if (!name || profileSaving) return;
+    const input: TrackingProfileWriteInput =
+      profilePlatform === "tiktok"
+        ? { name, platform: "tiktok", tiktokPixelId: tiktokPixelId.trim(), isActive: true }
+        : {
+            name,
+            platform: "google_ads",
+            googleAdsConversionId: googleAdsConversionId.trim(),
+            googleAdsConversionLabel: googleAdsConversionLabel.trim(),
+            isActive: true,
+          };
+    setProfileSaving(true);
+    try {
+      const profile = await trackingProfileService.create(workspaceId, input);
+      await queryClient.invalidateQueries({ queryKey: ["tracking-profiles", workspaceId] });
+      await profilesQuery.refetch();
+      if (profile.platform === "tiktok") setTiktokProfileId(profile.id);
+      else setGoogleProfileId(profile.id);
+      setProfileDialogOpen(false);
+    } catch (error) {
+      toast.error(localizeError(error, t("Could not save tracking profile"), locale));
+    } finally {
+      setProfileSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (status?.hostId && addresses.some((address) => address.id === status.hostId)) {
@@ -370,6 +457,17 @@ export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
                   ))}
                 </SelectContent>
               </Select>
+              {canCreateProduct && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setProductDialogOpen(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  {t("Add product")}
+                </Button>
+              )}
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -429,32 +527,54 @@ export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
                 {t("Tracking profiles are optional.")}
               </p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Select value={tiktokProfileId} onValueChange={setTiktokProfileId}>
-                  <SelectTrigger aria-label="TikTok">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">TikTok · {t("No tracking")}</SelectItem>
-                    {tiktokProfiles.map((profile) => (
-                      <SelectItem key={profile.id} value={profile.id}>
-                        TikTok · {profile.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={googleProfileId} onValueChange={setGoogleProfileId}>
-                  <SelectTrigger aria-label="Google Ads">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Google Ads · {t("No tracking")}</SelectItem>
-                    {googleProfiles.map((profile) => (
-                      <SelectItem key={profile.id} value={profile.id}>
-                        Google Ads · {profile.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Select value={tiktokProfileId} onValueChange={setTiktokProfileId}>
+                    <SelectTrigger aria-label="TikTok">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">TikTok · {t("No tracking")}</SelectItem>
+                      {tiktokProfiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          TikTok · {profile.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openProfileDialog("tiktok")}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t("Add tracking profile")}
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Select value={googleProfileId} onValueChange={setGoogleProfileId}>
+                    <SelectTrigger aria-label="Google Ads">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Google Ads · {t("No tracking")}</SelectItem>
+                      {googleProfiles.map((profile) => (
+                        <SelectItem key={profile.id} value={profile.id}>
+                          Google Ads · {profile.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => openProfileDialog("google_ads")}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    {t("Add tracking profile")}
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -498,6 +618,85 @@ export function OfferLaunchDialog({ open, workspaceId, onOpenChange }: Props) {
           </form>
         )}
       </DialogContent>
+      <ProductModal
+        open={productDialogOpen}
+        product={null}
+        canReadCost={canReadCost}
+        saving={productSaving}
+        onOpenChange={setProductDialogOpen}
+        onSave={createProduct}
+      />
+      <Dialog open={profileDialogOpen} onOpenChange={setProfileDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("Add tracking profile")}</DialogTitle>
+            <DialogDescription>
+              {profilePlatform === "tiktok" ? t("TikTok Ads") : t("Google Ads")}
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={(event) => void createTrackingProfile(event)}>
+            <div className="space-y-2">
+              <Label htmlFor="launch-profile-name">{t("Profile name")}</Label>
+              <Input
+                id="launch-profile-name"
+                value={profileName}
+                maxLength={120}
+                onChange={(event) => setProfileName(event.target.value)}
+                required
+              />
+            </div>
+            {profilePlatform === "tiktok" ? (
+              <div className="space-y-2">
+                <Label htmlFor="launch-tiktok-id">{t("Pixel ID")}</Label>
+                <Input
+                  id="launch-tiktok-id"
+                  value={tiktokPixelId}
+                  maxLength={64}
+                  onChange={(event) => setTiktokPixelId(event.target.value)}
+                  required
+                />
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="launch-google-id">{t("Conversion ID")}</Label>
+                  <Input
+                    id="launch-google-id"
+                    value={googleAdsConversionId}
+                    maxLength={23}
+                    onChange={(event) => setGoogleAdsConversionId(event.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="launch-google-label">{t("Conversion label")}</Label>
+                  <Input
+                    id="launch-google-label"
+                    value={googleAdsConversionLabel}
+                    maxLength={128}
+                    onChange={(event) => setGoogleAdsConversionLabel(event.target.value)}
+                    required
+                  />
+                </div>
+              </>
+            )}
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setProfileDialogOpen(false)}
+                disabled={profileSaving}
+              >
+                {t("Cancel")}
+              </Button>
+              <Button type="submit" disabled={profileSaving || !profileName.trim()}>
+                {profileSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t("Save changes")}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
