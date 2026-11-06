@@ -18,6 +18,7 @@ import {
   ShoppingCart,
   Radio,
   Globe2,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -51,7 +52,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { theme, preference, setPreference } = useTheme();
   const { locale, setLocale } = useLocale();
   const { open, setOpen } = useCommandPalette();
-  const { permissions } = useWorkspaceAccess();
+  const { permissions, workspace, workspaces, setWorkspaceId } = useWorkspaceAccess();
   const navItems = [
     ...NAV,
     ...(permissions["products.read"]
@@ -105,6 +106,37 @@ export function AppShell({ children }: { children: ReactNode }) {
         </span>
         <kbd className="text-[10px] rounded bg-background px-1.5 py-0.5 border">⌘K</kbd>
       </button>
+
+      {workspaces.length > 1 && (
+        <div className="px-4 mb-4">
+          <label className="mb-1.5 block text-[11px] font-medium text-muted-foreground">
+            {t("Workspace")}
+          </label>
+          <Select
+            value={workspace?.id}
+            onValueChange={(workspaceId) => {
+              if (workspaceId === workspace?.id) return;
+              setWorkspaceId(workspaceId);
+              void queryClient.cancelQueries().then(() => queryClient.clear());
+            }}
+          >
+            <SelectTrigger
+              aria-label={t("Switch workspace")}
+              className="h-10 w-full min-w-0 rounded-xl border-border bg-input/40 text-sm"
+            >
+              <Building2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <SelectValue>{workspace?.name ?? t("Select workspace")}</SelectValue>
+            </SelectTrigger>
+            <SelectContent position="popper" side="bottom" align="start">
+              {workspaces.map((item) => (
+                <SelectItem key={item.id} value={item.id}>
+                  {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       <nav className="flex-1 px-3 space-y-1">
         {navItems.map((item) => {

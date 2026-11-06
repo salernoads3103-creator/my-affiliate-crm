@@ -74,7 +74,11 @@ describe("Lead creation ownership", () => {
     const supabase = {
       from: () => resultBuilder,
     } as unknown as SupabaseClient;
-    const controller = new LeadController(supabase, "authenticated-user");
+    const controller = new LeadController(
+      supabase,
+      "authenticated-user",
+      "authenticated-workspace",
+    );
 
     await controller.create({
       name: "Short lead",
@@ -88,11 +92,36 @@ describe("Lead creation ownership", () => {
     expect(inserted).toMatchObject({
       name: "Short lead",
       email: null,
+      workspace_id: "authenticated-workspace",
       phone_normalized: "+380671234567",
       user_id: "authenticated-user",
       created_by_user_id: "authenticated-user",
       created_via: "manual",
     });
-    expect(inserted).not.toHaveProperty("workspace_id");
+    expect(inserted.workspace_id).not.toBe("client-workspace");
+  });
+
+  it("scopes lead reads to the selected workspace while retaining RLS", async () => {
+    let filteredWorkspace: string | null = null;
+    const builder = {
+      select() {
+        return this;
+      },
+      order() {
+        return this;
+      },
+      eq(column: string, value: string) {
+        if (column === "workspace_id") filteredWorkspace = value;
+        return this;
+      },
+      then(resolve: (result: { data: never[]; error: null }) => unknown) {
+        return Promise.resolve({ data: [], error: null }).then(resolve);
+      },
+    };
+    const supabase = { from: () => builder } as unknown as SupabaseClient;
+    const controller = new LeadController(supabase, "authenticated-user", "selected-workspace");
+
+    await controller.list();
+    expect(filteredWorkspace).toBe("selected-workspace");
   });
 });

@@ -596,7 +596,27 @@ const uk = {
   "Failed to update": "Не вдалося оновити ліда",
   "Failed to delete": "Не вдалося видалити ліда",
   "Welcome back": "З поверненням",
+  Workspace: "Робочий простір",
+  "Switch workspace": "Змінити робочий простір",
+  "Select workspace": "Оберіть робочий простір",
   "Accept your invitation": "Прийняти запрошення",
+  "Create your CRMONIA account": "Створити обліковий запис CRMONIA",
+  "Create an account, confirm your email, then set up your own workspace.":
+    "Створіть обліковий запис, підтвердьте електронну пошту, а потім налаштуйте власний робочий простір.",
+  "Check your email to confirm your account, then create a workspace.":
+    "Перевірте пошту, підтвердьте обліковий запис і створіть робочий простір.",
+  "New to CRMONIA?": "Ще не користувалися CRMONIA?",
+  "Set up your workspace": "Налаштуйте робочий простір",
+  "Workspace name": "Назва робочого простору",
+  "This workspace belongs to your account. Its products, offers, leads, and integrations stay separate from other workspaces.":
+    "Цей простір належить вашому обліковому запису. Його товари, офери, ліди та інтеграції ізольовані від інших робочих просторів.",
+  "For example, My e-commerce business": "Наприклад, Мій інтернет-магазин",
+  "Create workspace": "Створити робочий простір",
+  "Your account will be the workspace admin. You can invite other people later.":
+    "Ваш обліковий запис матиме роль адміністратора. Інших користувачів можна запросити пізніше.",
+  "Your workspace is ready": "Робочий простір готовий",
+  "Could not create your workspace. Try again.":
+    "Не вдалося створити робочий простір. Спробуйте ще раз.",
   "Sign in to access your workspace.": "Увійдіть, щоб відкрити робочий простір.",
   "Create an account to join {workspace}.":
     "Створіть обліковий запис, щоб приєднатися до простору «{workspace}».",
@@ -612,7 +632,7 @@ const uk = {
   "New to the workspace?": "Ще не маєте доступу до простору?",
   "Already have an account?": "Вже маєте обліковий запис?",
   "Workspace access is invitation-only. Ask an administrator to invite your account.":
-    "Доступ до простору — лише за запрошенням. Попросіть адміністратора надіслати вам запрошення.",
+    "Створіть власний робочий простір або прийміть запрошення від його адміністратора.",
   "Invitation accepted": "Запрошення прийнято",
   "Invitation is invalid or expired": "Запрошення недійсне або строк його дії минув",
   "Could not accept invitation": "Не вдалося прийняти запрошення",
@@ -639,7 +659,6 @@ const uk = {
   Teams: "Команди",
   Invitations: "Запрошення",
   "Audit Log": "Журнал дій",
-  Workspace: "Робочий простір",
   Permissions: "Права доступу",
   "Individual Permissions": "Індивідуальні права",
   "By role": "За роллю",
@@ -1262,6 +1281,27 @@ const en: Partial<Record<TranslationKey, string>> = {
     "Add your first lead to start tracking conversations and sales.",
   "Capture a fresh opportunity.": "Enter the details for a new lead.",
   "Create account": "Create an account",
+  Workspace: "Workspace",
+  "Switch workspace": "Switch workspace",
+  "Select workspace": "Select a workspace",
+  "Create your CRMONIA account": "Create your CRMONIA account",
+  "Create an account, confirm your email, then set up your own workspace.":
+    "Create an account, confirm your email, then set up your own workspace.",
+  "Check your email to confirm your account, then create a workspace.":
+    "Check your email to confirm your account, then create a workspace.",
+  "New to CRMONIA?": "New to CRMONIA?",
+  "Set up your workspace": "Set up your workspace",
+  "Workspace name": "Workspace name",
+  "This workspace belongs to your account. Its products, offers, leads, and integrations stay separate from other workspaces.":
+    "This workspace belongs to your account. Its products, offers, leads, and integrations stay separate from other workspaces.",
+  "For example, My e-commerce business": "e.g. My e-commerce business",
+  "Create workspace": "Create workspace",
+  "Your account will be the workspace admin. You can invite other people later.":
+    "Your account will be the workspace admin. You can invite other people later.",
+  "Your workspace is ready": "Your workspace is ready",
+  "Could not create your workspace. Try again.": "Could not create your workspace. Try again.",
+  "Workspace access is invitation-only. Ask an administrator to invite your account.":
+    "Create your own workspace or accept an invitation from its administrator.",
   "New to the workspace?": "New to this workspace?",
   "Roles & Permissions": "Roles & permissions",
   "Audit Log": "Audit log",

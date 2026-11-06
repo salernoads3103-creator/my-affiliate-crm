@@ -14,7 +14,7 @@ real-time search, pipeline analytics, and a clean layered architecture.
 
 ## ✨ Features
 
-- 🔐 **Authentication** — Supabase Auth with invitation-only workspace membership
+- 🔐 **Authentication** — Supabase Auth with invitations and self-service isolated workspaces
 - 📋 **Leads CRUD** — Create, read, update, delete with React Hook Form + Zod-style validation
 - 🔎 **Realtime search** — Debounced, server-side `ILIKE` across name, email, company
 - 🎯 **Filters & pagination** — Status filter + 10-per-page client pagination
@@ -273,7 +273,8 @@ This project supports two paths. Pick one:
 
 - ✅ Open a valid workspace invitation and create or sign in to the invited account
 - ✅ Confirm the invited email before accepting workspace access
-- ✅ A public account without an invitation receives no workspace membership
+- ✅ A confirmed account can create its own workspace without joining `main`
+- ✅ A workspace invitation adds membership only to the invited workspace
 - ✅ Sign in / sign out
 - ✅ Create a lead via "Add lead"
 - ✅ Edit a lead (status, notes, contact)
@@ -397,8 +398,9 @@ This project supports two paths. Pick one:
    сервера. Цей ключ застосовується лише в серверному обробнику запрошень;
    не додавай префікс `VITE_`, не зберігай ключ у браузері та не коміть його.
    У production `APP_BASE_URL` обов'язковий і має бути HTTPS origin; локальний
-   HTTP дозволений лише для loopback. Додай `${APP_BASE_URL}/auth` до дозволених
-   redirect URL у Supabase Auth. Запрошення передаються лише через серверні
+   HTTP дозволений лише для loopback. Додай `${APP_BASE_URL}/auth` і
+   `${APP_BASE_URL}/workspace-setup` до дозволених redirect URL у Supabase Auth.
+   Запрошення передаються лише через серверні
    обробники, мають `Referrer-Policy: no-referrer` і вилучають токен з URL після
    успішного прийняття.
 9. Запусти застосунок звичайною командою `bun run dev`. Отримай ID основного
@@ -414,10 +416,11 @@ Content-Type: application/json
 ```
 
 Відповідь містить `inviteUrl`. Якщо `emailSent` дорівнює `false`, передай
-це посилання запрошеному вручну. Новий користувач створює акаунт лише через
+це посилання запрошеному вручну. Запрошений користувач створює акаунт через
 чинне посилання; членство додається після підтвердження тієї самої адреси.
 Існуючий користувач входить у свій акаунт через посилання. Запрошення чинне
-сім днів. Публічна реєстрація не додає обліковий запис до workspace.
+сім днів. Окрема реєстрація без запрошення не додає користувача до `main`:
+після підтвердження пошти він може створити власний workspace через onboarding.
 
 ### SQL-перевірки
 
@@ -435,8 +438,11 @@ Content-Type: application/json
 
 - `Super Admin` має повний системний доступ. Його призначення виконується лише
   ручною процедурою з UUID; публічна реєстрація не надає цю роль.
-- `Admin` за замовчуванням може переглядати workspace і список членів. Запрошення,
-  зміна ролей та інші підвищені дії потребують окремих дозволів.
+- `Admin` за замовчуванням може переглядати workspace і список членів. Створювач
+  власного workspace отримує окремі workspace-scoped права для роботи зі своїми
+  модулями та запрошення користувачів, але не отримує `permissions.manage` або
+  системних прав Super Admin. В інших workspace зміна ролей і права визначаються
+  наданими там дозволами.
 - `permissions.manage` дає Admin право керувати індивідуальними overrides, але
   саме по собі не дозволяє видати будь-який дозвіл. Для кожного конкретного
   дозволу потрібен окремий дозвіл Super Admin з `delegable: true`; Super Admin
@@ -458,6 +464,7 @@ Content-Type: application/json
 | Операція                      | Метод і шлях                                                                                                    |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | Перелік доступних workspace   | `GET /api/workspaces`                                                                                           |
+| Створити власний workspace    | `POST /api/workspaces` з `{"name":"My business"}` після підтвердження email                                  |
 | Члени                         | `GET /api/workspaces/:workspaceId/members`                                                                      |
 | Зміна ролі                    | `PATCH /api/workspaces/:workspaceId/members/:userId` з `{"role":"viewer"}`                                      |
 | Дозволи члена                 | `GET /api/workspaces/:workspaceId/permissions?user_id=<UUID>`                                                   |

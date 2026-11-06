@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { accessApi } from "@/services/accessApi";
 import { localizeError, t, translateLabel, type Locale, type TranslationKey } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
+import { persistActiveWorkspaceId } from "@/lib/workspace-selection";
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ function AuthPage() {
   } | null>(null);
   const [invitationError, setInvitationError] = useState<TranslationKey | "">("");
   const [accepting, setAccepting] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const acceptingRef = useRef(false);
   const navigate = useNavigate();
   const {
@@ -55,7 +57,10 @@ function AuthPage() {
       acceptingRef.current = true;
       setAccepting(true);
       try {
-        await accessApi.post<{ workspaceId: string }>("/api/invitations/accept", { token });
+        const accepted = await accessApi.post<{ workspaceId: string }>("/api/invitations/accept", {
+          token,
+        });
+        persistActiveWorkspaceId(accepted.workspaceId);
         const currentUrl = new URL(window.location.href);
         if (currentUrl.searchParams.has("invite")) {
           currentUrl.searchParams.delete("invite");
@@ -127,24 +132,38 @@ function AuthPage() {
     setLoading(true);
     try {
       if (mode === "sign-up") {
-        if (!inviteToken || !invitation) {
-          throw new Error("A valid invitation is required to create an account");
-        }
-        if (values.email.trim().toLowerCase() !== invitation.email.toLowerCase()) {
-          throw new Error("Use the email address that received the invitation");
-        }
-        const redirectUrl = new URL("/auth", window.location.origin);
-        redirectUrl.searchParams.set("invite", inviteToken);
-        const { data, error } = await supabase.auth.signUp({
-          email: values.email,
-          password: values.password,
-          options: { emailRedirectTo: redirectUrl.toString() },
-        });
-        if (error) throw error;
-        if (data.session) {
-          await acceptInvitation(inviteToken);
+        if (inviteToken) {
+          if (!invitation) throw new Error("Invitation is invalid or expired");
+          if (values.email.trim().toLowerCase() !== invitation.email.toLowerCase()) {
+            throw new Error("Use the email address that received the invitation");
+          }
+          const redirectUrl = new URL("/auth", window.location.origin);
+          redirectUrl.searchParams.set("invite", inviteToken);
+          const { data, error } = await supabase.auth.signUp({
+            email: values.email,
+            password: values.password,
+            options: { emailRedirectTo: redirectUrl.toString() },
+          });
+          if (error) throw error;
+          if (data.session) {
+            await acceptInvitation(inviteToken);
+          } else {
+            toast.success(t("Check your email to confirm the account and accept the invitation"));
+          }
         } else {
-          toast.success(t("Check your email to confirm the account and accept the invitation"));
+          const redirectUrl = new URL("/workspace-setup", window.location.origin);
+          const { data, error } = await supabase.auth.signUp({
+            email: values.email,
+            password: values.password,
+            options: { emailRedirectTo: redirectUrl.toString() },
+          });
+          if (error) throw error;
+          if (data.session) {
+            await navigate({ to: "/workspace-setup" });
+          } else {
+            setAwaitingConfirmation(true);
+            toast.success(t("Check your email to confirm your account, then create a workspace."));
+          }
         }
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -160,9 +179,8 @@ function AuthPage() {
         const { data: workspaces, error: workspaceError } = await supabase.rpc("my_workspaces");
         if (workspaceError) throw workspaceError;
         if (!workspaces?.length) {
-          throw new Error(
-            "This account has no workspace access. Ask a workspace administrator for an invitation.",
-          );
+          await navigate({ to: "/workspace-setup" });
+          return;
         }
         toast.success(t("Welcome back"));
         await navigate({ to: "/dashboard" });
@@ -243,14 +261,22 @@ function AuthPage() {
             <span className="text-lg font-semibold">CRMONIA</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
-            {mode === "sign-in" ? t("Welcome back") : t("Accept your invitation")}
+            {mode === "sign-in"
+              ? t("Welcome back")
+              : inviteToken
+                ? t("Accept your invitation")
+                : t("Create your CRMONIA account")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             {mode === "sign-in"
               ? t("Sign in to access your workspace.")
-              : invitation
-                ? t("Create an account to join {workspace}.", { workspace: invitation.workspace_name })
-                : t("Checking your invitation…")}
+              : inviteToken
+                ? invitation
+                  ? t("Create an account to join {workspace}.", {
+                      workspace: invitation.workspace_name,
+                    })
+                  : t("Checking your invitation…")
+                : t("Create an account, confirm your email, then set up your own workspace.")}
           </p>
           {invitationError && (
             <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -263,6 +289,11 @@ function AuthPage() {
             </p>
           )}
           {accepting && <p className="mt-3 text-sm text-muted-foreground">{t("Accepting invitation…")}</p>}
+          {awaitingConfirmation && !inviteToken && (
+            <p className="mt-3 rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              {t("Check your email to confirm your account, then create a workspace.")}
+            </p>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-4">
             <div>
@@ -300,7 +331,7 @@ function AuthPage() {
 
             <button
               type="submit"
-              disabled={loading || accepting || (mode === "sign-up" && !invitation)}
+              disabled={loading || accepting || (mode === "sign-up" && !!inviteToken && !invitation)}
               className="w-full rounded-xl gradient-brand text-primary-foreground font-medium py-2.5 flex items-center justify-center gap-2 hover:opacity-95 active:scale-[0.99] transition disabled:opacity-60"
             >
               {loading ? (
@@ -340,7 +371,35 @@ function AuthPage() {
                 </>
               )
             ) : (
-              <>{t("Workspace access is invitation-only. Ask an administrator to invite your account.")}</>
+              mode === "sign-in" ? (
+                <>
+                  {t("New to CRMONIA?")} {" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAwaitingConfirmation(false);
+                      setMode("sign-up");
+                    }}
+                    className="text-primary font-medium hover:underline"
+                  >
+                    {t("Create account")}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {t("Already have an account?")} {" "}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAwaitingConfirmation(false);
+                      setMode("sign-in");
+                    }}
+                    className="text-primary font-medium hover:underline"
+                  >
+                    {t("Sign in")}
+                  </button>
+                </>
+              )
             )}
           </div>
           <Link to="/" className="hidden" />

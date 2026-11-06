@@ -1,6 +1,9 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { accessApi } from "@/services/accessApi";
+import { useWorkspaceSelection } from "@/hooks/useWorkspaceSelection";
+import { resolveActiveWorkspaceId } from "@/lib/workspace-selection";
 
 export type WorkspaceSummary = {
   id: string;
@@ -16,11 +19,21 @@ export type WorkspaceAccess = {
 };
 
 export function useWorkspaceAccess() {
+  const { preferredWorkspaceId, setPreferredWorkspaceId } = useWorkspaceSelection();
   const workspacesQuery = useQuery({
     queryKey: ["workspace-list"],
     queryFn: () => accessApi.get<WorkspaceSummary[]>("/api/workspaces"),
   });
-  const workspace = workspacesQuery.data?.[0];
+  const workspaces = workspacesQuery.data ?? [];
+  const selectedWorkspaceId = resolveActiveWorkspaceId(workspaces, preferredWorkspaceId);
+  const workspace = workspaces.find((item) => item.id === selectedWorkspaceId);
+
+  useEffect(() => {
+    if (selectedWorkspaceId && selectedWorkspaceId !== preferredWorkspaceId) {
+      setPreferredWorkspaceId(selectedWorkspaceId);
+    }
+  }, [preferredWorkspaceId, selectedWorkspaceId, setPreferredWorkspaceId]);
+
   const accessQuery = useQuery({
     queryKey: ["workspace-access", workspace?.id],
     queryFn: () => accessApi.get<WorkspaceAccess>(`/api/workspaces/${workspace!.id}/access`),
@@ -37,6 +50,8 @@ export function useWorkspaceAccess() {
 
   return {
     workspace,
+    workspaces,
+    setWorkspaceId: setPreferredWorkspaceId,
     permissions: accessQuery.data?.permissions ?? {},
     isSuperAdmin: workspace?.is_super_admin === true,
     userId: userQuery.data?.id,

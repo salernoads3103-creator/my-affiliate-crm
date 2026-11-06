@@ -4,6 +4,7 @@ import {
   accessSuccessResponse,
   requireAccessContext,
 } from "@/lib/access/access.server";
+import { handleCreateWorkspaceRequest } from "@/lib/access/workspace-onboarding.server";
 
 export const Route = createFileRoute("/api/workspaces/")({
   server: {
@@ -18,6 +19,7 @@ export const Route = createFileRoute("/api/workspaces/")({
           return accessErrorResponse(error);
         }
       },
+      POST: async ({ request }) => handleCreateWorkspaceRequest(request),
     },
   },
 });

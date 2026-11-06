@@ -24,13 +24,16 @@ export class LeadService {
   constructor(
     private supabase: SupabaseClient,
     private userId: string,
+    private workspaceId: string | null = null,
   ) {}
 
   async list(): Promise<Lead[]> {
-    const { data, error } = await this.supabase
+    let query = this.supabase
       .from("leads")
       .select("*")
       .order("created_at", { ascending: false });
+    if (this.workspaceId) query = query.eq("workspace_id", this.workspaceId);
+    const { data, error } = await query;
     if (error) throw leadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
@@ -39,11 +42,13 @@ export class LeadService {
     const term = q.trim();
     if (!term) return this.list();
     const pattern = `%${term.replace(/[%_]/g, "")}%`;
-    const { data, error } = await this.supabase
+    let query = this.supabase
       .from("leads")
       .select("*")
       .or(`name.ilike.${pattern},email.ilike.${pattern},company_name.ilike.${pattern}`)
       .order("created_at", { ascending: false });
+    if (this.workspaceId) query = query.eq("workspace_id", this.workspaceId);
+    const { data, error } = await query;
     if (error) throw leadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
@@ -53,6 +58,7 @@ export class LeadService {
       .from("leads")
       .insert({
         ...input,
+        ...(this.workspaceId ? { workspace_id: this.workspaceId } : {}),
         email: input.email || null,
         user_id: this.userId,
         created_by_user_id: this.userId,
@@ -70,18 +76,20 @@ export class LeadService {
     if (Object.prototype.hasOwnProperty.call(input, "phone")) {
       update.phone_normalized = normalizeUkrainianPhone(input.phone);
     }
-    const { data, error } = await this.supabase
+    let query = this.supabase
       .from("leads")
       .update(update)
-      .eq("id", id)
-      .select("*")
-      .single();
+      .eq("id", id);
+    if (this.workspaceId) query = query.eq("workspace_id", this.workspaceId);
+    const { data, error } = await query.select("*").single();
     if (error) throw leadDatabaseError(error);
     return data as Lead;
   }
 
   async remove(id: string): Promise<void> {
-    const { error } = await this.supabase.from("leads").delete().eq("id", id);
+    let query = this.supabase.from("leads").delete().eq("id", id);
+    if (this.workspaceId) query = query.eq("workspace_id", this.workspaceId);
+    const { error } = await query;
     if (error) throw leadDatabaseError(error);
   }
 

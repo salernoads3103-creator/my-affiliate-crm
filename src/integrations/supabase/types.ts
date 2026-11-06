@@ -1458,6 +1458,10 @@ export type Database = {
           slug: string;
         }[];
       };
+      create_workspace_for_current_user: {
+        Args: { p_name: string };
+        Returns: string;
+      };
       permission_scope_matches: {
         Args: {
           p_actor_id: string;

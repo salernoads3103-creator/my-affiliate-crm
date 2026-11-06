@@ -27,7 +27,11 @@ export async function getController(request: Request) {
 
   const { data, error } = await client.auth.getUser(token);
   if (error || !data.user) throw new ApiError(401, "Unauthorized");
-  return new LeadController(client, data.user.id);
+  const workspaceId = new URL(request.url).searchParams.get("workspaceId");
+  if (workspaceId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(workspaceId)) {
+    throw new ApiError(400, "Invalid workspace ID", "VALIDATION_ERROR");
+  }
+  return new LeadController(client, data.user.id, workspaceId);
 }
 
 export function ok(data: unknown, status = 200) {

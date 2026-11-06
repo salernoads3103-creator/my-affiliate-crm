@@ -15,8 +15,8 @@ const clean = <T extends Record<string, unknown>>(o: T) => {
 
 export class LeadController {
   private svc: LeadService;
-  constructor(supabase: SupabaseClient, userId: string) {
-    this.svc = new LeadService(supabase, userId);
+  constructor(supabase: SupabaseClient, userId: string, workspaceId: string | null = null) {
+    this.svc = new LeadService(supabase, userId, workspaceId);
   }
 
   list = () => this.svc.list();

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WorkspaceSetupRouteImport } from './routes/workspace-setup'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
@@ -68,6 +69,11 @@ import { Route as ApiWorkspacesWorkspaceIdDomainHostsHostIdVerifyRouteImport } f
 import { Route as ApiWorkspacesWorkspaceIdDomainHostsHostIdReservationRouteImport } from './routes/api/workspaces/$workspaceId/domain-hosts/$hostId/reservation'
 import { Route as ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRouteImport } from './routes/api/workspaces/$workspaceId/landings/$landingId/publication/rollback'
 
+const WorkspaceSetupRoute = WorkspaceSetupRouteImport.update({
+  id: '/workspace-setup',
+  path: '/workspace-setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
@@ -403,6 +409,7 @@ const ApiWorkspacesWorkspaceIdLandingsLandingIdPublicationRollbackRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/workspace-setup': typeof WorkspaceSetupRoute
   '/administration': typeof AuthenticatedAdministrationRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/domains': typeof AuthenticatedDomainsRoute
@@ -462,6 +469,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/workspace-setup': typeof WorkspaceSetupRoute
   '/administration': typeof AuthenticatedAdministrationRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/domains': typeof AuthenticatedDomainsRoute
@@ -523,6 +531,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
+  '/workspace-setup': typeof WorkspaceSetupRoute
   '/_authenticated/administration': typeof AuthenticatedAdministrationRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/domains': typeof AuthenticatedDomainsRoute
@@ -584,6 +593,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/auth'
+    | '/workspace-setup'
     | '/administration'
     | '/dashboard'
     | '/domains'
@@ -643,6 +653,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/workspace-setup'
     | '/administration'
     | '/dashboard'
     | '/domains'
@@ -703,6 +714,7 @@ export interface FileRouteTypes {
     | '/'
     | '/_authenticated'
     | '/auth'
+    | '/workspace-setup'
     | '/_authenticated/administration'
     | '/_authenticated/dashboard'
     | '/_authenticated/domains'
@@ -764,6 +776,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  WorkspaceSetupRoute: typeof WorkspaceSetupRoute
   ApiInvitationsAcceptRoute: typeof ApiInvitationsAcceptRoute
   ApiInvitationsValidateRoute: typeof ApiInvitationsValidateRoute
   ApiLeadsIdRoute: typeof ApiLeadsIdRoute
@@ -795,6 +808,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/workspace-setup': {
+      id: '/workspace-setup'
+      path: '/workspace-setup'
+      fullPath: '/workspace-setup'
+      preLoaderRoute: typeof WorkspaceSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth': {
       id: '/auth'
       path: '/auth'
@@ -1448,6 +1468,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  WorkspaceSetupRoute: WorkspaceSetupRoute,
   ApiInvitationsAcceptRoute: ApiInvitationsAcceptRoute,
   ApiInvitationsValidateRoute: ApiInvitationsValidateRoute,
   ApiLeadsIdRoute: ApiLeadsIdRoute,
