@@ -1,6 +1,6 @@
 -- Run only after all migrations on a disposable local Supabase/PostgreSQL DB.
 -- The transaction is rolled back; this test covers RPC grants, workspace
--- isolation, owner permissions, email verification, and invitation acceptance.
+-- isolation, module access, owner permissions, email verification, and invitation acceptance.
 BEGIN;
 
 DO $$
@@ -39,6 +39,10 @@ DECLARE
   v_repeat_workspace_id UUID;
   v_invitation_id UUID;
   v_accepted_workspace_id UUID;
+  v_product_id UUID;
+  v_offer_id UUID;
+  v_lead_id UUID;
+  v_order_id UUID;
   v_count BIGINT;
   v_rejected BOOLEAN;
   v_permission TEXT;
@@ -66,6 +70,9 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Workspace creator must be an active workspace Admin';
   END IF;
+  IF public.is_super_admin(auth.uid()) THEN
+    RAISE EXCEPTION 'Workspace creator must not become a global Super Admin';
+  END IF;
 
   FOREACH v_permission IN ARRAY ARRAY[
     'workspace.read', 'members.read', 'members.invite',
@@ -80,6 +87,15 @@ BEGIN
       RAISE EXCEPTION 'Workspace creator is missing required workspace permission %', v_permission;
     END IF;
   END LOOP;
+  FOR v_permission IN
+    SELECT pc.permission_key
+    FROM public.workspace_permission_catalog pc
+    WHERE pc.permission_key <> 'permissions.manage'
+  LOOP
+    IF NOT public.has_workspace_permission(v_workspace_id, v_permission, NULL, NULL, NULL) THEN
+      RAISE EXCEPTION 'Workspace creator is missing current catalog permission %', v_permission;
+    END IF;
+  END LOOP;
   IF public.has_workspace_permission(v_workspace_id, 'permissions.manage', NULL, NULL, NULL) THEN
     RAISE EXCEPTION 'Workspace creator must not receive permission override management';
   END IF;
@@ -89,6 +105,43 @@ BEGIN
   SELECT count(*) INTO v_count FROM public.workspaces;
   IF v_count <> 1 THEN
     RAISE EXCEPTION 'Workspace RLS exposed % workspaces instead of the creator workspace', v_count;
+  END IF;
+
+  -- Exercise the same workspace-scoped product → offer → lead → order path
+  -- available to the new owner. Each write still passes its module RPC/RLS.
+  v_product_id := public.create_product_with_shipping_dimensions(
+    v_workspace_id, 'Onboarding integration product', 'onboarding-product',
+    100000, NULL, NULL, NULL, NULL, NULL, NULL, TRUE, NULL
+  );
+  v_offer_id := public.create_commercial_offer(
+    v_workspace_id, 'Onboarding integration offer', v_product_id,
+    90000, NULL, TRUE
+  );
+  INSERT INTO public.leads (
+    workspace_id, user_id, created_by_user_id, created_via,
+    name, email, phone, phone_normalized, operator_id, offer_id
+  ) VALUES (
+    v_workspace_id, auth.uid(), auth.uid(), 'manual',
+    'Onboarding integration lead', NULL, '+380671112233', '+380671112233',
+    auth.uid(), v_offer_id
+  ) RETURNING id INTO v_lead_id;
+  v_order_id := public.create_workspace_order(
+    v_workspace_id, v_lead_id, gen_random_uuid(), 1, 90000,
+    'Onboarding integration buyer', '+380671112233', NULL, NULL
+  );
+
+  IF NOT EXISTS (SELECT 1 FROM public.products WHERE id = v_product_id AND workspace_id = v_workspace_id)
+     OR NOT EXISTS (SELECT 1 FROM public.workspace_offers WHERE id = v_offer_id AND workspace_id = v_workspace_id)
+     OR NOT EXISTS (SELECT 1 FROM public.leads WHERE id = v_lead_id AND workspace_id = v_workspace_id)
+     OR NOT EXISTS (SELECT 1 FROM public.workspace_orders WHERE id = v_order_id AND workspace_id = v_workspace_id) THEN
+    RAISE EXCEPTION 'Workspace owner could not create and read the product-to-order workflow';
+  END IF;
+  IF public.has_workspace_permission(v_main_workspace, 'products.read', NULL, NULL, NULL)
+     OR public.has_workspace_permission(v_main_workspace, 'offers.read', NULL, NULL, NULL)
+     OR public.has_workspace_permission(v_main_workspace, 'leads.read', NULL, NULL, NULL)
+     OR public.has_workspace_permission(v_main_workspace, 'orders.read', NULL, NULL, NULL)
+     OR public.has_workspace_permission(v_main_workspace, 'landing_pages.manage', NULL, NULL, NULL) THEN
+    RAISE EXCEPTION 'Independent workspace owner received module access to main';
   END IF;
 
   v_rejected := FALSE;

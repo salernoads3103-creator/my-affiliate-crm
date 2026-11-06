@@ -5,6 +5,11 @@ import {
   parseWorkspaceName,
 } from "@/lib/access/workspace-onboarding.server";
 import { AccessApiError, type AccessContext } from "@/lib/access/access.server";
+import {
+  getAuthenticatedWorkspacePath,
+  getPasswordRecoveryRedirectUrl,
+  shouldClearAuthScopedCache,
+} from "@/lib/auth/auth-flow";
 import { resolveActiveWorkspaceId } from "@/lib/workspace-selection";
 
 describe("workspace onboarding", () => {
@@ -96,5 +101,24 @@ describe("active workspace selection", () => {
   it("uses the first authorized workspace as a safe fallback", () => {
     expect(resolveActiveWorkspaceId(workspaces, null)).toBe("own");
     expect(resolveActiveWorkspaceId([], "stale-id")).toBeNull();
+  });
+});
+
+describe("authentication navigation", () => {
+  it("routes authenticated users with no workspace to onboarding", () => {
+    expect(getAuthenticatedWorkspacePath(0)).toBe("/workspace-setup");
+    expect(getAuthenticatedWorkspacePath(1)).toBe("/dashboard");
+  });
+
+  it("sends password recovery back to the dedicated reset route", () => {
+    expect(getPasswordRecoveryRedirectUrl("https://crm.example")).toBe(
+      "https://crm.example/reset-password",
+    );
+  });
+
+  it("clears private query cache when the authenticated identity changes", () => {
+    expect(shouldClearAuthScopedCache("SIGNED_IN")).toBe(true);
+    expect(shouldClearAuthScopedCache("SIGNED_OUT")).toBe(true);
+    expect(shouldClearAuthScopedCache("USER_UPDATED")).toBe(false);
   });
 });

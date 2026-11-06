@@ -627,6 +627,26 @@ const uk = {
   "Enter a valid email": "Введіть коректну електронну пошту",
   "Password is required": "Вкажіть пароль",
   "Min 6 characters": "Мінімум 6 символів",
+  "Forgot your password?": "Забули пароль?",
+  "Reset your password": "Відновлення пароля",
+  "Enter your account email and we’ll send a password reset link if the account exists.":
+    "Вкажіть пошту облікового запису — якщо він існує, ми надішлемо посилання для зміни пароля.",
+  "If an account uses this email, a password reset link is on its way.":
+    "Якщо обліковий запис із цією адресою існує, ми надіслали лист для зміни пароля.",
+  "Send reset link": "Надіслати посилання",
+  "Back to sign in": "Повернутися до входу",
+  "Set a new password": "Задайте новий пароль",
+  "Choose a new password for your account.": "Введіть новий пароль для свого облікового запису.",
+  "Confirm password": "Повторіть пароль",
+  "Passwords do not match": "Паролі не збігаються",
+  "Update password": "Зберегти новий пароль",
+  "Password updated": "Пароль оновлено",
+  "Could not update your password. Request a new reset link.":
+    "Не вдалося змінити пароль. Запросіть нове посилання для відновлення.",
+  "Could not send a reset link. Try again later.":
+    "Не вдалося надіслати посилання. Спробуйте ще раз пізніше.",
+  "Your password changed, but we could not load your workspace. Sign in to continue.":
+    "Пароль змінено, але не вдалося завантажити робочий простір. Увійдіть ще раз.",
   "Sign in": "Увійти",
   "Create account": "Створити обліковий запис",
   "New to the workspace?": "Ще не маєте доступу до простору?",
@@ -1281,6 +1301,25 @@ const en: Partial<Record<TranslationKey, string>> = {
     "Add your first lead to start tracking conversations and sales.",
   "Capture a fresh opportunity.": "Enter the details for a new lead.",
   "Create account": "Create an account",
+  "Forgot your password?": "Forgot your password?",
+  "Reset your password": "Reset your password",
+  "Enter your account email and we’ll send a password reset link if the account exists.":
+    "Enter your account email and we'll send a password reset link if the account exists.",
+  "If an account uses this email, a password reset link is on its way.":
+    "If an account uses this email, a password reset link is on its way.",
+  "Send reset link": "Send reset link",
+  "Back to sign in": "Back to sign in",
+  "Set a new password": "Set a new password",
+  "Choose a new password for your account.": "Choose a new password for your account.",
+  "Confirm password": "Confirm password",
+  "Passwords do not match": "Passwords do not match",
+  "Update password": "Update password",
+  "Password updated": "Password updated",
+  "Could not update your password. Request a new reset link.":
+    "Couldn't update your password. Request a new reset link.",
+  "Could not send a reset link. Try again later.": "Couldn't send a reset link. Try again later.",
+  "Your password changed, but we could not load your workspace. Sign in to continue.":
+    "Your password changed, but we couldn't load your workspace. Sign in to continue.",
   Workspace: "Workspace",
   "Switch workspace": "Switch workspace",
   "Select workspace": "Select a workspace",

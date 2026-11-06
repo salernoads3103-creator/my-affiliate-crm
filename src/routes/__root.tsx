@@ -15,6 +15,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
 import { LocaleProvider, useLocale } from "@/components/locale-provider";
 import { supabase } from "@/integrations/supabase/client";
+import { shouldClearAuthScopedCache } from "@/lib/auth/auth-flow";
 import { t, localizeError, localeBootstrapScript } from "@/lib/i18n";
 import { themeBootstrapScript } from "@/lib/theme";
 
@@ -108,7 +109,11 @@ function RootComponent() {
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
       router.invalidate();
-      if (event !== "SIGNED_OUT") queryClient.invalidateQueries();
+      if (shouldClearAuthScopedCache(event)) {
+        queryClient.clear();
+      } else {
+        queryClient.invalidateQueries();
+      }
     });
     return () => sub.subscription.unsubscribe();
   }, [router, queryClient]);

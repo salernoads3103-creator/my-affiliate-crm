@@ -398,8 +398,11 @@ This project supports two paths. Pick one:
    сервера. Цей ключ застосовується лише в серверному обробнику запрошень;
    не додавай префікс `VITE_`, не зберігай ключ у браузері та не коміть його.
    У production `APP_BASE_URL` обов'язковий і має бути HTTPS origin; локальний
-   HTTP дозволений лише для loopback. Додай `${APP_BASE_URL}/auth` і
-   `${APP_BASE_URL}/workspace-setup` до дозволених redirect URL у Supabase Auth.
+   HTTP дозволений лише для loopback. Додай `${APP_BASE_URL}/auth`,
+   `${APP_BASE_URL}/workspace-setup` і `${APP_BASE_URL}/reset-password` до
+   дозволених redirect URL у Supabase Auth. Відновлення пароля використовує
+   Supabase Auth: лист веде на `/reset-password`, де новий пароль встановлюється
+   лише за наявності чинної recovery-сесії.
    Запрошення передаються лише через серверні
    обробники, мають `Referrer-Policy: no-referrer` і вилучають токен з URL після
    успішного прийняття.

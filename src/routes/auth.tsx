@@ -10,6 +10,7 @@ import { accessApi } from "@/services/accessApi";
 import { localizeError, t, translateLabel, type Locale, type TranslationKey } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
 import { persistActiveWorkspaceId } from "@/lib/workspace-selection";
+import { getAuthenticatedWorkspacePath, getPasswordRecoveryRedirectUrl } from "@/lib/auth/auth-flow";
 import {
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ import {
 } from "@/components/ui/select";
 
 type FormValues = { email: string; password: string };
+type AuthMode = "sign-in" | "sign-up" | "request-reset";
 
 export const Route = createFileRoute("/auth")({
   ssr: false,
@@ -32,7 +34,7 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const { locale, setLocale } = useLocale();
   const { invite: inviteToken } = Route.useSearch();
-  const [mode, setMode] = useState<"sign-in" | "sign-up">(inviteToken ? "sign-up" : "sign-in");
+  const [mode, setMode] = useState<AuthMode>(inviteToken ? "sign-up" : "sign-in");
   const [loading, setLoading] = useState(false);
   const [invitation, setInvitation] = useState<{
     email: string;
@@ -42,6 +44,7 @@ function AuthPage() {
   const [invitationError, setInvitationError] = useState<TranslationKey | "">("");
   const [accepting, setAccepting] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [passwordResetRequested, setPasswordResetRequested] = useState(false);
   const acceptingRef = useRef(false);
   const navigate = useNavigate();
   const {
@@ -49,7 +52,7 @@ function AuthPage() {
     handleSubmit,
     setValue,
     formState: { errors },
-  } = useForm<FormValues>();
+  } = useForm<FormValues>({ shouldUnregister: true });
 
   const acceptInvitation = useCallback(
     async (token: string) => {
@@ -131,6 +134,15 @@ function AuthPage() {
   const onSubmit = async (values: FormValues) => {
     setLoading(true);
     try {
+      if (mode === "request-reset") {
+        const { error } = await supabase.auth.resetPasswordForEmail(values.email.trim(), {
+          redirectTo: getPasswordRecoveryRedirectUrl(window.location.origin),
+        });
+        if (error) throw error;
+        setPasswordResetRequested(true);
+        return;
+      }
+
       if (mode === "sign-up") {
         if (inviteToken) {
           if (!invitation) throw new Error("Invitation is invalid or expired");
@@ -183,10 +195,14 @@ function AuthPage() {
           return;
         }
         toast.success(t("Welcome back"));
-        await navigate({ to: "/dashboard" });
+        await navigate({ to: getAuthenticatedWorkspacePath(workspaces.length) });
       }
     } catch (e) {
-      const msg = localizeError(e, t("We couldn't sign you in or create your account. Check your details and try again."));
+      const fallback =
+        mode === "request-reset"
+          ? t("Could not send a reset link. Try again later.")
+          : t("We couldn't sign you in or create your account. Check your details and try again.");
+      const msg = localizeError(e, fallback);
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -261,22 +277,26 @@ function AuthPage() {
             <span className="text-lg font-semibold">CRMONIA</span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
-            {mode === "sign-in"
-              ? t("Welcome back")
-              : inviteToken
-                ? t("Accept your invitation")
-                : t("Create your CRMONIA account")}
+            {mode === "request-reset"
+              ? t("Reset your password")
+              : mode === "sign-in"
+                ? t("Welcome back")
+                : inviteToken
+                  ? t("Accept your invitation")
+                  : t("Create your CRMONIA account")}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            {mode === "sign-in"
-              ? t("Sign in to access your workspace.")
-              : inviteToken
-                ? invitation
-                  ? t("Create an account to join {workspace}.", {
-                      workspace: invitation.workspace_name,
-                    })
-                  : t("Checking your invitation…")
-                : t("Create an account, confirm your email, then set up your own workspace.")}
+            {mode === "request-reset"
+              ? t("Enter your account email and we’ll send a password reset link if the account exists.")
+              : mode === "sign-in"
+                ? t("Sign in to access your workspace.")
+                : inviteToken
+                  ? invitation
+                    ? t("Create an account to join {workspace}.", {
+                        workspace: invitation.workspace_name,
+                      })
+                    : t("Checking your invitation…")
+                  : t("Create an account, confirm your email, then set up your own workspace.")}
           </p>
           {invitationError && (
             <p className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
@@ -292,6 +312,11 @@ function AuthPage() {
           {awaitingConfirmation && !inviteToken && (
             <p className="mt-3 rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
               {t("Check your email to confirm your account, then create a workspace.")}
+            </p>
+          )}
+          {passwordResetRequested && mode === "request-reset" && (
+            <p className="mt-3 rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              {t("If an account uses this email, a password reset link is on its way.")}
             </p>
           )}
 
@@ -312,22 +337,39 @@ function AuthPage() {
                 <p className="mt-1 text-xs text-destructive">{errors.email.message}</p>
               )}
             </div>
-            <div>
-              <label className="text-sm font-medium">{t("Password")}</label>
-              <input
-                type="password"
-                autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
-                {...register("password", {
-                  required: t("Password is required"),
-                  minLength: { value: 6, message: t("Min 6 characters") },
-                })}
-                className="mt-1.5 w-full rounded-xl bg-input/60 border border-border px-4 py-2.5 outline-none focus:ring-4 focus:ring-ring transition"
-                placeholder="••••••••"
-              />
-              {errors.password && (
-                <p className="mt-1 text-xs text-destructive">{errors.password.message}</p>
-              )}
-            </div>
+            {mode !== "request-reset" && (
+              <div>
+                <label className="text-sm font-medium">{t("Password")}</label>
+                <input
+                  type="password"
+                  autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
+                  {...register("password", {
+                    required: t("Password is required"),
+                    minLength: { value: 6, message: t("Min 6 characters") },
+                  })}
+                  className="mt-1.5 w-full rounded-xl bg-input/60 border border-border px-4 py-2.5 outline-none focus:ring-4 focus:ring-ring transition"
+                  placeholder="••••••••"
+                />
+                {errors.password && (
+                  <p className="mt-1 text-xs text-destructive">{errors.password.message}</p>
+                )}
+              </div>
+            )}
+
+            {mode === "sign-in" && !inviteToken && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordResetRequested(false);
+                    setMode("request-reset");
+                  }}
+                  className="text-sm text-primary font-medium hover:underline"
+                >
+                  {t("Forgot your password?")}
+                </button>
+              </div>
+            )}
 
             <button
               type="submit"
@@ -338,15 +380,30 @@ function AuthPage() {
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <>
-                  {mode === "sign-in" ? t("Sign in") : t("Create account")}
-                  <ArrowRight className="h-4 w-4" />
+                  {mode === "request-reset"
+                    ? t("Send reset link")
+                    : mode === "sign-in"
+                      ? t("Sign in")
+                      : t("Create account")}
+                  {mode !== "request-reset" && <ArrowRight className="h-4 w-4" />}
                 </>
               )}
             </button>
           </form>
 
           <div className="mt-6 text-center text-sm text-muted-foreground">
-            {inviteToken ? (
+            {mode === "request-reset" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setPasswordResetRequested(false);
+                  setMode("sign-in");
+                }}
+                className="text-primary font-medium hover:underline"
+              >
+                {t("Back to sign in")}
+              </button>
+            ) : inviteToken ? (
               mode === "sign-in" ? (
                 <>
                   {t("New to the workspace?")}{" "}
