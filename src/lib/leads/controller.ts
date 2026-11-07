@@ -19,9 +19,9 @@ export class LeadController {
     this.svc = new LeadService(supabase, userId, workspaceId);
   }
 
-  list = () => this.svc.list();
+  list = (includeDeleted = false) => this.svc.list(includeDeleted);
   stats = () => this.svc.stats();
-  search = (q: string) => this.svc.search(q);
+  search = (q: string, includeDeleted = false) => this.svc.search(q, includeDeleted);
 
   create = async (body: unknown) => {
     const parsed = CreateLeadSchema.parse(body);
@@ -36,7 +36,13 @@ export class LeadController {
 
   remove = async (id: string) => {
     if (!id) throw new ApiError(400, "Lead id is required");
-    await this.svc.remove(id);
+    const result = await this.svc.remove(id);
+    return { ok: true, result };
+  };
+
+  restore = async (id: string) => {
+    if (!id) throw new ApiError(400, "Lead id is required");
+    await this.svc.restore(id);
     return { ok: true };
   };
 }

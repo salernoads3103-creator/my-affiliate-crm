@@ -18,9 +18,11 @@ export function DeleteModal({ lead, onClose }: { lead: Lead | null; onClose: () 
       {lead && (
         <>
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
+            className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm"
           />
           <motion.div
             initial={{ opacity: 0, y: 12, scale: 0.98 }}
@@ -28,7 +30,7 @@ export function DeleteModal({ lead, onClose }: { lead: Lead | null; onClose: () 
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             className="fixed left-1/2 top-1/3 z-50 w-[92%] max-w-md -translate-x-1/2"
           >
-            <div className="glass-strong rounded-2xl p-6 border border-border">
+            <div className="glass-strong rounded-2xl p-6">
               <div className="flex items-start gap-3">
                 <div className="h-10 w-10 rounded-xl bg-destructive/10 flex items-center justify-center text-destructive">
                   <AlertTriangle className="h-5 w-5" />
@@ -36,12 +38,22 @@ export function DeleteModal({ lead, onClose }: { lead: Lead | null; onClose: () 
                 <div className="flex-1">
                   <h3 className="font-semibold">{t("Delete this lead?")}</h3>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {t("{name} will be permanently removed. This action cannot be undone.", { name: lead.name })}
+                    {t(
+                      "{name} will leave active leads. If an order is linked, the lead will be hidden and the order/history will stay unchanged; without orders, the lead will be permanently deleted.",
+                      {
+                        name: lead.name,
+                      },
+                    )}
                   </p>
                 </div>
               </div>
               <div className="mt-5 flex justify-end gap-2">
-                <button onClick={onClose} className="rounded-xl px-4 py-2 text-sm hover:bg-muted/60">{t("Cancel")}</button>
+                <button
+                  onClick={onClose}
+                  className="rounded-xl px-4 py-2 text-sm hover:bg-muted/60"
+                >
+                  {t("Cancel")}
+                </button>
                 <button
                   onClick={onConfirm}
                   disabled={del.isPending}

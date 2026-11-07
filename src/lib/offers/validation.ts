@@ -36,4 +36,6 @@ export const OfferWriteSchema = z.object({
   isActive: z.boolean(),
 });
 
+export const OfferActiveSchema = z.object({ isActive: z.boolean() });
+
 export type OfferInput = z.infer<typeof OfferWriteSchema>;

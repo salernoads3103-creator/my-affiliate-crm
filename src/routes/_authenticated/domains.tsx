@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Database, Globe2, Loader2, Plus, RefreshCw, Search } from "lucide-react";
+import {
+  Check,
+  Copy,
+  Database,
+  Globe2,
+  Loader2,
+  MoreHorizontal,
+  Plus,
+  RefreshCw,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
@@ -16,6 +27,23 @@ import { localizeError, t, type TranslationKey } from "@/lib/i18n";
 import { canShowR2Diagnostics } from "@/lib/publications/health-ui";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -135,6 +163,7 @@ function DomainsPage() {
   const [usageFilter, setUsageFilter] = useState<DomainUsageFilter>("all");
   const [verifyingHostId, setVerifyingHostId] = useState<string | null>(null);
   const [showR2Diagnostics, setShowR2Diagnostics] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<DomainAddress | null>(null);
 
   useEffect(() => {
     setShowR2Diagnostics(canShowR2Diagnostics(window.location.hostname, canManage));
@@ -205,6 +234,21 @@ function DomainsPage() {
     },
     onError: (error) => toast.error(localizeError(error, t("Could not check DNS/HTTPS."), locale)),
     onSettled: () => setVerifyingHostId(null),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (hostId: string) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return domainService.deleteAddress(workspaceId, hostId);
+    },
+    onSuccess: async ({ hostname }) => {
+      if (deleteTarget?.addressType === "root") setSelectedDomainId("");
+      setDeleteTarget(null);
+      toast.success(t("Domain address {name} deleted", { name: hostname }, locale));
+      await invalidateDomains();
+    },
+    onError: (error) =>
+      toast.error(localizeError(error, t("Could not delete domain address.", {}, locale), locale)),
   });
 
   const r2HealthMutation = useMutation({
@@ -625,13 +669,62 @@ function DomainsPage() {
                 canManage={canManage}
                 isVerifying={verifyMutation.isPending && verifyingHostId === address.id}
                 verifyDisabled={verifyMutation.isPending}
+                hasSubdomains={
+                  address.addressType === "root" &&
+                  addresses.some(
+                    (candidate) =>
+                      candidate.addressType === "subdomain" &&
+                      candidate.domainId === address.domainId,
+                  )
+                }
                 onCopy={() => void copyHostname(address.hostname)}
                 onVerify={() => verifyHost(address.id)}
+                onDelete={() => setDeleteTarget(address)}
               />
             ))}
           </div>
         )}
       </section>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("Remove this address from CRMONIA?", {}, locale)}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? t(
+                    "{name} will be removed from CRMONIA. DNS and Cloudflare won't change.",
+                    { name: deleteTarget.hostname },
+                    locale,
+                  )
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {t("Cancel", {}, locale)}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+              }}
+            >
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("Remove address", {}, locale)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -642,19 +735,29 @@ function DomainAddressRow({
   canManage,
   isVerifying,
   verifyDisabled,
+  hasSubdomains,
   onCopy,
   onVerify,
+  onDelete,
 }: {
   address: DomainAddress;
   locale: "uk" | "en";
   canManage: boolean;
   isVerifying: boolean;
   verifyDisabled: boolean;
+  hasSubdomains: boolean;
   onCopy: () => void;
   onVerify: () => void;
+  onDelete: () => void;
 }) {
   const technicalLabel = TECHNICAL_LABEL[address.technicalStatus];
   const usageLabel = USAGE_LABEL[address.usageStatus];
+  const deleteBlockedReason =
+    address.usageStatus !== "free"
+      ? t("Only free, unused addresses can be deleted", {}, locale)
+      : hasSubdomains
+        ? t("Remove subdomains before removing the main domain", {}, locale)
+        : null;
   return (
     <article className="grid min-w-0 gap-4 p-4 sm:p-5 md:grid-cols-[minmax(0,1fr)_minmax(155px,190px)_minmax(125px,150px)_auto] md:items-center">
       <div className="min-w-0 space-y-1.5">
@@ -740,6 +843,35 @@ function DomainAddressRow({
                 {t(address.technicalStatus === "ready" ? "Recheck DNS/HTTPS" : "Check DNS/HTTPS")}
               </span>
             </Button>
+          )}
+          {canManage && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={t("More actions", {}, locale)}
+                >
+                  <MoreHorizontal aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {deleteBlockedReason ? (
+                  <DropdownMenuItem disabled title={deleteBlockedReason}>
+                    {deleteBlockedReason}
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onSelect={onDelete}
+                  >
+                    <Trash2 aria-hidden="true" />
+                    {t("Remove address", {}, locale)}
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>

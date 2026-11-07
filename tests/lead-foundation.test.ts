@@ -103,6 +103,7 @@ describe("Lead creation ownership", () => {
 
   it("scopes lead reads to the selected workspace while retaining RLS", async () => {
     let filteredWorkspace: string | null = null;
+    const softDeleteFilters: Array<{ operator: string; value: string | null }> = [];
     const builder = {
       select() {
         return this;
@@ -114,6 +115,17 @@ describe("Lead creation ownership", () => {
         if (column === "workspace_id") filteredWorkspace = value;
         return this;
       },
+      is(column: string, value: string | null) {
+        softDeleteFilters.push({ operator: `${column}:is`, value });
+        return this;
+      },
+      not(column: string, operator: string, value: string | null) {
+        softDeleteFilters.push({ operator: `${column}:not ${operator}`, value });
+        return this;
+      },
+      or() {
+        return this;
+      },
       then(resolve: (result: { data: never[]; error: null }) => unknown) {
         return Promise.resolve({ data: [], error: null }).then(resolve);
       },
@@ -123,5 +135,15 @@ describe("Lead creation ownership", () => {
 
     await controller.list();
     expect(filteredWorkspace).toBe("selected-workspace");
+    expect(softDeleteFilters).toEqual([{ operator: "deleted_at:is", value: null }]);
+
+    await controller.list(true);
+    expect(softDeleteFilters[1]).toEqual({ operator: "deleted_at:not is", value: null });
+
+    await controller.search("lead");
+    expect(softDeleteFilters[2]).toEqual({ operator: "deleted_at:is", value: null });
+
+    await controller.search("lead", true);
+    expect(softDeleteFilters[3]).toEqual({ operator: "deleted_at:not is", value: null });
   });
 });

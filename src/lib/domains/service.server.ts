@@ -185,6 +185,24 @@ export class DomainService {
     };
   }
 
+  async deleteAddress(workspaceId: string, hostId: string): Promise<{ hostname: string }> {
+    const { data, error } = await supabaseAdmin.rpc("delete_workspace_domain_address", {
+      p_workspace_id: workspaceId,
+      p_domain_host_id: hostId,
+    });
+    if (error?.code === "23514") {
+      throw new ApiError(409, "Only free, unused addresses can be deleted", "CONFLICT");
+    }
+    if (error?.code === "23503") {
+      throw new ApiError(409, "Remove subdomains before removing the main domain", "CONFLICT");
+    }
+    throwDbError(error);
+    if (typeof data !== "string") {
+      throw new ApiError(500, "The domain address could not be deleted", "INTERNAL_ERROR");
+    }
+    return { hostname: data };
+  }
+
   async reserveAddress(
     workspaceId: string,
     hostId: string,

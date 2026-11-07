@@ -140,7 +140,7 @@ export function LeadDetailsDrawer({ lead, onClose, locale }: LeadDetailsDrawerPr
                   ]}
                 />
               </div>
-              {canManageOrders && (
+              {canManageOrders && !lead.deleted_at && (
                 <div className="border-t border-border px-6 py-4">
                   <Button className="w-full" onClick={() => setOrderDialogOpen(true)}>
                     <ShoppingCart className="mr-2 h-4 w-4" />

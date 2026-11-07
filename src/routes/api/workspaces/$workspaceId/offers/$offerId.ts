@@ -24,6 +24,29 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/offers/$offer
           return offerErrorResponse(error);
         }
       },
+      PATCH: async ({ request, params }) => {
+        try {
+          const { client } = await requireAccessContext(request);
+          const body = await readJsonBody(request);
+          const data = await new OfferController(client).setActive(
+            params.workspaceId,
+            params.offerId,
+            body,
+          );
+          return accessSuccessResponse(data);
+        } catch (error) {
+          return offerErrorResponse(error);
+        }
+      },
+      DELETE: async ({ request, params }) => {
+        try {
+          const { client } = await requireAccessContext(request);
+          const data = await new OfferController(client).remove(params.workspaceId, params.offerId);
+          return accessSuccessResponse(data);
+        } catch (error) {
+          return offerErrorResponse(error);
+        }
+      },
     },
   },
 });

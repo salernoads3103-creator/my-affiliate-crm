@@ -1,10 +1,11 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useLocale } from "@/components/locale-provider";
+import { CrmoniaWordmark } from "@/components/brand/CrmoniaWordmark";
 import { localizeError, t } from "@/lib/i18n";
 import { getAuthenticatedWorkspacePath } from "@/lib/auth/auth-flow";
 
@@ -60,13 +61,10 @@ function ResetPasswordPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 py-10">
-      <section className="glass w-full max-w-lg rounded-3xl p-7 sm:p-9">
+    <main className="mountain-shell flex min-h-screen items-center justify-center px-4 py-10">
+      <section className="glass w-full max-w-lg rounded-2xl p-6 sm:p-9">
         <div className="mb-7 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl gradient-brand flex items-center justify-center text-white">
-            <Sparkles className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight">CRMONIA</span>
+          <CrmoniaWordmark />
         </div>
         <h1 className="text-2xl font-semibold tracking-tight">{t("Set a new password")}</h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">

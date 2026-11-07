@@ -1,17 +1,26 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { motion, AnimatePresence } from "framer-motion";
 import { X, Loader2 } from "lucide-react";
 import type { Lead, LeadInput, LeadStatus } from "@/lib/leads/types";
 import { LEAD_STATUSES } from "@/lib/leads/types";
 import { useCreateLead, useUpdateLead } from "@/hooks/useLeadsApi";
-import { t } from "@/lib/i18n";
+import { leadStatusLabel, t } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
 import { normalizeUkrainianPhone } from "@/lib/leads/phone";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 import type { OfferCatalogResponse } from "@/lib/offers/types";
 import { accessApi } from "@/services/accessApi";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const NO_OFFER_VALUE = "__no_offer__";
 
 export function LeadModal({
   open,
@@ -26,16 +35,25 @@ export function LeadModal({
   const create = useCreateLead();
   const update = useUpdateLead();
   const { workspace, permissions } = useWorkspaceAccess();
-  const canAssignOffer = permissions["leads.assign_offer"] === true
-    && permissions["offers.read"] === true
-    && permissions["products.read"] === true;
+  const canAssignOffer =
+    permissions["leads.assign_offer"] === true &&
+    permissions["offers.read"] === true &&
+    permissions["products.read"] === true;
   const offersQuery = useQuery({
     queryKey: ["workspace-offers-catalog", workspace?.id, "lead-picker"],
-    queryFn: () => accessApi.get<OfferCatalogResponse>(`/api/workspaces/${workspace!.id}/offers/catalog`),
+    queryFn: () =>
+      accessApi.get<OfferCatalogResponse>(`/api/workspaces/${workspace!.id}/offers/catalog`),
     enabled: Boolean(open && workspace?.id && canAssignOffer),
   });
   const editing = !!lead;
-  const { register, handleSubmit, reset, watch, formState: { errors } } = useForm<LeadInput>({
+  const {
+    control,
+    register,
+    handleSubmit,
+    reset,
+    watch,
+    formState: { errors },
+  } = useForm<LeadInput>({
     defaultValues: { lead_status: "New" },
   });
 
@@ -74,9 +92,11 @@ export function LeadModal({
       {open && (
         <>
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50"
+            className="fixed inset-0 z-50 bg-black/55 backdrop-blur-sm"
           />
           <motion.div
             initial={{ opacity: 0, y: 16, scale: 0.98 }}
@@ -85,20 +105,23 @@ export function LeadModal({
             transition={{ type: "spring", damping: 26, stiffness: 260 }}
             className="fixed left-1/2 top-[10%] z-50 w-[94%] max-w-lg -translate-x-1/2"
           >
-            <form
-              onSubmit={handleSubmit(onSubmit)}
-              className="glass-strong rounded-3xl p-6 sm:p-8 border border-border"
-            >
+            <form onSubmit={handleSubmit(onSubmit)} className="glass-strong rounded-2xl p-6 sm:p-8">
               <div className="flex items-start justify-between">
                 <div>
                   <h2 className="text-xl font-semibold tracking-tight">
                     {editing ? t("Edit lead") : t("Add new lead")}
                   </h2>
                   <p className="text-sm text-muted-foreground mt-0.5">
-                    {editing ? t("Update details for this lead.") : t("Capture a fresh opportunity.")}
+                    {editing
+                      ? t("Update details for this lead.")
+                      : t("Capture a fresh opportunity.")}
                   </p>
                 </div>
-                <button type="button" onClick={onClose} className="rounded-lg p-1.5 hover:bg-muted/60">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg p-1.5 hover:bg-muted/60"
+                >
                   <X className="h-4 w-4" />
                 </button>
               </div>
@@ -127,7 +150,8 @@ export function LeadModal({
                     {...register("phone", {
                       required: editing ? false : t("Required"),
                       maxLength: 40,
-                      validate: (value) => !value || normalizeUkrainianPhone(value) !== null || t("Invalid phone"),
+                      validate: (value) =>
+                        !value || normalizeUkrainianPhone(value) !== null || t("Invalid phone"),
                     })}
                     className="field"
                     placeholder="+380 50 123 45 67"
@@ -141,26 +165,56 @@ export function LeadModal({
                   />
                 </Field>
                 <Field label={t("Status")} error={errors.lead_status?.message}>
-                  <select {...register("lead_status", { required: true })} className="field">
-                    {LEAD_STATUSES.map((s) => <option key={s} value={s}>{t(s)}</option>)}
-                  </select>
+                  <Controller
+                    name="lead_status"
+                    control={control}
+                    rules={{ required: true }}
+                    render={({ field }) => (
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger className="field h-10">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {LEAD_STATUSES.map((status) => (
+                            <SelectItem key={status} value={status}>
+                              {leadStatusLabel(status)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
                 </Field>
                 {canAssignOffer && (
                   <Field label={t("Offer")}>
-                    <select
-                      {...register("offer_id", { setValueAs: (value: string) => value || null })}
-                      className="field"
-                      disabled={offersQuery.isLoading}
-                    >
-                      <option value="">{t("No offer")}</option>
-                      {(offersQuery.data?.offers ?? [])
-                        .filter((offer) => offer.is_active || offer.id === lead?.offer_id)
-                        .map((offer) => (
-                          <option key={offer.id} value={offer.id}>
-                            {offer.name}{offer.product_name ? ` · ${offer.product_name}` : ""}
-                          </option>
-                        ))}
-                    </select>
+                    <Controller
+                      name="offer_id"
+                      control={control}
+                      render={({ field }) => (
+                        <Select
+                          value={field.value ?? NO_OFFER_VALUE}
+                          onValueChange={(value) =>
+                            field.onChange(value === NO_OFFER_VALUE ? null : value)
+                          }
+                          disabled={offersQuery.isLoading}
+                        >
+                          <SelectTrigger className="field h-10">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NO_OFFER_VALUE}>{t("No offer")}</SelectItem>
+                            {(offersQuery.data?.offers ?? [])
+                              .filter((offer) => offer.is_active || offer.id === lead?.offer_id)
+                              .map((offer) => (
+                                <SelectItem key={offer.id} value={offer.id}>
+                                  {offer.name}
+                                  {offer.product_name ? ` · ${offer.product_name}` : ""}
+                                </SelectItem>
+                              ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
                   </Field>
                 )}
                 <div className="sm:col-span-2">
@@ -177,7 +231,11 @@ export function LeadModal({
               </div>
 
               <div className="mt-6 flex items-center justify-end gap-2">
-                <button type="button" onClick={onClose} className="rounded-xl px-4 py-2 text-sm hover:bg-muted/60 transition">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-xl px-4 py-2 text-sm hover:bg-muted/60 transition"
+                >
                   {t("Cancel")}
                 </button>
                 <button
@@ -202,7 +260,15 @@ function omitOffer(input: LeadInput): LeadInput {
   return rest;
 }
 
-function Field({ label, error, children }: { label: string; error?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="block">
       <span className="text-xs font-medium text-foreground/80">{label}</span>

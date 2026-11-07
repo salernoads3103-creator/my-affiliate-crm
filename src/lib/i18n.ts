@@ -102,10 +102,15 @@ const uk = {
   "Total leads": "Усього лідів",
   "all-time": "за весь час",
   New: "Новий",
-  Contacted: "У контакті",
-  Qualified: "Кваліфікований",
-  Converted: "Клієнт",
-  Lost: "Втрачений",
+  Contacted: "В роботі",
+  Qualified: "Підтверджено",
+  Converted: "Конверсія",
+  Lost: "Відмова",
+  "Dashboard status: New": "Нові",
+  "Dashboard status: Contacted": "В роботі",
+  "Dashboard status: Qualified": "Підтверджені",
+  "Dashboard status: Converted": "Конверсії",
+  "Dashboard status: Lost": "Відмови",
   "New leads — last 14 days": "Нові ліди за останні 14 днів",
   "Daily inflow trend": "Нові ліди за днями",
   "Status distribution": "Ліди за статусом",
@@ -623,12 +628,21 @@ const uk = {
   "Context, follow-ups, next steps…": "Нотатки, домовленості, наступні кроки…",
   "Save changes": "Зберегти зміни",
   "Create lead": "Створити ліда",
-  "Delete this lead?": "Видалити цього ліда?",
+  "Delete this lead?": "Прибрати ліда з активного списку?",
   "{name} will be permanently removed. This action cannot be undone.":
-    "Ліда «{name}» буде видалено без можливості відновлення.",
+    "Запис «{name}» буде видалено без можливості відновлення.",
+  "{name} will leave active leads. If an order is linked, the lead will be hidden and the order/history will stay unchanged; without orders, the lead will be permanently deleted.":
+    "{name} зникне з активного списку. Якщо до нього прив’язане замовлення, буде приховано лише ліда — замовлення й історія залишаться. Якщо замовлення немає, лід буде видалено назавжди.",
   "Lead created": "Ліда створено",
   "Lead updated": "Дані ліда оновлено",
   "Lead deleted": "Ліда видалено",
+  "Lead hidden; order history kept": "Ліда приховано, замовлення та історію збережено",
+  "Lead restored": "Ліда відновлено",
+  "Failed to restore lead": "Не вдалося відновити ліда",
+  "Restore lead": "Відновити ліда",
+  "Show hidden leads": "Показати прихованих лідів",
+  "Show active leads": "Показати активних лідів",
+  "No hidden leads match these filters.": "Прихованих лідів за цими фільтрами не знайдено.",
   "Failed to create": "Не вдалося створити ліда",
   "Failed to update": "Не вдалося оновити ліда",
   "Failed to delete": "Не вдалося видалити ліда",
@@ -1208,6 +1222,42 @@ const uk = {
   "Recovering saved launch…": "Відновлюємо збережений запуск…",
   "Could not recover the saved launch. Retry loading its state before continuing.":
     "Не вдалося відновити стан запуску. Повторіть завантаження перед продовженням.",
+  "More actions": "Інші дії",
+  Activate: "Увімкнути",
+  "Delete this product?": "Видалити товар?",
+  "Delete this offer?": "Видалити офер?",
+  "Delete this tracking profile?": "Видалити профіль відстеження?",
+  "Remove this address from CRMONIA?": "Видалити цю адресу з CRMONIA?",
+  "{name} will be removed from CRMONIA. DNS and Cloudflare won't change.":
+    "Адресу {name} буде прибрано з CRMONIA. DNS і Cloudflare не зміняться.",
+  "Domain address {name} deleted": "Адресу {name} видалено",
+  "Remove address": "Видалити адресу",
+  "Remove subdomains before removing the main domain":
+    "Спочатку видаліть піддомени, а потім основний домен.",
+  "Only free, unused addresses can be deleted":
+    "Видалити можна лише вільні адреси без історії використання.",
+  "This only removes the address from CRMONIA. It does not change DNS or Cloudflare.":
+    "Адресу буде прибрано лише з CRMONIA. DNS і Cloudflare не зміняться.",
+  "Product deleted": "Товар видалено",
+  "Could not delete product.": "Не вдалося видалити товар.",
+  "Product activated": "Товар активовано",
+  "Product deactivated": "Товар деактивовано",
+  "Product is linked to an offer or order; deactivate it instead":
+    "Товар пов'язаний з офером або замовленням. Деактивуйте його замість видалення.",
+  "Offer deleted": "Офер видалено",
+  "Could not delete offer.": "Не вдалося видалити офер.",
+  "Offer activated": "Офер активовано",
+  "Offer deactivated": "Офер деактивовано",
+  "Offer has lead, order, landing, form, or launch history and cannot be deleted; deactivate it instead":
+    "Офер пов'язаний із лідами, замовленнями, лендингом або запуском. Деактивуйте його замість видалення.",
+  "This profile is linked to a landing or launch and cannot be deleted":
+    "Профіль використовується лендингом або запуском і не може бути видалений.",
+  "Tracking profile deleted": "Профіль відстеження видалено",
+  "Could not delete tracking profile.": "Не вдалося видалити профіль відстеження.",
+  "Domain address deleted": "Адресу видалено",
+  "Could not delete domain address.": "Не вдалося видалити адресу.",
+  "Reserved, published, or previously used addresses cannot be deleted":
+    "Зарезервовані, опубліковані або раніше використані адреси не можна видалити.",
 } as const;
 
 export type TranslationKey = keyof typeof uk;
@@ -1364,12 +1414,29 @@ const en: Partial<Record<TranslationKey, string>> = {
   "You don't have permission to manage integrations.":
     "You don't have permission to manage integrations.",
   "Total leads": "Total leads",
+  "Dashboard status: New": "New",
+  "Dashboard status: Contacted": "Contacted",
+  "Dashboard status: Qualified": "Qualified",
+  "Dashboard status: Converted": "Converted",
+  "Dashboard status: Lost": "Lost",
   "New leads — last 14 days": "New leads over the last 14 days",
   "Daily inflow trend": "Daily lead volume",
   "Status distribution": "Leads by status",
   "Failed to create": "Couldn't create the lead.",
   "Failed to update": "Couldn't update the lead.",
   "Failed to delete": "Couldn't delete the lead.",
+  "Lead hidden; order history kept": "Lead hidden; its order and history were kept.",
+  "Lead restored": "Lead restored.",
+  "Failed to restore lead": "Couldn't restore the lead.",
+  "Restore lead": "Restore lead",
+  "Show hidden leads": "Show hidden leads",
+  "Show active leads": "Show active leads",
+  "No hidden leads match these filters.": "No hidden leads match these filters.",
+  "Delete this lead?": "Remove this lead from active leads?",
+  "{name} will be permanently removed. This action cannot be undone.":
+    "{name} will be permanently removed. This action cannot be undone.",
+  "{name} will leave active leads. If an order is linked, the lead will be hidden and the order/history will stay unchanged; without orders, the lead will be permanently deleted.":
+    "{name} will leave the active list. If an order is linked, only the lead will be hidden; the order and history will remain unchanged. Without an order, the lead will be permanently deleted.",
   "Invalid lead data": "Check the lead details and try again.",
   "Breakdown of pipeline": "Pipeline breakdown",
   "Start building your pipeline. Add your first lead to track conversations and conversions.":
@@ -1888,6 +1955,41 @@ const en: Partial<Record<TranslationKey, string>> = {
   "Recovering saved launch…": "Recovering saved launch…",
   "Could not recover the saved launch. Retry loading its state before continuing.":
     "Could not recover the saved launch. Retry loading its state before continuing.",
+  "More actions": "More actions",
+  Activate: "Activate",
+  "Delete this product?": "Delete this product?",
+  "Delete this offer?": "Delete this offer?",
+  "Delete this tracking profile?": "Delete this tracking profile?",
+  "Remove this address from CRMONIA?": "Remove this address from CRMONIA?",
+  "{name} will be removed from CRMONIA. DNS and Cloudflare won't change.":
+    "{name} will be removed from CRMONIA. DNS and Cloudflare won't change.",
+  "Domain address {name} deleted": "Domain address {name} deleted",
+  "Remove address": "Remove address",
+  "Remove subdomains before removing the main domain":
+    "Remove subdomains before removing the main domain",
+  "Only free, unused addresses can be deleted": "Only free, unused addresses can be deleted",
+  "This only removes the address from CRMONIA. It does not change DNS or Cloudflare.":
+    "This only removes the address from CRMONIA. It does not change DNS or Cloudflare.",
+  "Product deleted": "Product deleted",
+  "Could not delete product.": "Couldn't delete the product.",
+  "Product activated": "Product activated",
+  "Product deactivated": "Product deactivated",
+  "Product is linked to an offer or order; deactivate it instead":
+    "This product is linked to an offer or order. Deactivate it instead.",
+  "Offer deleted": "Offer deleted",
+  "Could not delete offer.": "Couldn't delete the offer.",
+  "Offer activated": "Offer activated",
+  "Offer deactivated": "Offer deactivated",
+  "Offer has lead, order, landing, form, or launch history and cannot be deleted; deactivate it instead":
+    "This offer has leads, orders, a landing, form, or launch history. Deactivate it instead.",
+  "This profile is linked to a landing or launch and cannot be deleted":
+    "This profile is linked to a landing or launch and cannot be deleted.",
+  "Tracking profile deleted": "Tracking profile deleted",
+  "Could not delete tracking profile.": "Couldn't delete the tracking profile.",
+  "Domain address deleted": "Domain address deleted",
+  "Could not delete domain address.": "Couldn't delete the domain address.",
+  "Reserved, published, or previously used addresses cannot be deleted":
+    "Reserved, published, or previously used addresses cannot be deleted.",
 };
 
 const catalogs = { uk, en } as const;
@@ -1901,6 +2003,30 @@ export function t(
   return message.replace(/\{(\w+)\}/g, (match, name: string) =>
     Object.hasOwn(values, name) ? String(values[name]) : match,
   );
+}
+
+const leadStatusDashboardKeys = {
+  New: "Dashboard status: New",
+  Contacted: "Dashboard status: Contacted",
+  Qualified: "Dashboard status: Qualified",
+  Converted: "Dashboard status: Converted",
+  Lost: "Dashboard status: Lost",
+} as const satisfies Record<import("@/lib/leads/types").LeadStatus, TranslationKey>;
+
+/** Human-facing singular label for a lead row, badge, form, or filter. */
+export function leadStatusLabel(
+  status: import("@/lib/leads/types").LeadStatus,
+  locale: Locale = activeLocale,
+): string {
+  return t(status, {}, locale);
+}
+
+/** Dashboard labels use natural Ukrainian plural forms while keeping API values untouched. */
+export function leadStatusDashboardLabel(
+  status: import("@/lib/leads/types").LeadStatus,
+  locale: Locale = activeLocale,
+): string {
+  return t(leadStatusDashboardKeys[status], {}, locale);
 }
 
 /** Translates known display labels while leaving API and permission identifiers untouched. */

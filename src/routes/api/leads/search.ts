@@ -7,9 +7,13 @@ export const Route = createFileRoute("/api/leads/search")({
       GET: async ({ request }) => {
         try {
           const c = await getController(request);
-          const q = new URL(request.url).searchParams.get("q") ?? "";
-          return ok(await c.search(q));
-        } catch (e) { return fail(e); }
+          const params = new URL(request.url).searchParams;
+          const q = params.get("q") ?? "";
+          const includeDeleted = params.get("includeDeleted") === "true";
+          return ok(await c.search(q, includeDeleted));
+        } catch (e) {
+          return fail(e);
+        }
       },
     },
   },

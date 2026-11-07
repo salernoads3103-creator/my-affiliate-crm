@@ -1,12 +1,37 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image as ImageIcon, Loader2, Pencil, Plus, Search } from "lucide-react";
+import {
+  Image as ImageIcon,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
 import { OfferModal } from "@/components/offers/OfferModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -38,6 +63,7 @@ function OffersPage() {
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingOffer, setEditingOffer] = useState<OfferCatalogItem | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<OfferCatalogItem | null>(null);
 
   const offersQuery = useQuery({
     queryKey: [...OFFERS_QUERY_KEY, workspaceId, search.trim()],
@@ -59,6 +85,32 @@ function OffersPage() {
       setEditingOffer(null);
     },
     onError: (error) => toast.error(localizeError(error, t("Failed to save offer"), locale)),
+  });
+
+  const activeMutation = useMutation({
+    mutationFn: ({ offerId, isActive }: { offerId: string; isActive: boolean }) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return offerService.setActive(workspaceId, offerId, isActive);
+    },
+    onSuccess: async (_, input) => {
+      await queryClient.invalidateQueries({ queryKey: OFFERS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ["offer-launches"] });
+      toast.success(t(input.isActive ? "Offer activated" : "Offer deactivated"));
+    },
+    onError: (error) => toast.error(localizeError(error, t("Failed to save offer"), locale)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (offerId: string) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return offerService.delete(workspaceId, offerId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: OFFERS_QUERY_KEY });
+      toast.success(t("Offer deleted"));
+      setDeleteTarget(null);
+    },
+    onError: (error) => toast.error(localizeError(error, t("Could not delete offer."), locale)),
   });
 
   const openCreate = () => {
@@ -234,14 +286,38 @@ function OffersPage() {
                     </TableCell>
                     {canManageOffers && (
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t("Edit offer")}
-                          onClick={() => openEdit(offer)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={t("More actions")}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => openEdit(offer)}>
+                              <Pencil className="h-4 w-4" />
+                              {t("Edit offer")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={activeMutation.isPending}
+                              onSelect={() =>
+                                activeMutation.mutate({
+                                  offerId: offer.id,
+                                  isActive: !offer.is_active,
+                                })
+                              }
+                            >
+                              {t(offer.is_active ? "Deactivate" : "Activate")}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() => setDeleteTarget(offer)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {t("Delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     )}
                   </TableRow>
@@ -265,6 +341,40 @@ function OffersPage() {
           await saveMutation.mutateAsync(values);
         }}
       />
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Delete this offer?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? t("{name} will be permanently removed. This action cannot be undone.", {
+                    name: deleteTarget.name,
+                  })
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>{t("Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+              }}
+            >
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

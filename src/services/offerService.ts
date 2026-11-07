@@ -20,6 +20,10 @@ export const offerService = {
     accessApi.post<{ id: string }>(basePath(workspaceId), input),
   update: (workspaceId: string, offerId: string, input: OfferWriteRequest) =>
     accessApi.put<{ id: string }>(`${basePath(workspaceId)}/${offerId}`, input),
+  setActive: (workspaceId: string, offerId: string, isActive: boolean) =>
+    accessApi.patch<{ id: string }>(`${basePath(workspaceId)}/${offerId}`, { isActive }),
+  delete: (workspaceId: string, offerId: string) =>
+    accessApi.delete<{ deleted: boolean }>(`${basePath(workspaceId)}/${offerId}`),
   getLandingForm: (workspaceId: string, offerId: string) =>
     accessApi.get<LandingFormConfig | null>(`${basePath(workspaceId)}/${offerId}/intake-form`),
   createLandingForm: (workspaceId: string, offerId: string, allowedOrigin: string) =>

@@ -1,11 +1,12 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
-import { Building2, Loader2, Sparkles } from "lucide-react";
+import { Building2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
 import { accessApi } from "@/services/accessApi";
 import { useLocale } from "@/components/locale-provider";
+import { CrmoniaWordmark } from "@/components/brand/CrmoniaWordmark";
 import { localizeError, t } from "@/lib/i18n";
 import { persistActiveWorkspaceId } from "@/lib/workspace-selection";
 
@@ -44,13 +45,10 @@ function WorkspaceSetupPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center px-4 py-10">
-      <section className="glass w-full max-w-lg rounded-3xl p-7 sm:p-9">
+    <main className="mountain-shell flex min-h-screen items-center justify-center px-4 py-10">
+      <section className="glass w-full max-w-lg rounded-2xl p-6 sm:p-9">
         <div className="mb-7 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl gradient-brand flex items-center justify-center text-white">
-            <Sparkles className="h-5 w-5" aria-hidden="true" />
-          </div>
-          <span className="text-lg font-semibold tracking-tight">CRMONIA</span>
+          <CrmoniaWordmark />
         </div>
         <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
           <Building2 className="h-5 w-5" aria-hidden="true" />

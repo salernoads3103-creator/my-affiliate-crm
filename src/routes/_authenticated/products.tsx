@@ -1,12 +1,37 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Image as ImageIcon, Loader2, Pencil, Plus, Search } from "lucide-react";
+import {
+  Image as ImageIcon,
+  Loader2,
+  MoreHorizontal,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
 import { ProductModal } from "@/components/products/ProductModal";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -17,7 +42,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
-import { formatMinorUnits } from "@/lib/products/money";
+import { formatMinorUnits, formatMinorUnitsInput } from "@/lib/products/money";
 import type { Product } from "@/lib/products/types";
 import type { ProductWriteRequest } from "@/lib/products/types";
 import { localizeError, t } from "@/lib/i18n";
@@ -40,6 +65,7 @@ function ProductsPage() {
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
 
   const productsQuery = useQuery({
     queryKey: [...PRODUCTS_QUERY_KEY, workspaceId, search.trim()],
@@ -61,6 +87,47 @@ function ProductsPage() {
       setEditingProduct(null);
     },
     onError: (error) => toast.error(localizeError(error, t("Failed to save product"))),
+  });
+
+  const activeMutation = useMutation({
+    mutationFn: (product: Product) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return productService.update(workspaceId, product.id, {
+        name: product.name,
+        sku: product.sku ?? "",
+        salePrice: formatMinorUnitsInput(product.sale_price_minor),
+        photoUrl: product.photo_url ?? "",
+        weightGrams: product.weight_grams == null ? "" : String(product.weight_grams),
+        lengthMm: product.length_mm == null ? "" : String(product.length_mm),
+        widthMm: product.width_mm == null ? "" : String(product.width_mm),
+        heightMm: product.height_mm == null ? "" : String(product.height_mm),
+        supplierName: product.supplier_name ?? "",
+        isActive: !product.is_active,
+      });
+    },
+    onSuccess: async (_, product) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY }),
+        queryClient.invalidateQueries({ queryKey: ["workspace-offers-catalog"] }),
+        queryClient.invalidateQueries({ queryKey: ["offer-launches"] }),
+      ]);
+      toast.success(t(product.is_active ? "Product deactivated" : "Product activated"));
+    },
+    onError: (error) => toast.error(localizeError(error, t("Failed to save product"))),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (productId: string) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return productService.delete(workspaceId, productId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: PRODUCTS_QUERY_KEY });
+      await queryClient.invalidateQueries({ queryKey: ["workspace-offers-catalog"] });
+      toast.success(t("Product deleted"));
+      setDeleteTarget(null);
+    },
+    onError: (error) => toast.error(localizeError(error, t("Could not delete product."), locale)),
   });
 
   const openCreate = () => {
@@ -213,14 +280,33 @@ function ProductsPage() {
                     </TableCell>
                     {canManageProducts && (
                       <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t("Edit product")}
-                          onClick={() => openEdit(product)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" aria-label={t("More actions")}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onSelect={() => openEdit(product)}>
+                              <Pencil className="h-4 w-4" />
+                              {t("Edit product")}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              disabled={activeMutation.isPending}
+                              onSelect={() => activeMutation.mutate(product)}
+                            >
+                              {t(product.is_active ? "Deactivate" : "Activate")}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onSelect={() => setDeleteTarget(product)}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              {t("Delete")}
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     )}
                   </TableRow>
@@ -247,6 +333,40 @@ function ProductsPage() {
             .catch(() => undefined)
         }
       />
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Delete this product?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? t("{name} will be permanently removed. This action cannot be undone.", {
+                    name: deleteTarget.name,
+                  })
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>{t("Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+              }}
+            >
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

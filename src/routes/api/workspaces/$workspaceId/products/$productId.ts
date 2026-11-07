@@ -26,6 +26,20 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/products/$pro
           return productErrorResponse(error);
         }
       },
+      DELETE: async ({ request, params }) => {
+        try {
+          const context = await requireAccessContext(request);
+          await requireWorkspacePermission(context, params.workspaceId, "products.read");
+          await requireWorkspacePermission(context, params.workspaceId, "products.manage");
+          const data = await new ProductController(context.client).remove(
+            params.workspaceId,
+            params.productId,
+          );
+          return accessSuccessResponse(data);
+        } catch (error) {
+          return productErrorResponse(error);
+        }
+      },
     },
   },
 });

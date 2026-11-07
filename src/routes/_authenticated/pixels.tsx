@@ -1,11 +1,28 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Pencil, Plus, Radio, ToggleLeft } from "lucide-react";
+import { Loader2, MoreHorizontal, Pencil, Plus, Radio, Trash2, ToggleLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useLocale } from "@/components/locale-provider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +74,7 @@ function PixelsPage() {
   const canManage = permissions["landing_pages.manage"] === true;
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProfile, setEditingProfile] = useState<TrackingProfile | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TrackingProfile | null>(null);
   const [name, setName] = useState("");
   const [platform, setPlatform] = useState<TrackingPlatform>("tiktok");
   const [tiktokPixelId, setTiktokPixelId] = useState("");
@@ -86,6 +104,20 @@ function PixelsPage() {
     },
     onError: (error) =>
       toast.error(localizeError(error, t("Could not save tracking profile"), locale)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (profileId: string) => {
+      if (!workspaceId) throw new Error("Workspace is unavailable");
+      return trackingProfileService.delete(workspaceId, profileId);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: PROFILES_QUERY_KEY });
+      toast.success(t("Tracking profile deleted"));
+      setDeleteTarget(null);
+    },
+    onError: (error) =>
+      toast.error(localizeError(error, t("Could not delete tracking profile."), locale)),
   });
 
   const openCreate = () => {
@@ -244,29 +276,32 @@ function PixelsPage() {
                     </td>
                     {canManage && (
                       <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={t("Edit tracking profile {name}", { name: profile.name })}
-                            onClick={() => openEdit(profile)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={
-                              profile.is_active
-                                ? t("Disable tracking profile {name}", { name: profile.name })
-                                : t("Enable tracking profile {name}", { name: profile.name })
-                            }
-                            onClick={() => toggleActive(profile)}
-                          >
-                            <ToggleLeft
-                              className={`h-4 w-4 ${profile.is_active ? "" : "text-muted-foreground"}`}
-                            />
-                          </Button>
+                        <div className="flex justify-end">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" aria-label={t("More actions")}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onSelect={() => openEdit(profile)}>
+                                <Pencil className="h-4 w-4" />
+                                {t("Edit tracking profile {name}", { name: profile.name })}
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onSelect={() => toggleActive(profile)}>
+                                <ToggleLeft className="h-4 w-4" />
+                                {t(profile.is_active ? "Deactivate" : "Activate")}
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() => setDeleteTarget(profile)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                {t("Delete")}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     )}
@@ -381,6 +416,40 @@ function PixelsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteMutation.isPending) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Delete this tracking profile?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deleteTarget
+                ? t("{name} will be permanently removed. This action cannot be undone.", {
+                    name: deleteTarget.name,
+                  })
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>{t("Cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(event) => {
+                event.preventDefault();
+                if (deleteTarget) deleteMutation.mutate(deleteTarget.id);
+              }}
+            >
+              {deleteMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t("Delete")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

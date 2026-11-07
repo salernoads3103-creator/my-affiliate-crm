@@ -35,6 +35,18 @@ export const Route = createFileRoute("/api/workspaces/$workspaceId/tracking-prof
           return accessErrorResponse(error);
         }
       },
+      DELETE: async ({ request, params }) => {
+        try {
+          const workspaceId = parseLandingRouteId(params.workspaceId, "workspace");
+          const profileId = parseLandingRouteId(params.profileId, "tracking profile");
+          const context = await requireAccessContext(request);
+          await requireWorkspacePermission(context, workspaceId, "landing_pages.manage");
+          await new TrackingProfileService().remove(workspaceId, profileId);
+          return accessSuccessResponse({ deleted: true });
+        } catch (error) {
+          return accessErrorResponse(error);
+        }
+      },
     },
   },
 });

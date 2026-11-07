@@ -8,25 +8,27 @@ import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
 
 export const LEAD_KEYS = {
   all: ["leads"] as const,
-  list: (workspaceId?: string) => [...LEAD_KEYS.all, "list", workspaceId] as const,
-  search: (q: string, workspaceId?: string) => [...LEAD_KEYS.all, "search", workspaceId, q] as const,
+  list: (workspaceId?: string, includeDeleted = false) =>
+    [...LEAD_KEYS.all, "list", workspaceId, includeDeleted] as const,
+  search: (q: string, workspaceId?: string, includeDeleted = false) =>
+    [...LEAD_KEYS.all, "search", workspaceId, q, includeDeleted] as const,
   stats: (workspaceId?: string) => [...LEAD_KEYS.all, "stats", workspaceId] as const,
 };
 
-export const useLeads = () => {
+export const useLeads = (includeDeleted = false) => {
   const { workspace } = useWorkspaceAccess();
   return useQuery({
-    queryKey: LEAD_KEYS.list(workspace?.id),
-    queryFn: () => leadService.list(workspace!.id),
+    queryKey: LEAD_KEYS.list(workspace?.id, includeDeleted),
+    queryFn: () => leadService.list(workspace!.id, includeDeleted),
     enabled: Boolean(workspace?.id),
   });
 };
 
-export const useSearchLeads = (q: string) => {
+export const useSearchLeads = (q: string, includeDeleted = false) => {
   const { workspace } = useWorkspaceAccess();
   return useQuery({
-    queryKey: LEAD_KEYS.search(q, workspace?.id),
-    queryFn: () => leadService.search(q, workspace!.id),
+    queryKey: LEAD_KEYS.search(q, workspace?.id, includeDeleted),
+    queryFn: () => leadService.search(q, workspace!.id, includeDeleted),
     enabled: q.trim().length > 0 && Boolean(workspace?.id),
   });
 };
@@ -50,7 +52,10 @@ export const useCreateLead = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: LeadInput) => leadService.create(input, workspace?.id),
-    onSuccess: () => { invalidate(qc); toast.success(t("Lead created")); },
+    onSuccess: () => {
+      invalidate(qc);
+      toast.success(t("Lead created"));
+    },
     onError: (e) => toast.error(localizeError(e, t("Failed to create"))),
   });
 };
@@ -62,7 +67,10 @@ export const useUpdateLead = () => {
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: Partial<LeadInput> }) =>
       leadService.update(id, input, workspace?.id),
-    onSuccess: () => { invalidate(qc); toast.success(t("Lead updated")); },
+    onSuccess: () => {
+      invalidate(qc);
+      toast.success(t("Lead updated"));
+    },
     onError: (e) => toast.error(localizeError(e, t("Failed to update"))),
   });
 };
@@ -73,7 +81,26 @@ export const useDeleteLead = () => {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => leadService.remove(id, workspace?.id),
-    onSuccess: () => { invalidate(qc); toast.success(t("Lead deleted")); },
+    onSuccess: (result) => {
+      invalidate(qc);
+      toast.success(
+        t(result.result === "hidden" ? "Lead hidden; order history kept" : "Lead deleted"),
+      );
+    },
     onError: (e) => toast.error(localizeError(e, t("Failed to delete"))),
+  });
+};
+
+export const useRestoreLead = () => {
+  useLocale();
+  const { workspace } = useWorkspaceAccess();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => leadService.restore(id, workspace?.id),
+    onSuccess: () => {
+      invalidate(qc);
+      toast.success(t("Lead restored"));
+    },
+    onError: (e) => toast.error(localizeError(e, t("Failed to restore lead"))),
   });
 };

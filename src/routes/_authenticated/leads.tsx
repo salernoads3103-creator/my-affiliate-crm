@@ -1,16 +1,43 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Search, Download, Pencil, Trash2, Filter, ChevronDown, Inbox } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Download,
+  Pencil,
+  Trash2,
+  Filter,
+  Inbox,
+  MoreHorizontal,
+  RotateCcw,
+} from "lucide-react";
 import { LeadModal } from "@/components/leads/LeadModal";
 import { DeleteModal } from "@/components/leads/DeleteModal";
 import { LeadDetailsDrawer } from "@/components/leads/LeadDetailsDrawer";
 import { StatusBadge } from "@/components/leads/StatusBadge";
-import { useLeads, useSearchLeads, useUpdateLead } from "@/hooks/useLeadsApi";
+import { useLeads, useRestoreLead, useSearchLeads, useUpdateLead } from "@/hooks/useLeadsApi";
 import { useDebounce } from "@/hooks/useDebounce";
 import { LEAD_STATUSES, type Lead, type LeadStatus } from "@/lib/leads/types";
-import { leadCountLabel, t } from "@/lib/i18n";
+import { leadCountLabel, leadStatusLabel, t } from "@/lib/i18n";
 import { useLocale } from "@/components/locale-provider";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { STATUS_BADGE_STYLES } from "@/components/leads/statusBadgeStyles";
+import { Button } from "@/components/ui/button";
+import { useWorkspaceAccess } from "@/hooks/useWorkspaceAccess";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/_authenticated/leads")({
   validateSearch: (s: Record<string, unknown>) => ({ new: s.new === true || s.new === "true" }),
@@ -21,6 +48,9 @@ const PAGE_SIZE = 10;
 
 function LeadsPage() {
   const { locale } = useLocale();
+  const { workspace, isSuperAdmin, permissions } = useWorkspaceAccess();
+  const isWorkspaceAdmin = workspace?.role === "admin" || isSuperAdmin;
+  const canDeleteLeads = isSuperAdmin || permissions["leads.delete"] === true;
   const { new: openNew } = Route.useSearch();
   const [query, setQuery] = useState("");
   const debounced = useDebounce(query, 250);
@@ -30,13 +60,17 @@ function LeadsPage() {
   const [deleting, setDeleting] = useState<Lead | null>(null);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [showHiddenLeads, setShowHiddenLeads] = useState(false);
+  const includeDeleted = showHiddenLeads && isWorkspaceAdmin;
 
-  useEffect(() => { if (openNew) setModalOpen(true); }, [openNew]);
+  useEffect(() => {
+    if (openNew) setModalOpen(true);
+  }, [openNew]);
 
-  const allQuery = useLeads();
-  const searchQuery = useSearchLeads(debounced);
+  const allQuery = useLeads(includeDeleted);
+  const searchQuery = useSearchLeads(debounced, includeDeleted);
   const source = debounced.trim() ? searchQuery : allQuery;
-  const data = source.data ?? [];
+  const data = useMemo(() => source.data ?? [], [source.data]);
 
   const filtered = useMemo(
     () => (statusFilter === "All" ? data : data.filter((l) => l.lead_status === statusFilter)),
@@ -44,23 +78,47 @@ function LeadsPage() {
   );
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const current = useMemo(() => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filtered, page]);
-  useEffect(() => { setPage(1); }, [debounced, statusFilter]);
+  const current = useMemo(
+    () => filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
+    [filtered, page],
+  );
+  const restoreLead = useRestoreLead();
+  useEffect(() => {
+    setPage(1);
+  }, [debounced, statusFilter]);
 
   const exportCsv = () => {
     const rows = [
       [t("Name"), t("Email"), t("Phone"), t("Company"), t("Status"), t("Notes"), t("Created")],
-      ...filtered.map((l) => [l.name, l.email ?? "", l.phone ?? "", l.company_name ?? "", l.lead_status, (l.notes ?? "").replace(/\n/g, " "), l.created_at]),
+      ...filtered.map((l) => [
+        l.name,
+        l.email ?? "",
+        l.phone ?? "",
+        l.company_name ?? "",
+        leadStatusLabel(l.lead_status, locale),
+        (l.notes ?? "").replace(/\n/g, " "),
+        l.created_at,
+      ]),
     ];
-    const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const csv = rows
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
-    a.href = url; a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+    a.href = url;
+    a.download = `leads-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
-  const openEdit = (l: Lead) => { setEditing(l); setModalOpen(true); };
-  const close = () => { setModalOpen(false); setEditing(null); };
+  const openEdit = (l: Lead) => {
+    setEditing(l);
+    setModalOpen(true);
+  };
+  const close = () => {
+    setModalOpen(false);
+    setEditing(null);
+  };
 
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
@@ -70,12 +128,36 @@ function LeadsPage() {
           <p className="text-sm text-muted-foreground">{leadCountLabel(filtered.length, locale)}</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={exportCsv} className="rounded-xl border border-border bg-input/30 hover:bg-input/60 px-3 py-2 text-sm flex items-center gap-2 transition">
+          {isWorkspaceAdmin && (
+            <Button
+              variant={includeDeleted ? "secondary" : "outline"}
+              size="sm"
+              onClick={() => {
+                setShowHiddenLeads(!includeDeleted);
+                setPage(1);
+                setSelectedLead(null);
+              }}
+            >
+              {t(includeDeleted ? "Show active leads" : "Show hidden leads")}
+            </Button>
+          )}
+          <button
+            onClick={exportCsv}
+            className="rounded-xl border border-border bg-input/30 hover:bg-input/60 px-3 py-2 text-sm flex items-center gap-2 transition"
+          >
             <Download className="h-4 w-4" /> {t("Export")}
           </button>
-          <button onClick={() => { setEditing(null); setModalOpen(true); }} className="rounded-xl gradient-brand text-primary-foreground text-sm font-medium px-4 py-2 flex items-center gap-2 hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-primary/20">
-            <Plus className="h-4 w-4" /> {t("Add lead")}
-          </button>
+          {!includeDeleted && (
+            <button
+              onClick={() => {
+                setEditing(null);
+                setModalOpen(true);
+              }}
+              className="rounded-xl gradient-brand text-primary-foreground text-sm font-medium px-4 py-2 flex items-center gap-2 hover:opacity-95 active:scale-[0.99] transition shadow-lg shadow-primary/20"
+            >
+              <Plus className="h-4 w-4" /> {t("Add lead")}
+            </button>
+          )}
         </div>
       </header>
 
@@ -89,24 +171,45 @@ function LeadsPage() {
             className="w-full rounded-xl bg-input/40 border border-border pl-9 pr-3 py-2 text-sm outline-none focus:ring-4 focus:ring-ring transition"
           />
         </div>
-        <div className="relative">
-          <Filter className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-          <select
+        <div className="relative flex items-center">
+          <Filter className="pointer-events-none absolute left-3 z-10 h-4 w-4 text-muted-foreground" />
+          <Select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as LeadStatus | "All")}
-            className="appearance-none rounded-xl bg-input/40 border border-border pl-9 pr-9 py-2 text-sm outline-none focus:ring-4 focus:ring-ring transition"
+            onValueChange={(value) => setStatusFilter(value as LeadStatus | "All")}
           >
-            <option value="All">{t("All statuses")}</option>
-            {LEAD_STATUSES.map((s) => <option key={s} value={s}>{t(s)}</option>)}
-          </select>
-          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+            <SelectTrigger
+              aria-label={t("All statuses")}
+              className="h-10 w-[11.5rem] rounded-xl border-border bg-input/40 pl-9 pr-3 text-sm"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent align="end" className="min-w-[11.5rem]">
+              <SelectItem value="All">{t("All statuses")}</SelectItem>
+              {LEAD_STATUSES.map((status) => (
+                <SelectItem key={status} value={status}>
+                  {leadStatusLabel(status, locale)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
       {source.isLoading ? (
         <TableSkeleton />
       ) : filtered.length === 0 ? (
-        <EmptyState onAdd={() => { setEditing(null); setModalOpen(true); }} />
+        includeDeleted ? (
+          <div className="glass rounded-2xl px-6 py-12 text-center text-sm text-muted-foreground">
+            {t("No hidden leads match these filters.")}
+          </div>
+        ) : (
+          <EmptyState
+            onAdd={() => {
+              setEditing(null);
+              setModalOpen(true);
+            }}
+          />
+        )
       ) : (
         <>
           {/* Desktop table */}
@@ -128,7 +231,9 @@ function LeadsPage() {
                     <motion.tr
                       key={l.id}
                       layout
-                      initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
                       onClick={() => setSelectedLead(l)}
                       className="border-t border-border hover:bg-muted/30 transition group cursor-pointer"
                     >
@@ -154,15 +259,54 @@ function LeadsPage() {
                       <td className="px-5 py-3 text-muted-foreground">{l.email ?? "—"}</td>
                       <td className="px-5 py-3 text-muted-foreground">{l.phone ?? "—"}</td>
                       <td className="px-5 py-3" onClick={(event) => event.stopPropagation()}>
-                        <StatusSelector lead={l} />
+                        {l.deleted_at ? (
+                          <StatusBadge status={l.lead_status} />
+                        ) : (
+                          <StatusSelector lead={l} />
+                        )}
                       </td>
                       <td className="px-5 py-3">
                         <div
                           className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition"
                           onClick={(event) => event.stopPropagation()}
                         >
-                          <button onClick={() => openEdit(l)} className="p-2 rounded-lg hover:bg-primary/10 hover:text-primary transition" aria-label={t("Edit")}><Pencil className="h-4 w-4" /></button>
-                          <button onClick={() => setDeleting(l)} className="p-2 rounded-lg hover:bg-destructive/10 hover:text-destructive transition" aria-label={t("Delete")}><Trash2 className="h-4 w-4" /></button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" aria-label={t("More actions")}>
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              {l.deleted_at ? (
+                                <DropdownMenuItem
+                                  disabled={restoreLead.isPending}
+                                  onSelect={() => restoreLead.mutate(l.id)}
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                  {t("Restore lead")}
+                                </DropdownMenuItem>
+                              ) : (
+                                <>
+                                  <DropdownMenuItem onSelect={() => openEdit(l)}>
+                                    <Pencil className="h-4 w-4" />
+                                    {t("Edit")}
+                                  </DropdownMenuItem>
+                                  {canDeleteLeads && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem
+                                        className="text-destructive focus:text-destructive"
+                                        onSelect={() => setDeleting(l)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                        {t("Delete")}
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
                       </td>
                     </motion.tr>
@@ -182,7 +326,9 @@ function LeadsPage() {
                 className="glass rounded-2xl p-4 cursor-pointer"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl gradient-brand text-white flex items-center justify-center font-semibold">{l.name.charAt(0).toUpperCase()}</div>
+                  <div className="h-10 w-10 rounded-xl gradient-brand text-white flex items-center justify-center font-semibold">
+                    {l.name.charAt(0).toUpperCase()}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <button
                       type="button"
@@ -199,10 +345,51 @@ function LeadsPage() {
                   </div>
                   <StatusBadge status={l.lead_status} />
                 </div>
-                <div className="mt-3 text-sm text-muted-foreground">{l.company_name ?? "—"} · {l.phone ?? "—"}</div>
-                <div className="mt-3 flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-                  <button onClick={() => openEdit(l)} className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-primary/10 hover:text-primary">{t("Edit")}</button>
-                  <button onClick={() => setDeleting(l)} className="text-xs px-3 py-1.5 rounded-lg border border-border hover:bg-destructive/10 hover:text-destructive">{t("Delete")}</button>
+                <div className="mt-3 text-sm text-muted-foreground">
+                  {l.company_name ?? "—"} · {l.phone ?? "—"}
+                </div>
+                <div
+                  className="mt-3 flex justify-end gap-2"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" aria-label={t("More actions")}>
+                        <MoreHorizontal className="h-4 w-4" />
+                        {t("Actions")}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      {l.deleted_at ? (
+                        <DropdownMenuItem
+                          disabled={restoreLead.isPending}
+                          onSelect={() => restoreLead.mutate(l.id)}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                          {t("Restore lead")}
+                        </DropdownMenuItem>
+                      ) : (
+                        <>
+                          <DropdownMenuItem onSelect={() => openEdit(l)}>
+                            <Pencil className="h-4 w-4" />
+                            {t("Edit")}
+                          </DropdownMenuItem>
+                          {canDeleteLeads && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-destructive focus:text-destructive"
+                                onSelect={() => setDeleting(l)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                                {t("Delete")}
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </motion.div>
             ))}
@@ -210,10 +397,24 @@ function LeadsPage() {
 
           {pages > 1 && (
             <div className="flex items-center justify-between text-sm">
-              <span className="text-muted-foreground">{t("Page {page} / {totalPages}", { page, totalPages: pages })}</span>
+              <span className="text-muted-foreground">
+                {t("Page {page} / {totalPages}", { page, totalPages: pages })}
+              </span>
               <div className="flex gap-2">
-                <button disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-muted/60">{t("Previous")}</button>
-                <button disabled={page === pages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-muted/60">{t("Next")}</button>
+                <button
+                  disabled={page === 1}
+                  onClick={() => setPage((p) => p - 1)}
+                  className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-muted/60"
+                >
+                  {t("Previous")}
+                </button>
+                <button
+                  disabled={page === pages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="px-3 py-1.5 rounded-lg border border-border disabled:opacity-40 hover:bg-muted/60"
+                >
+                  {t("Next")}
+                </button>
               </div>
             </div>
           )}
@@ -222,7 +423,11 @@ function LeadsPage() {
 
       <LeadModal open={modalOpen} onClose={close} lead={editing} />
       <DeleteModal lead={deleting} onClose={() => setDeleting(null)} />
-      <LeadDetailsDrawer lead={selectedLead} onClose={() => setSelectedLead(null)} locale={locale} />
+      <LeadDetailsDrawer
+        lead={selectedLead}
+        onClose={() => setSelectedLead(null)}
+        locale={locale}
+      />
     </motion.div>
   );
 }
@@ -230,17 +435,26 @@ function LeadsPage() {
 function StatusSelector({ lead }: { lead: Lead }) {
   const update = useUpdateLead();
   return (
-    <div className="relative inline-flex rounded-full focus-within:ring-2 focus-within:ring-ring">
-      <StatusBadge status={lead.lead_status} />
-      <select
-        aria-label={`${t("Status")}: ${t(lead.lead_status)}`}
-        value={lead.lead_status}
-        onChange={(e) => update.mutate({ id: lead.id, input: { lead_status: e.target.value as LeadStatus } })}
-        className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0"
+    <Select
+      value={lead.lead_status}
+      onValueChange={(value) =>
+        update.mutate({ id: lead.id, input: { lead_status: value as LeadStatus } })
+      }
+    >
+      <SelectTrigger
+        aria-label={`${t("Status")}: ${leadStatusLabel(lead.lead_status)}`}
+        className={`h-auto w-auto min-w-0 gap-1.5 rounded-full border-0 bg-transparent p-0 shadow-none ring-1 ring-inset focus:ring-2 focus:ring-ring [&>svg]:h-3 [&>svg]:w-3 [&>svg]:opacity-60 ${STATUS_BADGE_STYLES[lead.lead_status]}`}
       >
-        {LEAD_STATUSES.map((s) => <option key={s} value={s}>{t(s)}</option>)}
-      </select>
-    </div>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent align="start" className="min-w-[11rem]">
+        {LEAD_STATUSES.map((status) => (
+          <SelectItem key={status} value={status} className="py-2">
+            <StatusBadge status={status} />
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 }
 
@@ -266,9 +480,14 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       </div>
       <h3 className="mt-4 text-lg font-semibold">{t("No leads yet")}</h3>
       <p className="mt-1 text-sm text-muted-foreground max-w-sm mx-auto">
-        {t("Start building your pipeline. Add your first lead to track conversations and conversions.")}
+        {t(
+          "Start building your pipeline. Add your first lead to track conversations and conversions.",
+        )}
       </p>
-      <button onClick={onAdd} className="mt-5 rounded-xl gradient-brand text-primary-foreground text-sm font-medium px-5 py-2.5 inline-flex items-center gap-2 hover:opacity-95 transition">
+      <button
+        onClick={onAdd}
+        className="mt-5 rounded-xl gradient-brand text-primary-foreground text-sm font-medium px-5 py-2.5 inline-flex items-center gap-2 hover:opacity-95 transition"
+      >
         <Plus className="h-4 w-4" /> {t("Add your first lead")}
       </button>
     </div>

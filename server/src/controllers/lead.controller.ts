@@ -48,7 +48,8 @@ const clean = <T extends Record<string, unknown>>(o: T) => {
 
 function svc(req: Request) {
   if (!req.supabase || !req.userId) throw new ApiError(401, "Unauthorized");
-  return new LeadService(req.supabase, req.userId);
+  const workspaceId = typeof req.query.workspaceId === "string" ? req.query.workspaceId : null;
+  return new LeadService(req.supabase, req.userId, workspaceId);
 }
 
 const ok = (res: Response, data: unknown, status = 200) =>
@@ -56,12 +57,14 @@ const ok = (res: Response, data: unknown, status = 200) =>
 
 export const LeadController = {
   list: async (req: Request, res: Response) => {
-    const data = await svc(req).list();
+    const includeDeleted = req.query.includeDeleted === "true";
+    const data = await svc(req).list(includeDeleted);
     ok(res, data);
   },
   search: async (req: Request, res: Response) => {
     const q = String(req.query.q ?? "");
-    ok(res, await svc(req).search(q));
+    const includeDeleted = req.query.includeDeleted === "true";
+    ok(res, await svc(req).search(q, includeDeleted));
   },
   stats: async (req: Request, res: Response) => {
     ok(res, await svc(req).stats());
@@ -77,7 +80,11 @@ export const LeadController = {
     ok(res, data);
   },
   remove: async (req: Request, res: Response) => {
-    await svc(req).remove(req.params.id);
+    const result = await svc(req).remove(req.params.id);
+    ok(res, { ok: true, result });
+  },
+  restore: async (req: Request, res: Response) => {
+    await svc(req).restore(req.params.id);
     ok(res, { ok: true });
   },
 };

@@ -6,12 +6,25 @@ import type { OfferInput } from "./validation";
 
 type OfferClient = SupabaseClient<Database>;
 
-function offerDatabaseError(error: { code?: string; message?: string }): ApiError {
+function offerDatabaseError(
+  error: { code?: string; message?: string },
+  operation: "write" | "delete" = "write",
+): ApiError {
   if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
   if (error.code === "P0002" || error.code === "PGRST116") {
     return new ApiError(404, "Offer not found");
   }
   if (error.code === "23505") return new ApiError(409, "An offer with this name already exists");
+  if (error.code === "23503" && operation === "delete") {
+    return new ApiError(
+      409,
+      "Offer has lead, order, landing, form, or launch history and cannot be deleted; deactivate it instead",
+      "CONFLICT",
+    );
+  }
+  if (error.code === "23514" && operation === "delete") {
+    return new ApiError(409, "The offer operation is not allowed", "CONFLICT");
+  }
   if (["22023", "22P02", "23502", "23503", "23514"].includes(error.code ?? "")) {
     return new ApiError(400, "Invalid offer data", "VALIDATION_ERROR");
   }
@@ -56,5 +69,27 @@ export class OfferService {
     });
     if (error) throw offerDatabaseError(error);
     return { id: data };
+  }
+
+  async setActive(
+    workspaceId: string,
+    offerId: string,
+    isActive: boolean,
+  ): Promise<{ id: string }> {
+    const { data, error } = await this.client.rpc("set_workspace_offer_active", {
+      p_workspace_id: workspaceId,
+      p_offer_id: offerId,
+      p_is_active: isActive,
+    });
+    if (error) throw offerDatabaseError(error);
+    return { id: data };
+  }
+
+  async remove(workspaceId: string, offerId: string): Promise<void> {
+    const { error } = await this.client.rpc("delete_commercial_offer_if_unused", {
+      p_workspace_id: workspaceId,
+      p_offer_id: offerId,
+    });
+    if (error) throw offerDatabaseError(error, "delete");
   }
 }

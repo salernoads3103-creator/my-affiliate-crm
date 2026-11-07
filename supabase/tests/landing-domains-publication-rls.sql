@@ -1,5 +1,5 @@
 -- Run only on a disposable local Supabase database after all migrations through
--- 20261025130000_domain_bulk_add_conflict_target_fix.sql. This test rolls back.
+-- 20261107100000_safe_record_removal.sql. This test rolls back.
 BEGIN;
 
 DO $$
@@ -105,6 +105,15 @@ BEGIN
        'service_role', 'public.reserve_workspace_domain_host(uuid,uuid,uuid)', 'EXECUTE'
      ) THEN
     RAISE EXCEPTION 'Host reservation must remain server-only';
+  END IF;
+  IF has_function_privilege(
+       'anon', 'public.delete_workspace_domain_address(uuid,uuid)', 'EXECUTE'
+     ) OR has_function_privilege(
+       'authenticated', 'public.delete_workspace_domain_address(uuid,uuid)', 'EXECUTE'
+     ) OR NOT has_function_privilege(
+       'service_role', 'public.delete_workspace_domain_address(uuid,uuid)', 'EXECUTE'
+     ) THEN
+    RAISE EXCEPTION 'Domain address deletion must remain server-only';
   END IF;
   IF has_function_privilege(
        'anon', 'public.switch_landing_publication_version(uuid,uuid,uuid,uuid)', 'EXECUTE'
@@ -589,4 +598,67 @@ END;
 $$;
 
 RESET ROLE;
+
+DO $$
+DECLARE
+  v_workspace_a UUID := 'e2510000-0000-4000-8000-000000000101';
+  v_workspace_b UUID := 'e2510000-0000-4000-8000-000000000102';
+  v_host_a UUID := 'b2510000-0000-4000-8000-000000000201';
+  v_host_a_unpublished UUID := 'b2510000-0000-4000-8000-000000000202';
+  v_host_b UUID := 'b2510000-0000-4000-8000-000000000301';
+  v_host_root_a UUID := 'b2510000-0000-4000-8000-000000000211';
+  v_deleted_hostname TEXT;
+  v_rejected BOOLEAN;
+BEGIN
+  v_deleted_hostname := public.delete_workspace_domain_address(
+    v_workspace_a, v_host_a_unpublished
+  );
+  IF v_deleted_hostname <> 'draft.example-a.test' OR EXISTS (
+    SELECT 1 FROM public.workspace_domain_hosts
+    WHERE workspace_id = v_workspace_a AND id = v_host_a_unpublished
+  ) THEN
+    RAISE EXCEPTION 'A free unused domain address was not removed';
+  END IF;
+
+  v_rejected := FALSE;
+  BEGIN
+    PERFORM public.delete_workspace_domain_address(v_workspace_a, v_host_a);
+  EXCEPTION WHEN SQLSTATE '23514' THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected OR NOT EXISTS (
+    SELECT 1 FROM public.workspace_domain_hosts
+    WHERE workspace_id = v_workspace_a AND id = v_host_a
+  ) THEN
+    RAISE EXCEPTION 'A reserved or published address was not safely retained';
+  END IF;
+
+  v_rejected := FALSE;
+  BEGIN
+    PERFORM public.delete_workspace_domain_address(v_workspace_a, v_host_root_a);
+  EXCEPTION WHEN SQLSTATE '23503' THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected OR NOT EXISTS (
+    SELECT 1 FROM public.workspace_domain_hosts
+    WHERE workspace_id = v_workspace_a AND id = v_host_root_a
+  ) THEN
+    RAISE EXCEPTION 'A main domain with remaining subdomains was not retained';
+  END IF;
+
+  v_rejected := FALSE;
+  BEGIN
+    PERFORM public.delete_workspace_domain_address(v_workspace_a, v_host_b);
+  EXCEPTION WHEN SQLSTATE 'P0002' THEN
+    v_rejected := TRUE;
+  END;
+  IF NOT v_rejected OR NOT EXISTS (
+    SELECT 1 FROM public.workspace_domain_hosts
+    WHERE workspace_id = v_workspace_b AND id = v_host_b
+  ) THEN
+    RAISE EXCEPTION 'Cross-workspace domain deletion was not denied';
+  END IF;
+END;
+$$;
+
 ROLLBACK;

@@ -19,4 +19,8 @@ export const productService = {
       `${productsPath(workspaceId)}/${encodeURIComponent(productId)}`,
       input,
     ),
+  delete: (workspaceId: string, productId: string) =>
+    accessApi.delete<{ deleted: boolean }>(
+      `${productsPath(workspaceId)}/${encodeURIComponent(productId)}`,
+    ),
 };

@@ -37,9 +37,12 @@ export interface Lead {
   delivery_city_name: string | null;
   delivery_warehouse_ref: string | null;
   delivery_warehouse_name: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 }
+
+export type LeadRemovalResult = "deleted" | "hidden";
 
 export interface LeadInput {
   name: string;

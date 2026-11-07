@@ -3,14 +3,18 @@ import { ApiError } from "../utils/ApiError";
 import { LEAD_STATUSES, Lead, LeadInput, LeadStats, LeadStatus } from "../types/lead";
 import { normalizeUkrainianPhone } from "../utils/lead-phone";
 
-function throwLeadDatabaseError(
-  error: { code?: string; message: string },
-): never {
+function throwLeadDatabaseError(error: { code?: string; message: string }): never {
   if (error.code === "42501") {
     throw new ApiError(403, "Insufficient workspace permissions");
   }
   if (error.code === "PGRST116") throw new ApiError(404, "Lead not found");
   if (error.code === "23505") throw new ApiError(409, "A lead with these details already exists");
+  if (error.code === "23503") {
+    throw new ApiError(
+      409,
+      "This lead still has related history and cannot be permanently deleted.",
+    );
+  }
   if (["22023", "22P02", "23502", "23503", "23514"].includes(error.code ?? "")) {
     throw new ApiError(400, "Invalid lead data");
   }
@@ -21,26 +25,28 @@ export class LeadService {
   constructor(
     private supabase: SupabaseClient,
     private userId: string,
+    private workspaceId: string | null = null,
   ) {}
 
-  async list(): Promise<Lead[]> {
-    const { data, error } = await this.supabase
-      .from("leads")
-      .select("*")
-      .order("created_at", { ascending: false });
+  async list(includeDeleted = false): Promise<Lead[]> {
+    let query = this.supabase.from("leads").select("*").order("created_at", { ascending: false });
+    query = includeDeleted ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
+    const { data, error } = await query;
     if (error) throwLeadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
 
-  async search(q: string): Promise<Lead[]> {
+  async search(q: string, includeDeleted = false): Promise<Lead[]> {
     const term = q.trim();
-    if (!term) return this.list();
+    if (!term) return this.list(includeDeleted);
     const pattern = `%${term.replace(/[%_]/g, "")}%`;
-    const { data, error } = await this.supabase
+    let query = this.supabase
       .from("leads")
       .select("*")
       .or(`name.ilike.${pattern},email.ilike.${pattern},company_name.ilike.${pattern}`)
       .order("created_at", { ascending: false });
+    query = includeDeleted ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
+    const { data, error } = await query;
     if (error) throwLeadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
@@ -78,8 +84,25 @@ export class LeadService {
     return data as Lead;
   }
 
-  async remove(id: string): Promise<void> {
-    const { error } = await this.supabase.from("leads").delete().eq("id", id);
+  async remove(id: string): Promise<"deleted" | "hidden"> {
+    if (!this.workspaceId) throw new ApiError(400, "Workspace ID is required", "VALIDATION_ERROR");
+    const { data, error } = await this.supabase.rpc("remove_workspace_lead", {
+      p_workspace_id: this.workspaceId,
+      p_lead_id: id,
+    });
+    if (error) throwLeadDatabaseError(error);
+    if (data !== "deleted" && data !== "hidden") {
+      throw new ApiError(500, "The request could not be completed", "INTERNAL_ERROR");
+    }
+    return data;
+  }
+
+  async restore(id: string): Promise<void> {
+    if (!this.workspaceId) throw new ApiError(400, "Workspace ID is required", "VALIDATION_ERROR");
+    const { error } = await this.supabase.rpc("restore_workspace_lead", {
+      p_workspace_id: this.workspaceId,
+      p_lead_id: id,
+    });
     if (error) throwLeadDatabaseError(error);
   }
 

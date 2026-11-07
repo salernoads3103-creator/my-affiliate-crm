@@ -10,6 +10,13 @@ function productDatabaseError(error: { code?: string; message?: string }): ApiEr
   if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
   if (error.code === "P0002" || error.code === "PGRST116")
     return new ApiError(404, "Product not found");
+  if (error.code === "23503") {
+    return new ApiError(
+      409,
+      "Product is linked to an offer or order; deactivate it instead",
+      "CONFLICT",
+    );
+  }
   if (["22023", "22P02", "23502", "23503", "23514"].includes(error.code ?? "")) {
     return new ApiError(400, "Invalid product data", "VALIDATION_ERROR");
   }
@@ -105,5 +112,13 @@ export class ProductService {
     });
     if (error) throw productDatabaseError(error);
     return { id: data };
+  }
+
+  async remove(workspaceId: string, productId: string): Promise<void> {
+    const { error } = await this.client.rpc("delete_workspace_product_if_unused", {
+      p_workspace_id: workspaceId,
+      p_product_id: productId,
+    });
+    if (error) throw productDatabaseError(error);
   }
 }

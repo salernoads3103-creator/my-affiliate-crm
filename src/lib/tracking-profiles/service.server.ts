@@ -8,12 +8,23 @@ import {
   type ResolvedTrackingConfig,
 } from "./logic";
 import { TrackingProfileListSchema, TrackingProfileSchema } from "./validation";
+import { removeTrackingProfileRecord } from "./removal.server";
 import type { LandingTrackingSelection, TrackingProfile, TrackingProfileWriteInput } from "./types";
 
 function mapDatabaseError(error: { code?: string }): ApiError {
   if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
+  if (error.code === "PGRST116") {
+    return new ApiError(404, "Tracking profile not found", "NOT_FOUND");
+  }
   if (error.code === "23505") {
     return new ApiError(409, "A tracking profile with this name already exists", "CONFLICT");
+  }
+  if (error.code === "23503") {
+    return new ApiError(
+      409,
+      "This profile is linked to a landing or launch and cannot be deleted",
+      "CONFLICT",
+    );
   }
   if (["22023", "22P02", "23502", "23503", "23514"].includes(error.code ?? "")) {
     return new ApiError(400, "Invalid tracking profile", "VALIDATION_ERROR");
@@ -110,6 +121,10 @@ export class TrackingProfileService {
     return TrackingProfileSchema.parse(data);
   }
 
+  async remove(workspaceId: string, profileId: string): Promise<void> {
+    await removeTrackingProfileRecord(supabaseAdmin, workspaceId, profileId);
+  }
+
   async get(workspaceId: string, profileId: string): Promise<TrackingProfile> {
     const { data, error } = await supabaseAdmin
       .from("workspace_tracking_profiles")
@@ -171,7 +186,11 @@ export class TrackingProfileService {
       (trackingSnapshot.tiktokProfileId !== data.tiktok_tracking_profile_id ||
         trackingSnapshot.googleAdsProfileId !== data.google_ads_tracking_profile_id)
     ) {
-      throw new ApiError(409, "The saved tracking selection does not match this launch", "CONFLICT");
+      throw new ApiError(
+        409,
+        "The saved tracking selection does not match this launch",
+        "CONFLICT",
+      );
     }
 
     const [tiktokProfile, googleProfile] = await Promise.all([

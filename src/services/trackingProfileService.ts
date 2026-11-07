@@ -18,6 +18,8 @@ export const trackingProfileService = {
     accessApi.post<TrackingProfile>(basePath(workspaceId), input),
   update: (workspaceId: string, profileId: string, input: TrackingProfileWriteInput) =>
     accessApi.put<TrackingProfile>(`${basePath(workspaceId)}/${profileId}`, input),
+  delete: (workspaceId: string, profileId: string) =>
+    accessApi.delete<{ deleted: boolean }>(`${basePath(workspaceId)}/${profileId}`),
   landingConfiguration: (workspaceId: string, landingId: string) =>
     accessApi.get<LandingTrackingConfiguration>(
       `/api/workspaces/${workspaceId}/landings/${landingId}/tracking-config`,

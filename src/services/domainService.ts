@@ -49,6 +49,11 @@ export const domainService = {
     );
   },
 
+  deleteAddress: (workspaceId: string, hostId: string) =>
+    accessApi.delete<{ deleted: boolean; hostname: string }>(
+      `/api/workspaces/${encodeURIComponent(workspaceId)}/domain-hosts/${encodeURIComponent(hostId)}`,
+    ),
+
   checkR2Health(workspaceId: string): Promise<R2HealthResult> {
     return accessApi.get<R2HealthResult>(
       `/api/workspaces/${encodeURIComponent(workspaceId)}/r2-health`,

@@ -14,6 +14,7 @@ export type Database = {
           created_at: string;
           created_by_user_id: string | null;
           created_via: "manual" | "landing" | "api" | "import";
+          deleted_at: string | null;
           delivery_city_name: string | null;
           delivery_city_ref: string | null;
           delivery_provider: string | null;
@@ -51,6 +52,7 @@ export type Database = {
           created_at?: string;
           created_by_user_id?: string | null;
           created_via?: "manual" | "landing" | "api" | "import";
+          deleted_at?: string | null;
           delivery_city_name?: string | null;
           delivery_city_ref?: string | null;
           delivery_provider?: string | null;
@@ -88,6 +90,7 @@ export type Database = {
           created_at?: string;
           created_by_user_id?: string | null;
           created_via?: "manual" | "landing" | "api" | "import";
+          deleted_at?: string | null;
           delivery_city_name?: string | null;
           delivery_city_ref?: string | null;
           delivery_provider?: string | null;
@@ -960,6 +963,22 @@ export type Database = {
         };
         Returns: string;
       };
+      delete_workspace_product_if_unused: {
+        Args: { p_product_id: string; p_workspace_id: string };
+        Returns: string;
+      };
+      remove_workspace_lead: {
+        Args: { p_lead_id: string; p_workspace_id: string };
+        Returns: string;
+      };
+      restore_workspace_lead: {
+        Args: { p_lead_id: string; p_workspace_id: string };
+        Returns: string;
+      };
+      can_read_workspace_order: {
+        Args: { p_lead_id: string; p_workspace_id: string };
+        Returns: boolean;
+      };
       create_workspace_order: {
         Args: {
           p_buyer_email: string | null;
@@ -1161,6 +1180,14 @@ export type Database = {
           p_product_id: string;
           p_workspace_id: string;
         };
+        Returns: string;
+      };
+      delete_commercial_offer_if_unused: {
+        Args: { p_offer_id: string; p_workspace_id: string };
+        Returns: string;
+      };
+      set_workspace_offer_active: {
+        Args: { p_is_active: boolean; p_offer_id: string; p_workspace_id: string };
         Returns: string;
       };
       begin_workspace_offer_launch: {
@@ -1376,6 +1403,10 @@ export type Database = {
           result: "created" | "exists" | "conflict";
           root_host_id: string | null;
         }[];
+      };
+      delete_workspace_domain_address: {
+        Args: { p_domain_host_id: string; p_workspace_id: string };
+        Returns: string;
       };
       add_workspace_domain_hosts: {
         Args: { p_domain_id: string; p_hostnames: string[]; p_workspace_id: string };

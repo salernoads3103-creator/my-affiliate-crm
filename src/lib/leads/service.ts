@@ -5,7 +5,7 @@
  * the TanStack server route or the standalone Express backend in /server.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Lead, LeadInput, LeadStats, LeadStatus } from "./types";
+import type { Lead, LeadInput, LeadRemovalResult, LeadStats, LeadStatus } from "./types";
 import { LEAD_STATUSES } from "./types";
 import { ApiError } from "./api-error";
 import { normalizeUkrainianPhone } from "./phone";
@@ -14,6 +14,13 @@ function leadDatabaseError(error: { code?: string; message: string }): ApiError 
   if (error.code === "42501") return new ApiError(403, "Insufficient workspace permissions");
   if (error.code === "PGRST116") return new ApiError(404, "Lead not found");
   if (error.code === "23505") return new ApiError(409, "A lead with these details already exists");
+  if (error.code === "23503") {
+    return new ApiError(
+      409,
+      "This lead still has related history and cannot be permanently deleted.",
+      "CONFLICT",
+    );
+  }
   if (["22023", "22P02", "23502", "23503", "23514"].includes(error.code ?? "")) {
     return new ApiError(400, "Invalid lead data");
   }
@@ -27,20 +34,18 @@ export class LeadService {
     private workspaceId: string | null = null,
   ) {}
 
-  async list(): Promise<Lead[]> {
-    let query = this.supabase
-      .from("leads")
-      .select("*")
-      .order("created_at", { ascending: false });
+  async list(includeDeleted = false): Promise<Lead[]> {
+    let query = this.supabase.from("leads").select("*").order("created_at", { ascending: false });
     if (this.workspaceId) query = query.eq("workspace_id", this.workspaceId);
+    query = includeDeleted ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
     const { data, error } = await query;
     if (error) throw leadDatabaseError(error);
     return (data ?? []) as Lead[];
   }
 
-  async search(q: string): Promise<Lead[]> {
+  async search(q: string, includeDeleted = false): Promise<Lead[]> {
     const term = q.trim();
-    if (!term) return this.list();
+    if (!term) return this.list(includeDeleted);
     const pattern = `%${term.replace(/[%_]/g, "")}%`;
     let query = this.supabase
       .from("leads")
@@ -48,6 +53,7 @@ export class LeadService {
       .or(`name.ilike.${pattern},email.ilike.${pattern},company_name.ilike.${pattern}`)
       .order("created_at", { ascending: false });
     if (this.workspaceId) query = query.eq("workspace_id", this.workspaceId);
+    query = includeDeleted ? query.not("deleted_at", "is", null) : query.is("deleted_at", null);
     const { data, error } = await query;
     if (error) throw leadDatabaseError(error);
     return (data ?? []) as Lead[];
@@ -76,20 +82,32 @@ export class LeadService {
     if (Object.prototype.hasOwnProperty.call(input, "phone")) {
       update.phone_normalized = normalizeUkrainianPhone(input.phone);
     }
-    let query = this.supabase
-      .from("leads")
-      .update(update)
-      .eq("id", id);
+    let query = this.supabase.from("leads").update(update).eq("id", id);
     if (this.workspaceId) query = query.eq("workspace_id", this.workspaceId);
     const { data, error } = await query.select("*").single();
     if (error) throw leadDatabaseError(error);
     return data as Lead;
   }
 
-  async remove(id: string): Promise<void> {
-    let query = this.supabase.from("leads").delete().eq("id", id);
-    if (this.workspaceId) query = query.eq("workspace_id", this.workspaceId);
-    const { error } = await query;
+  async remove(id: string): Promise<LeadRemovalResult> {
+    if (!this.workspaceId) throw new ApiError(400, "Workspace ID is required", "VALIDATION_ERROR");
+    const { data, error } = await this.supabase.rpc("remove_workspace_lead", {
+      p_workspace_id: this.workspaceId,
+      p_lead_id: id,
+    });
+    if (error) throw leadDatabaseError(error);
+    if (data !== "deleted" && data !== "hidden") {
+      throw new ApiError(500, "The request could not be completed", "INTERNAL_ERROR");
+    }
+    return data;
+  }
+
+  async restore(id: string): Promise<void> {
+    if (!this.workspaceId) throw new ApiError(400, "Workspace ID is required", "VALIDATION_ERROR");
+    const { error } = await this.supabase.rpc("restore_workspace_lead", {
+      p_workspace_id: this.workspaceId,
+      p_lead_id: id,
+    });
     if (error) throw leadDatabaseError(error);
   }
 

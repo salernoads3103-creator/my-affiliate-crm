@@ -26,4 +26,10 @@ export class ProductController {
       !!body && typeof body === "object" && Object.prototype.hasOwnProperty.call(body, "costPrice");
     return this.service.update(productId, input, updateCost);
   };
+
+  remove = async (workspaceId: string, productId: string) => {
+    if (!productId) throw new ApiError(400, "Product id is required", "VALIDATION_ERROR");
+    await this.service.remove(workspaceId, productId);
+    return { deleted: true };
+  };
 }

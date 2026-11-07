@@ -1,25 +1,45 @@
 import { describe, expect, test } from "bun:test";
 
-import { isLocale, leadCountLabel, localizeError, t, translateLabel } from "../src/lib/i18n";
+import {
+  isLocale,
+  leadCountLabel,
+  leadStatusDashboardLabel,
+  leadStatusLabel,
+  localizeError,
+  t,
+  translateLabel,
+} from "../src/lib/i18n";
 import { LEAD_STATUSES } from "../src/lib/leads/types";
 import { isThemePreference, normalizeThemePreference, resolveTheme } from "../src/lib/theme";
 
 describe("bilingual UI catalog", () => {
   test("localizes lead status labels without changing their API values", () => {
     expect(LEAD_STATUSES).toEqual(["New", "Contacted", "Qualified", "Converted", "Lost"]);
-    expect(LEAD_STATUSES.map((status) => t(status, {}, "uk"))).toEqual([
+    expect(LEAD_STATUSES.map((status) => leadStatusLabel(status, "uk"))).toEqual([
       "Новий",
-      "У контакті",
-      "Кваліфікований",
-      "Клієнт",
-      "Втрачений",
+      "В роботі",
+      "Підтверджено",
+      "Конверсія",
+      "Відмова",
     ]);
-    expect(LEAD_STATUSES.map((status) => t(status, {}, "en"))).toEqual(LEAD_STATUSES);
+    expect(LEAD_STATUSES.map((status) => leadStatusLabel(status, "en"))).toEqual(LEAD_STATUSES);
+    expect(LEAD_STATUSES.map((status) => leadStatusDashboardLabel(status, "uk"))).toEqual([
+      "Нові",
+      "В роботі",
+      "Підтверджені",
+      "Конверсії",
+      "Відмови",
+    ]);
+    expect(LEAD_STATUSES.map((status) => leadStatusDashboardLabel(status, "en"))).toEqual(
+      LEAD_STATUSES,
+    );
   });
 
   test("localizes dynamic role and message labels", () => {
     expect(translateLabel("super_admin")).toBe("Суперадміністратор");
-    expect(t("Create an account to join {workspace}.", { workspace: "Команда" })).toContain("Команда");
+    expect(t("Create an account to join {workspace}.", { workspace: "Команда" })).toContain(
+      "Команда",
+    );
     expect(leadCountLabel(22)).toBe("22 ліди");
     expect(leadCountLabel(1, "en")).toBe("1 lead");
     expect(leadCountLabel(2, "en")).toBe("2 leads");

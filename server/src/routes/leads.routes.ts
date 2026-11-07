@@ -13,3 +13,4 @@ leadsRouter.get("/stats", asyncHandler(LeadController.stats));
 leadsRouter.post("/", asyncHandler(LeadController.create));
 leadsRouter.put("/:id", asyncHandler(LeadController.update));
 leadsRouter.delete("/:id", asyncHandler(LeadController.remove));
+leadsRouter.post("/:id/restore", asyncHandler(LeadController.restore));

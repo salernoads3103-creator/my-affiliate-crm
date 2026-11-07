@@ -230,12 +230,15 @@ export function OfferModal({
 
   const products = productsQuery.data?.products ?? [];
   const selectedProduct = products.find((product) => product.id === values.productId);
+  const selectableProducts = products.filter(
+    (product) => product.is_active || product.id === values.productId,
+  );
   const searchTerm = productSearch.trim().toLocaleLowerCase();
   const filteredProducts = searchTerm
-    ? products.filter((product) =>
+    ? selectableProducts.filter((product) =>
         `${product.name} ${product.sku ?? ""}`.toLocaleLowerCase().includes(searchTerm),
       )
-    : products;
+    : selectableProducts;
   const pickerProducts =
     selectedProduct && !filteredProducts.some((product) => product.id === selectedProduct.id)
       ? [selectedProduct, ...filteredProducts]
@@ -274,9 +277,10 @@ export function OfferModal({
               </SelectTrigger>
               <SelectContent>
                 {pickerProducts.map((product) => (
-                  <SelectItem key={product.id} value={product.id}>
+                  <SelectItem key={product.id} value={product.id} disabled={!product.is_active}>
                     {product.name}
                     {product.sku ? ` · ${product.sku}` : ""}
+                    {!product.is_active ? ` · ${t("Inactive")}` : ""}
                   </SelectItem>
                 ))}
               </SelectContent>

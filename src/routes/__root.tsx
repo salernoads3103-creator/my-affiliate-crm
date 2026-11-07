@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
+import { MotionConfig } from "framer-motion";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -22,8 +23,8 @@ import { themeBootstrapScript } from "@/lib/theme";
 function NotFoundComponent() {
   useLocale();
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="glass rounded-3xl p-10 max-w-md text-center">
+    <div className="mountain-shell flex min-h-screen items-center justify-center px-4">
+      <div className="glass max-w-md rounded-2xl p-8 text-center">
         <h1 className="text-7xl font-bold text-gradient-brand">404</h1>
         <h2 className="mt-4 text-xl font-semibold">{t("Page not found")}</h2>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -47,12 +48,17 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
     reportLovableError(error, { boundary: "tanstack_root_error_component" });
   }, [error]);
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <div className="glass rounded-3xl p-10 max-w-md text-center">
+    <div className="mountain-shell flex min-h-screen items-center justify-center px-4">
+      <div className="glass max-w-md rounded-2xl p-8 text-center">
         <h1 className="text-xl font-semibold">{t("Something went wrong")}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">{localizeError(error, t("We couldn't load the data. Please try again."))}</p>
+        <p className="mt-2 text-sm text-muted-foreground">
+          {localizeError(error, t("We couldn't load the data. Please try again."))}
+        </p>
         <button
-          onClick={() => { router.invalidate(); reset(); }}
+          onClick={() => {
+            router.invalidate();
+            reset();
+          }}
           className="mt-6 rounded-xl gradient-brand px-5 py-2.5 text-sm font-medium text-primary-foreground"
         >
           {t("Try again")}
@@ -69,7 +75,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "CRMONIA — CRM для e-commerce" },
       { name: "description", content: "CRM для керування лідами та продажами e-commerce команд." },
-      { name: "theme-color", content: "#F8F5F0" },
+      { name: "theme-color", content: "#F6F7F9" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -93,10 +99,15 @@ function RootShell({ children }: { children: ReactNode }) {
   return (
     <html lang="uk" suppressHydrationWarning>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: `${localeBootstrapScript}\n${themeBootstrapScript}` }} />
+        <script
+          dangerouslySetInnerHTML={{ __html: `${localeBootstrapScript}\n${themeBootstrapScript}` }}
+        />
         <HeadContent />
       </head>
-      <body>{children}<Scripts /></body>
+      <body>
+        {children}
+        <Scripts />
+      </body>
     </html>
   );
 }
@@ -122,8 +133,10 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <LocaleProvider>
         <ThemeProvider>
-          <Outlet />
-          <ThemeToaster />
+          <MotionConfig reducedMotion="user">
+            <Outlet />
+            <ThemeToaster />
+          </MotionConfig>
         </ThemeProvider>
       </LocaleProvider>
     </QueryClientProvider>
