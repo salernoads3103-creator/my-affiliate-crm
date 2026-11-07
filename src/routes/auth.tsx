@@ -1,7 +1,6 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { ArrowRight, Languages, Loader2 } from "lucide-react";
 
@@ -214,38 +213,13 @@ function AuthPage() {
   };
 
   return (
-    <div className="mountain-shell grid min-h-screen lg:grid-cols-2">
-      {/* Left: brand panel */}
-      <div className="auth-brand-panel relative hidden flex-col justify-between overflow-hidden p-10 lg:flex xl:p-14">
-        <div className="relative z-10 text-white">
-          <CrmoniaWordmark inverse />
-        </div>
-        <motion.div
-          initial={{ opacity: 0, y: 16 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.15, duration: 0.6 }}
-          className="relative z-10 text-white"
-        >
-          <h1 className="text-4xl font-bold leading-tight tracking-tight">
-            {t("Turn conversations into conversions.")}
-          </h1>
-          <p className="mt-4 text-white/80 max-w-md">
-            {t(
-              "A premium lead management workspace built for modern teams. Track every prospect, measure every touchpoint, ship with confidence.",
-            )}
-          </p>
-        </motion.div>
-        <div className="relative z-10 text-xs text-white/60">© CRMONIA</div>
+    <div className="mountain-shell auth-page-shell relative min-h-screen">
+      <div className="absolute left-6 top-6 z-10 sm:left-10 sm:top-10">
+        <CrmoniaWordmark size="sidebar" showMark />
       </div>
 
-      {/* Right: form */}
-      <div className="flex items-center justify-center p-6 sm:p-12">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.4 }}
-          className="glass w-full max-w-md rounded-2xl p-6 sm:p-9"
-        >
+      <main className="flex min-h-screen items-center justify-center p-5 pt-24 sm:p-12 sm:pt-28 lg:justify-end lg:pr-[10vw]">
+        <div className="glass w-full max-w-sm rounded-2xl p-6 sm:p-8">
           <div className="mb-5 flex justify-end">
             <Select value={locale} onValueChange={(value) => setLocale(value as Locale)}>
               <SelectTrigger
@@ -260,9 +234,6 @@ function AuthPage() {
                 <SelectItem value="en">{t("English")}</SelectItem>
               </SelectContent>
             </Select>
-          </div>
-          <div className="mb-6 lg:hidden">
-            <CrmoniaWordmark />
           </div>
           <h2 className="text-2xl font-bold tracking-tight">
             {mode === "request-reset"
@@ -457,9 +428,8 @@ function AuthPage() {
               </>
             )}
           </div>
-          <Link to="/" className="hidden" />
-        </motion.div>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }

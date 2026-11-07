@@ -257,15 +257,6 @@
   background-attachment: fixed;
 }
 
-.auth-brand-panel {
-  background-color: #090a0d;
-  background-image:
-    linear-gradient(180deg, rgb(9 10 13 / 32%) 0%, rgb(9 10 13 / 72%) 100%), var(--mountain-image);
-  background-size: cover;
-  background-position: 70% center;
-  background-repeat: no-repeat;
-}
-
 @utility glass {
   background: linear-gradient(180deg, var(--surface-top), var(--surface-bottom));
   backdrop-filter: blur(var(--surface-blur)) saturate(108%);
@@ -472,6 +463,18 @@
   .dashboard-heading {
     min-height: 0;
     align-items: flex-start;
+  }
+}
+
+.mountain-shell.auth-page-shell {
+  background-size: cover, cover, cover;
+  background-position: center, center, center;
+  background-repeat: no-repeat;
+}
+
+@media (max-width: 767px) {
+  .mountain-shell.auth-page-shell {
+    background-attachment: scroll;
   }
 }
 

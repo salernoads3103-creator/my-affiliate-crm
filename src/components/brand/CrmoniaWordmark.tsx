@@ -3,14 +3,12 @@ import { cn } from "@/lib/utils";
 type CrmoniaWordmarkProps = {
   className?: string;
   size?: "compact" | "default" | "sidebar";
-  inverse?: boolean;
   showMark?: boolean;
 };
 
 export function CrmoniaWordmark({
   className,
   size = "default",
-  inverse = false,
   showMark = false,
 }: CrmoniaWordmarkProps) {
   return (
@@ -38,16 +36,7 @@ export function CrmoniaWordmark({
           <path d="M17.6 2.5h8.9l-4.1 6.9h-9l4.2-6.9Z" fill="white" fillOpacity=".48" />
         </svg>
       )}
-      <span className={inverse ? "text-white" : "text-foreground"}>CRM</span>
-      <span
-        aria-hidden="true"
-        className={cn(
-          "px-[0.2em] font-light tracking-[0.04em]",
-          inverse ? "text-white/55" : "text-muted-foreground/70",
-        )}
-      >
-        /
-      </span>
+      <span className="text-foreground">CRM</span>
       <span className="text-brand-logo">ONIA</span>
     </span>
   );
